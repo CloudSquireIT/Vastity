@@ -126,7 +126,9 @@ rows.forEach((r, i) => {
   u8[i] = conIdx.get(r[6]) ?? 0;
   u8[N + i] = r[7];
 });
-fs.writeFileSync(path.join(out, 'stars.bin'), buf);
+// estensione .json: i CDN (e le anteprime) la servono e la comprimono con gzip; il contenuto è binario
+fs.writeFileSync(path.join(out, 'stars.bin.json'), buf);
+if (fs.existsSync(path.join(out, 'stars.bin'))) fs.unlinkSync(path.join(out, 'stars.bin'));
 fs.writeFileSync(path.join(out, 'stars-meta.json'), JSON.stringify({ count: N, cons: conList, names }));
 if (fs.existsSync(path.join(out, 'stars.json'))) fs.unlinkSync(path.join(out, 'stars.json'));
 console.log('Stelle:', rows.length, 'con nome:', names.length);
