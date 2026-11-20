@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { DeepObject, deepObjects } from '../data/deep';
 import { radecToVec } from '../data/catalog';
+import { blankTexture, planetTexture } from '../core/textures';
 
 const LY_PC = 1 / 3.26156;
 
@@ -38,11 +39,33 @@ uniform float uSeed;
 uniform float uK;
 uniform float uSpin;
 uniform vec3 uTint;
+uniform sampler2D uMap;
+uniform float uUseMap;  // 1 = render fotografico (texture reale di una galassia vista di fronte)
+uniform float uMirror;
+uniform float uRot;
+uniform float uBright;
 varying vec2 vP;
 ${NOISE}
 void main() {
   float r = length(vP);
   if (r > 1.25) discard;
+  if (uUseMap > 0.5) {
+    // galassia vista da fuori come nelle foto: texture reale ruotata nel piano del disco
+    float a = uRot + uSpin;
+    vec2 q = mat2(cos(a), sin(a), -sin(a), cos(a)) * vec2(vP.x * uMirror, vP.y);
+    vec2 uv = 0.5 + q * (0.5 / 1.12);
+    float lent = (uShape > 2.5 && uShape < 3.5) ? 1.0 : 0.0;
+    vec3 c = texture2D(uMap, uv, lent * 3.0).rgb;
+    // lenticolari: disco liscio e caldo, senza bracci evidenti
+    float l = dot(c, vec3(0.33, 0.5, 0.17));
+    c = mix(c, vec3(l) * vec3(1.05, 0.95, 0.82), lent * 0.75);
+    c *= mix(vec3(1.0), uTint, 0.5);
+    // esposizione morbida: colori della foto senza bruciare il nucleo
+    c = 1.0 - exp(-c * 1.35);
+    float edge = 1.0 - smoothstep(1.0, 1.2, r);
+    gl_FragColor = vec4(c * edge * uK * uBright, 1.0);
+    return;
+  }
   float th = atan(vP.y, vP.x) + uSpin;
   vec2 q = vec2(cos(th), sin(th)) * r;
   vec3 warm = vec3(1.0, 0.82, 0.58);
@@ -235,6 +258,16 @@ interface GalaxyMesh { obj: DeepObject; center: THREE.Vector3; R: number; disk: 
 interface ExoticMesh { obj: DeepObject; center: THREE.Vector3; R: number; mesh: THREE.Mesh }
 
 const SHAPES: Record<string, number> = { spiral: 0, barred: 1, elliptical: 2, lenticular: 3, irregular: 4, ring: 5 };
+/** Foto reali di galassie viste di fronte (senza stelle in primo piano), usate come render da lontano. */
+function galaxyMap(id: string, shape: string, seed: number): THREE.Texture | null {
+  const own: Record<string, string> = { milkyway: 'gal_mw', m31g: 'gal_mw', m101g: 'gal_m101', m83g: 'gal_m83', ngc1300: 'gal_ngc1300', m33g: 'gal_m101', m51g: 'gal_m83', m81g: 'gal_mw' };
+  if (own[id]) return planetTexture(own[id], false);
+  if (shape === 'barred') return planetTexture(seed % 2 ? 'gal_ngc1300' : 'gal_mw', false);
+  if (shape === 'spiral') return planetTexture(['gal_m101', 'gal_m83', 'gal_mw', 'gal_ngc1300'][seed % 4], false);
+  if (shape === 'lenticular') return planetTexture('gal_m83', false);
+  return null;
+}
+
 /** Galassie che hanno anche una versione a particelle (si dissolvono quando ci si entra). */
 export const PARTICLE_GALAXIES = ['milkyway', 'm31g', 'm33g', 'lmc', 'smc'];
 
@@ -280,12 +313,15 @@ export class DeepRenderer {
         const { a, b } = diskBasis(o, o.id === 'milkyway' ? mwPlane : undefined);
         const g = o.galaxy;
         const tint = new THREE.Color(...(g.tint ?? [1, 1, 1]));
+        const map = galaxyMap(o.id, g.shape, seed);
         const disk = new THREE.Mesh(plane, new THREE.ShaderMaterial({
           vertexShader: galVert, fragmentShader: galFrag,
           uniforms: {
             uObs: this.obs, uCenter: { value: center }, uA: { value: a }, uB: { value: b }, uR: { value: R },
             uShape: { value: SHAPES[g.shape] }, uArms: { value: g.arms ?? 2 }, uSeed: { value: seed++ * 3.7 },
             uK: { value: 0 }, uSpin: { value: 0 }, uTint: { value: tint },
+            uMap: { value: map ?? blankTexture }, uUseMap: { value: map ? 1 : 0 }, uMirror: { value: seed % 2 ? -1 : 1 },
+            uRot: { value: (seed * 2.399) % 6.283 }, uBright: { value: 1 },
           },
           blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true, side: THREE.DoubleSide,
         }));
@@ -352,10 +388,10 @@ export class DeepRenderer {
     for (const g of this.galaxies) {
       const d = this.tmp.copy(g.center).sub(obsPc).length();
       // da lontano il render "fotografico", da vicino le particelle
-      const far = g.hasParticles ? smooth(1.15 * g.R, 3.2 * g.R, d) : smooth(0.3 * g.R, 0.9 * g.R, d);
+      const far = g.hasParticles ? smooth(0.45 * g.R, 1.25 * g.R, d) : smooth(0.3 * g.R, 0.9 * g.R, d);
       const px = (g.R / d) * pixPerRad;
       const visible = smooth(1.5, 6, px);
-      const k = far * visible * dim;
+      const k = far * visible * dim * (g.obj.bright ?? 1);
       // quanto è "di taglio": il disco piatto lascia il posto allo strato con spessore e polveri
       const cosv = Math.abs(this.tmp.normalize().dot(g.normal));
       const edgeK = g.edge ? smooth(0.5, 0.12, cosv) : 0;
@@ -365,9 +401,9 @@ export class DeepRenderer {
       }
       (g.disk.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.95 * (1 - 0.75 * edgeK);
       (g.disk.material as THREE.ShaderMaterial).uniforms.uSpin.value = g.obj.id === 'milkyway' ? -spin : 0;
-      (g.core.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.8 * (1 - 0.45 * edgeK);
+      (g.core.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.8 * (1 - 0.45 * edgeK) * ((g.disk.material as THREE.ShaderMaterial).uniforms.uUseMap.value ? 0.35 : 1);
       g.disk.visible = g.core.visible = k > 0.005;
-      if (g.hasParticles) this.particleFactor[g.obj.id] = 1 - 0.85 * far;
+      if (g.hasParticles) this.particleFactor[g.obj.id] = 1 - 0.97 * far;
     }
     for (const c of this.clusters) {
       const d = this.tmp.copy(c.center).sub(obsPc).length();

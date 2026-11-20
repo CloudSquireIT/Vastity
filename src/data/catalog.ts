@@ -155,10 +155,14 @@ function mergeWikiCatalog(wiki: { messier: Record<string, { ly: number }>; caldw
     let hsh = 0;
     for (const ch of m.id) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
     const rnd = (k: number) => ((Math.sin(hsh * 12.9898 + k * 78.233) * 43758.5453) % 1 + 1) % 1;
-    const radiusLy = shape === 'elliptical' ? 45000 : shape === 'irregular' ? 12000 : shape === 'lenticular' ? 30000 : 40000;
+    // dimensione e luminosità dalla magnitudine assoluta: le nane (M32, M110…) restano piccole e tenui
+    const absMag = Math.min(m.mag, 14) - 5 * Math.log10((ly / PC_IN_LY) / 10);
+    const lum = Math.pow(10, -0.4 * (absMag + 21));
+    const radiusLy = Math.max(2500, Math.min(110000, 42000 * Math.pow(lum, 0.5) * (shape === 'elliptical' ? 0.7 : shape === 'irregular' ? 0.8 : 1)));
+    const bright = Math.max(0.3, Math.min(1.15, Math.pow(lum, 0.25)));
     deep.push({
       id: m.id.toLowerCase() + 'g', name: messierName(m) === m.id ? `${m.id}${m.ngc ? ' · ' + m.ngc : ''}` : messierName(m),
-      type: 'galaxy', ra: m.ra, dec: m.dec, ly, radiusLy, messier: m.id, desc: GALAXY_DESC[shape],
+      type: 'galaxy', ra: m.ra, dec: m.dec, ly, radiusLy, bright, messier: m.id, desc: GALAXY_DESC[shape],
       galaxy: { shape, incl: shape === 'elliptical' ? 40 : EDGE_ON.has(m.id) ? 87 : 15 + rnd(1) * 75, pa: rnd(2) * 180, arms: shape === 'spiral' ? 2 + Math.floor(rnd(3) * 2.2) : shape === 'lenticular' ? 2 : 1 },
     });
   }

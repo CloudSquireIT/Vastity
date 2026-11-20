@@ -21,6 +21,8 @@ export interface DeepObject {
   desc: string;
   mass?: string;
   galaxy?: GalaxyLook;
+  /** Luminosità relativa del render (galassie nane più deboli). */
+  bright?: number;
   /** Se l'oggetto coincide con un oggetto di Messier già presente. */
   messier?: string;
 }

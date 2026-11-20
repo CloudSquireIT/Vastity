@@ -798,7 +798,7 @@ export class ShipView {
         put(v3.sub(GALACTIC_CENTER_PC as V3, obs), far ? tx('Via Lattea', 'Milky Way', 'Voie lactée') : tx('Centro galattico', 'Galactic centre', 'Centre galactique'), far ? 'pill' : 'dso', far, { kind: 'deep', id: 'milkyway' });
       }
       for (const m of messier) {
-        if (!['M31', 'M33', 'M42', 'M45', 'M13', 'M44', 'M1', 'M8', 'M16'].includes(m.id)) continue;
+        if (!['M31', 'M33', 'M42', 'M45', 'M13', 'M44', 'M1', 'M8', 'M16'].includes(m.id) || deepForMessier(m.id)) continue;
         const ref: ObjRef = { kind: 'messier', id: m.id };
         put(v3.sub(refPosPc(ref)!, obs), refName(ref), 'dso', false, ref);
       }
