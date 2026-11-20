@@ -23,10 +23,30 @@ uniform vec3 uCenter;
 uniform vec3 uA;
 uniform vec3 uB;
 uniform float uR;
+uniform float uMinCos;
 varying vec2 vP;
 void main() {
   vP = (uv - 0.5) * 2.0 * 1.25;
-  vec3 p = uCenter + (uA * vP.x + uB * vP.y) * uR;
+  vec3 off = (uA * vP.x + uB * vP.y) * uR;
+  // profondità: da angolazioni radenti il disco si inclina un po' verso chi guarda, così non diventa
+  // mai una lama piatta (rapporto apparente minimo uMinCos) e resta leggibile come un render 3D
+  if (uMinCos > 0.0) {
+    vec3 n = normalize(cross(uA, uB));
+    vec3 f = normalize(uCenter - uObs);
+    float c = dot(n, f);
+    if (abs(c) < uMinCos) {
+      vec3 m = cross(n, f);
+      float lm = length(m);
+      if (lm > 1e-5) {
+        m /= lm;
+        float d = acos(clamp(abs(c), 0.0, 1.0)) - acos(uMinCos);
+        float sgn = sign(dot(cross(m, n), f) * (c == 0.0 ? 1.0 : c));
+        float a = d * sgn;
+        off = off * cos(a) + cross(m, off) * sin(a) + m * dot(m, off) * (1.0 - cos(a));
+      }
+    }
+  }
+  vec3 p = uCenter + off;
   vec3 rel = p - uObs;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(normalize(rel) * 1000.0, 1.0);
 }
@@ -339,6 +359,8 @@ export class DeepRenderer {
             uK: { value: 0 }, uSpin: { value: 0 }, uTint: { value: tint },
             uMap: { value: map ?? blankTexture }, uUseMap: { value: map ? 1 : 0 }, uMirror: { value: ownPhoto ? 1 : seed % 2 ? -1 : 1 },
             uRot: { value: ownPhoto ? 0 : (seed * 2.399) % 6.283 }, uBright: { value: 1 }, uPhoto: { value: photo?.kind === 'face' ? 1 : 0 },
+            // le galassie viste di taglio "vere" (profilo fotografato o catalogate di taglio) restano tali
+            uMinCos: { value: o.id === 'milkyway' || photo?.kind === 'edge' || (!photo && g.incl > 78) ? 0 : 0.5 },
           },
           blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true, side: THREE.DoubleSide,
         }));
@@ -418,7 +440,8 @@ export class DeepRenderer {
       const k = far * visible * dim * (g.obj.bright ?? 1);
       // quanto è "di taglio": il disco piatto lascia il posto allo strato con spessore e polveri
       const cosv = Math.abs(this.tmp.normalize().dot(g.normal));
-      const edgeK = g.edge ? smooth((g.edge.material as THREE.ShaderMaterial).uniforms.uUseMap.value > 0.5 ? 0.6 : 0.5, 0.12, cosv) : 0;
+      const tilted = (g.disk.material as THREE.ShaderMaterial).uniforms.uMinCos.value > 0;
+      const edgeK = g.edge && !tilted ? smooth((g.edge.material as THREE.ShaderMaterial).uniforms.uUseMap.value > 0.5 ? 0.6 : 0.5, 0.12, cosv) : 0;
       if (g.edge) {
         (g.edge.material as THREE.ShaderMaterial).uniforms.uK.value = k * edgeK * ((g.edge.material as THREE.ShaderMaterial).uniforms.uUseMap.value > 0.5 ? 1.15 : 0.9);
         g.edge.visible = k * edgeK > 0.005;

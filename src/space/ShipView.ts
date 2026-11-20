@@ -491,7 +491,6 @@ export class ShipView {
           if (t.look) this.settleLook = t.look;
           this.arrived = refName(this.target);
           bus.emit('arrived', this.target);
-          bus.emit('flash');
         } else {
           const aligned = smoothstep(1.1, 0.3, angle);
           this.targetSpeed = Math.max(1, remaining / 0.55) * aligned;
@@ -630,9 +629,9 @@ export class ShipView {
       u.uCloudOffset.value = this.cloudOffset;
       if (b.id === 'sun') {
         p.sprite.mesh.visible = false;
-        const glowPx = Math.max(disc * 5, 26 * dpr);
+        const glowPx = Math.max(disc * 1.7 + 20 * dpr, 26 * dpr);
         const fade = Math.max(0, Math.min(1, 1 - Math.log10(sunDist / AU_IN_KM / 50) / 3));
-        if (fade > 0.01) this.setSprite(this.sunGlow, rel, 0, glowPx, 0.9 * fade, this.color.setRGB(1, 0.9, 0.75), true, pixPerRad);
+        if (fade > 0.01) this.setSprite(this.sunGlow, rel, 0, glowPx, 0.9 * fade * Math.max(0, 1 - disc / 45), this.color.setRGB(1, 0.9, 0.75), true, pixPerRad);
         else this.sunGlow.mesh.visible = false;
         this.sunGlow.mesh.renderOrder = 5;
       } else if (inSystem && disc <= 2.5) {
@@ -680,7 +679,7 @@ export class ShipView {
         if (this.near.some((n) => n.index === i)) continue;
         const ph = starPhysical(i);
         const col = tempColor(ph.T);
-        const mat = planetMaterial({ type: PT.star, map: 'sun', color: col.getHex(), bright: 1.5 });
+        const mat = planetMaterial({ type: PT.star, map: 'sun', color: col.getHex(), bright: 1.15 });
         mat.transparent = true;
         const mesh = new THREE.Mesh(bodySphere(64), mat);
         mesh.renderOrder = 3;
@@ -703,7 +702,9 @@ export class ShipView {
       n.mesh.visible = disc > 1.2;
       n.mat.uniforms.uTime.value = this.time;
       const fade = Math.max(0, Math.min(1, 1 - Math.log10(dist / AU_IN_KM / 50) / 3));
-      if (fade > 0.01) this.setSprite(n.sprite, rel, 0, Math.max(disc * 5, 22 * dpr), 0.9 * fade, n.color, true, pixPerRad);
+      // alone sobrio: da lontano la stella "brilla", da vicino resta una corona sottile attorno al disco
+      // (niente bagliore che copre lo sfondo)
+      if (fade > 0.01) this.setSprite(n.sprite, rel, 0, Math.max(disc * 1.7 + 18 * dpr, 22 * dpr), 0.9 * fade * Math.max(0, 1 - disc / 45), n.color, true, pixPerRad);
       else n.sprite.mesh.visible = false;
       n.sprite.mesh.renderOrder = 5;
     }
@@ -823,7 +824,12 @@ export class ShipView {
     const hidden = (rel: V3, dist = Infinity) => {
       if (!discs.length) return false;
       const q = this.project(rel);
-      for (let k = 0; k < discs.length; k += 4) if (discs[k + 3] < dist * 0.999 && Math.hypot(q.x - discs[k], q.y - discs[k + 1]) < discs[k + 2]) return true;
+      // margine: anche il testo dell'etichetta (a destra del punto) non deve finire sopra il disco
+      for (let k = 0; k < discs.length; k += 4) {
+        if (discs[k + 3] >= dist * 0.999) continue;
+        const dx = q.x - discs[k], dy = q.y - discs[k + 1], r = discs[k + 2];
+        if (Math.hypot(dx, dy) < r + 14 || (dx > -r - 110 && dx < r && Math.abs(dy) < r * 0.9)) return true;
+      }
       return false;
     };
     if (state.settings.labels) {
@@ -864,7 +870,9 @@ export class ShipView {
       for (const m of messier) {
         if (!['M31', 'M33', 'M42', 'M45', 'M13', 'M44', 'M1', 'M8', 'M16'].includes(m.id) || deepForMessier(m.id)) continue;
         const ref: ObjRef = { kind: 'messier', id: m.id };
-        put(v3.sub(refPosPc(ref)!, obs), refName(ref), 'dso', false, ref);
+        const relM = v3.sub(refPosPc(ref)!, obs);
+        if (hidden(relM, v3.len(relM) * PC_IN_KM)) continue;
+        put(relM, refName(ref), 'dso', false, ref);
       }
       // oggetti del catalogo profondo: etichetta quando sono abbastanza grandi o (galassie) quando sei fuori dalla Via Lattea
       const outside = v3.len(v3.sub(GALACTIC_CENTER_PC as V3, obs)) > 40000;

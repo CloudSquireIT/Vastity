@@ -81,6 +81,8 @@ void main() {
     float edge = 1.0 - mu;
     col += vec3(1.0, 0.55, 0.25) * smoothstep(0.82, 1.0, edge) * noise(vec2(atan(n.y, n.x) * 30.0, uTime * 0.8)) * 0.9 * uBright;
     col += uColor * pow(1.0 - mu, 3.0) * 0.6;
+    // esposizione morbida: la superficie resta leggibile (granuli, macchie, colore) invece di diventare bianca piatta
+    col = 1.0 - exp(-col * 0.95);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
     return;
@@ -117,7 +119,13 @@ void main() {
   } else if (uType > 0.5 && uType < 1.5 || (uType > 2.5 && uType < 3.5)) {
     // giganti gassosi e Venere: bordo più scuro e lento scorrimento delle bande
     float lat = uv.y - 0.5;
-    vec2 flow = vec2(uTime * 0.0004 * sin(lat * 40.0), 0.0);
+    // atmosfera viva: rotazione d'insieme (accelerata per vederla), bande che scorrono a velocità diverse
+    // (correnti a getto alternate) e turbolenze che si avvolgono ai bordi delle bande
+    float spin = uTime * 0.0035;
+    float jets = uTime * 0.0022 * sin(lat * 46.0);
+    vec2 tw = vec2(noise(vec2(uv.x * 60.0 - uTime * 0.05, uv.y * 120.0)), noise(vec2(uv.x * 60.0 + 7.0, uv.y * 120.0 + uTime * 0.04))) - 0.5;
+    float shear = abs(cos(lat * 46.0));
+    vec2 flow = vec2(spin + jets, 0.0) + tw * vec2(0.0025, 0.0012) * shear;
     base = uHasMap > 0.5 ? texture2D(uMap, uv + flow).rgb : base;
     float limb = mix(1.0, pow(NdV, 0.35), 0.55);
     col = base * light * limb;
