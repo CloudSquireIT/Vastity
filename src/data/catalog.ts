@@ -132,13 +132,17 @@ function mergeWikiCatalog(wiki: { messier: Record<string, { ly: number }>; caldw
     const va = radecToVec(a.ra, a.dec), vb = radecToVec(b.ra, b.dec);
     return Math.acos(Math.min(1, va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2])) * 180 / Math.PI;
   };
+  const noRender = new Set<string>();
   for (const c of [...wiki.caldwell, ...CALDWELL_MISSING]) {
     // se coincide con un oggetto Messier o del catalogo esteso, lo si collega invece di duplicarlo
-    const dup = messier.find((x) => sep(x, c) < 0.15);
+    const dup = messier.find((x) => x.id[0] === 'M' && sep(x, c) < 0.15);
     if (dup) continue;
-    const d = deep.find((o) => !o.messier && o.id !== 'milkyway' && !['blackhole', 'pulsar', 'quasar'].includes(o.type) && sep(o, c) < 0.3 && Math.abs(Math.log10(o.ly / c.ly)) < 0.5);
+    const d = deep.find((o) => !o.messier && o.id !== 'milkyway' && !['blackhole', 'pulsar', 'quasar'].includes(o.type) && (sep(o, c) < 0.12 || (sep(o, c) < 0.3 && Math.abs(Math.log10(o.ly / c.ly)) < 0.5)));
     if (d) { d.messier = c.id; }
-    messier.push({ id: c.id, alt: c.alt, type: c.type, mag: c.mag, ra: c.ra, dec: c.dec, ngc: c.ngc });
+    // stessa posizione di un oggetto già collegato (es. le due metà delle Antenne): niente render doppio
+    const twin = !d && deep.find((o) => o.messier && sep(o, c) < 0.05);
+    if (twin) noRender.add(c.id);
+    messier.push({ id: c.id, alt: twin ? twin.name : c.alt, type: c.type, mag: c.mag, ra: c.ra, dec: c.dec, ngc: c.ngc });
     MESSIER_EXTRA[c.id] = { ly: c.ly, name: CALDWELL_NAMES[c.id] };
   }
   // ogni galassia del catalogo ha un render 3D (impostor procedurale), come quelle curate
@@ -147,7 +151,7 @@ function mergeWikiCatalog(wiki: { messier: Record<string, { ly: number }>; caldw
   for (const m of messier) {
     const shape = SHAPE[m.type];
     const ly = MESSIER_EXTRA[m.id]?.ly;
-    if (!shape || !ly || linked.has(m.id)) continue;
+    if (!shape || !ly || linked.has(m.id) || noRender.has(m.id)) continue;
     let hsh = 0;
     for (const ch of m.id) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
     const rnd = (k: number) => ((Math.sin(hsh * 12.9898 + k * 78.233) * 43758.5453) % 1 + 1) % 1;
@@ -173,11 +177,13 @@ const GALAXY_DESC: Record<GalaxyShape, string> = {
 };
 
 const CALDWELL_MISSING: (Messier & { ly: number })[] = [
+  { id: 'C9', alt: 'Cave Nebula', ngc: 'Sh2-155', type: 'en', mag: 7.7, ra: 344.2, dec: 62.617, ly: 2400 },
   { id: 'C97', alt: 'Pearl Cluster', ngc: 'NGC 3766', type: 'oc', mag: 5.3, ra: 174.06, dec: -61.608, ly: 5800 },
   { id: 'C99', alt: 'Coalsack Nebula', ngc: '', type: 'dn', mag: 99, ra: 192.5, dec: -62.5, ly: 600 },
 ];
 
 const CALDWELL_NAMES: Record<string, string> = {
+  C9: tx('Nebulosa Caverna', 'Cave Nebula', 'Nébuleuse de la Caverne'),
   C99: tx('Sacco di Carbone', 'Coalsack Nebula', 'Sac de Charbon'),
   C20: tx('Nebulosa Nord America', 'North America Nebula', 'Nébuleuse de l\'Amérique du Nord'),
   C49: tx('Nebulosa Rosetta', 'Rosette Nebula', 'Nébuleuse de la Rosette'),

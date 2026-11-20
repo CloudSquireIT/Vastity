@@ -26,9 +26,12 @@ export class LabelLayer<R = unknown> {
   }
 
   /** Aggiunge un'etichetta vicino al punto (x, y); restituisce false se si sovrappone a un'altra. */
-  add(x: number, y: number, text: string, cls = '', force = false, ref?: R): boolean {
+  add(x: number, y: number, text: string, cls = '', force = false, ref?: R, radiusPx = 0): boolean {
     const w = text.length * 6.6 + 22, h = 24;
-    const bx = x + 10, by = y - 2;
+    // oggetti grandi sullo schermo: etichetta centrata sotto il disco, così non copre il render
+    const under = radiusPx > 10;
+    if (under) { y = y + radiusPx + 6; }
+    const bx = under ? x - w / 2 : x + 10, by = under ? y : y - 2;
     if (!force) {
       for (let i = 0; i < this.boxes.length; i += 4) {
         if (bx < this.boxes[i + 2] && bx + w > this.boxes[i] && by < this.boxes[i + 3] && by + h > this.boxes[i + 1]) return false;
@@ -44,9 +47,9 @@ export class LabelLayer<R = unknown> {
     this.refs[this.used] = ref;
     this.used++;
     if (d.textContent !== text) d.textContent = text;
-    const c = 'label ' + cls + (ref !== undefined ? ' tap' : '');
+    const c = 'label ' + cls + (ref !== undefined ? ' tap' : '') + (under ? ' under' : '');
     if (d.className !== c) d.className = c;
-    d.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+    d.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)` + (under ? ' translateX(-50%)' : '');
     if (d.style.display) d.style.display = '';
     return true;
   }

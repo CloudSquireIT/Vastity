@@ -16,16 +16,16 @@ function steps(): Step[] {
     },
     {
       title: tx('Tocca quello che vedi', 'Tap what you see', 'Touchez ce que vous voyez'),
-      text: tx('Tocca una stella, un pianeta, il Sole o il suo nome: scopri cos\'è, quanto è lontano e da quanto tempo viaggia la sua luce.',
-        'Tap a star, a planet, the Sun or its name: find out what it is, how far away it is and how long its light has been travelling.',
-        'Touchez une étoile, une planète, le Soleil ou son nom : découvrez ce que c\'est, sa distance et depuis combien de temps voyage sa lumière.'),
+      text: tx('Tocca una stella, un pianeta, una galassia o il suo nome: scopri cos\'è, quanto è lontano e da quanto tempo viaggia la sua luce.',
+        'Tap a star, a planet, a galaxy or its name: find out what it is, how far away it is and how long its light has been travelling.',
+        'Touchez une étoile, une planète, une galaxie ou son nom : découvrez ce que c\'est, sa distance et depuis combien de temps voyage sa lumière.'),
     },
     {
       target: '.ibtn.lens', round: true,
       title: tx('Cerca qualsiasi cosa', 'Search for anything', 'Cherchez n\'importe quoi'),
-      text: tx('Non trovi qualcosa nel cielo? Tocca la lente e scrivi, per esempio "Andromeda": la vista ti porta lì e una freccia ti guida.',
-        'Can\'t find something in the sky? Tap the magnifier and type, for example "Andromeda": the view takes you there and an arrow guides you.',
-        'Vous ne trouvez pas quelque chose ? Touchez la loupe et tapez par exemple « Andromède » : la vue vous y emmène et une flèche vous guide.'),
+      text: tx('Non trovi qualcosa nel cielo? Tocca la lente e scrivi, per esempio "Andromeda", oppure sfoglia le categorie: stelle, pianeti, galassie, nebulose e altro.',
+        'Can\'t find something in the sky? Tap the magnifier and type, for example "Andromeda", or browse the categories: stars, planets, galaxies, nebulae and more.',
+        'Vous ne trouvez pas quelque chose ? Touchez la loupe et tapez par exemple « Andromède », ou parcourez les catégories : étoiles, planètes, galaxies, nébuleuses et plus.'),
     },
     {
       target: '.top-r .ibtn:nth-child(2)', round: true,
@@ -35,11 +35,11 @@ function steps(): Step[] {
         'Activez la boussole et levez votre téléphone vers le ciel : Vastity vous montre exactement ce que vous regardez.'),
     },
     {
-      target: '.time-pill',
+      target: '.time-ctl',
       title: tx('Viaggia nel tempo', 'Travel in time', 'Voyagez dans le temps'),
-      text: tx('Trascina l\'orario a destra o a sinistra per far scorrere il cielo come un film. Toccalo per scegliere una data.',
-        'Drag the time left or right to play the sky like a film. Tap it to pick a date.',
-        'Faites glisser l\'heure à gauche ou à droite pour dérouler le ciel comme un film. Touchez-la pour choisir une date.'),
+      text: tx('Con ◀◀ e ▶▶ il cielo scorre indietro o avanti: premili di nuovo per andare più veloce, fino a ×5. ⏸ mette in pausa (succede da solo quando zoommi su un oggetto). Tocca l\'ora per tornare al presente, tienila premuta per aprire la macchina del tempo e scegliere una data.',
+        'Use ◀◀ and ▶▶ to run the sky backwards or forwards: press again to go faster, up to ×5. ⏸ pauses (it happens on its own when you zoom in on an object). Tap the time to return to the present, press and hold it to open the time machine and pick a date.',
+        'Avec ◀◀ et ▶▶ le ciel défile en arrière ou en avant : appuyez encore pour aller plus vite, jusqu\'à ×5. ⏸ met en pause (automatiquement quand vous zoomez sur un objet). Touchez l\'heure pour revenir au présent, maintenez-la pour ouvrir la machine à remonter le temps et choisir une date.'),
     },
     {
       target: '.dock:not(.ship)',
@@ -49,7 +49,7 @@ function steps(): Step[] {
         'Ce soir vous dit si ça vaut la peine d\'observer et quoi regarder. Missions propose des défis quotidiens avec des badges. Mondes vous montre le ciel depuis Mars ou une exoplanète. Alertes vous signale l\'ISS, les étoiles filantes et les éclipses.'),
     },
     {
-      target: '.dock:not(.ship) .dbtn.main', round: true,
+      target: '.dock:not(.ship) .dbtn.accent', round: true,
       title: tx('Decolla con la navicella', 'Take off in the spaceship', 'Décollez avec le vaisseau'),
       text: tx('Parti dalla tua posizione e vola ovunque: pianeti, stelle, nebulose, fino ad Andromeda. Usa "Vai a" per il pilota automatico o la manetta per accelerare fino alla velocità della luce e oltre.',
         'Start from where you are and fly anywhere: planets, stars, nebulae, all the way to Andromeda. Use "Go to" for the autopilot or the throttle to accelerate to the speed of light and beyond.',

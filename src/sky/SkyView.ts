@@ -655,7 +655,7 @@ export class SkyView {
       const p = this.project(dir);
       if (!p.front || p.x < -50 || p.x > this.w + 50 || p.y < -20 || p.y > this.h + 20) return;
       const below = this.groundOn() && p.alt < -0.3;
-      L.add(p.x + offset, p.y + offset * 0.6, text, below ? cls + ' below' : cls, force, ref);
+      L.add(p.x, p.y, text, below ? cls + ' below' : cls, force, ref, Math.min(this.h * 0.32, offset));
     };
     // punti cardinali
     if (this.groundOn() || this.ar) {
@@ -669,10 +669,10 @@ export class SkyView {
     if (st.labels) {
       for (const b of this.frame.bodies) {
         const ref: ObjRef | undefined = b.id.startsWith('exo') || b.id === 'host' ? undefined : { kind: 'body', id: b.id };
-        put(b.dir, b.name, 'pill' + (b.isStar ? ' star' : ''), true, ref, Math.min(this.h * 0.3, b.angRadius * pxPerRad * 0.7));
+        put(b.dir, b.name, 'pill' + (b.isStar ? ' star' : ''), true, ref, b.angRadius * pxPerRad);
       }
       if (this.issDir) put(this.issDir, 'ISS', 'pill iss', true, { kind: 'iss' });
-      if (this.place.exo) put(v3.norm(v3.scale(this.frame.observerPc, -1)), tx('Sole ☉', 'Sun ☉', 'Soleil ☉'), 'body sun-far', true);
+      if (this.place.exo) put(v3.norm(v3.scale(this.frame.observerPc, -1)), tx('Sole ☉', 'Sun ☉', 'Soleil ☉'), 'body sun-far', true, { kind: 'body', id: 'sun' });
       if (day < 0.7) {
         const lim = this.magLimit();
         for (const i of this.brightNamed) {
@@ -681,7 +681,7 @@ export class SkyView {
         }
         if (st.constellations) for (const c of this.consCenters) put(c.dir, c.name.toUpperCase(), 'cons', false, { kind: 'constellation', id: c.id });
         if (this.fov < 35) for (const m of messier) if (m.mag < 7.5 && !deepForMessier(m.id)) put(radecToVec(m.ra, m.dec), messierName(m), 'dso', false, { kind: 'messier', id: m.id });
-        if (this.fov < 35) for (const o of deepObjects()) { if (o.id === 'milkyway') continue; const r: ObjRef = { kind: 'deep', id: o.id }; const d = refDirection(r, this.frame); if (d) put(d, o.name, 'dso', false, r); }
+        if (this.fov < 35) for (const o of deepObjects()) { if (o.id === 'milkyway') continue; const r: ObjRef = { kind: 'deep', id: o.id }; const d = refDirection(r, this.frame); if (d) put(d, o.name, 'dso', false, r, (o.radiusLy / o.ly) * pxPerRad * (o.type === 'galaxy' ? 0.55 : 1)); }
       }
     }
     L.end();

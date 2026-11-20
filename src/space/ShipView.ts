@@ -204,6 +204,8 @@ export class ShipView {
     this.markerArrow.className = 'sel-arrow ship';
     this.markerArrow.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3l7 12h-14z"/></svg><span></span>';
     overlay.append(this.marker, this.markerArrow);
+    // anche il nome del bersaglio è toccabile
+    this.marker.querySelector('span')!.addEventListener('click', (e) => { e.stopPropagation(); if (this.target) bus.emit('ship-select', this.target); });
     this.marker.style.display = this.markerArrow.style.display = 'none';
 
     window.addEventListener('keydown', (e) => { if (state.mode === 'ship' && !(e.target instanceof HTMLInputElement)) this.keys.add(e.key.toLowerCase()); });
@@ -738,10 +740,11 @@ export class ShipView {
     const L = this.labels;
     L.begin();
     const sunDist = v3.len(this.pos);
-    const put = (rel: V3, text: string, cls: string, force = false, ref?: ObjRef) => {
+    const put = (rel: V3, text: string, cls: string, force = false, ref?: ObjRef, radiusPx = 0) => {
       const p = this.project(rel);
       if (!p.front || p.x < -40 || p.x > this.w + 40 || p.y < -20 || p.y > this.h + 20) return;
-      L.add(p.x, p.y, text, cls, force, ref);
+      // dischi enormi: l'etichetta resta in vista sotto il centro
+      L.add(p.x, p.y, text, cls, force, ref, Math.min(radiusPx, this.h * 0.32));
     };
     // dischi dei pianeti sullo schermo: le etichette delle stelle dietro di essi vengono nascoste
     const discs: number[] = [];
@@ -766,7 +769,7 @@ export class ShipView {
         const d = v3.len(rel);
         const show = p.info.id === 'sun' ? sunDist < 2000 * AU_IN_KM : (p.info.id === 'moon' ? d < 3e7 : sunDist < 200 * AU_IN_KM);
         const isTarget = this.target?.kind === 'body' && this.target.id === p.info.id;
-        if (show && !isTarget) put(rel, p.info.name, 'pill' + (p.info.id === 'sun' ? ' star' : ''), true, { kind: 'body', id: p.info.id });
+        if (show && !isTarget) put(rel, p.info.name, 'pill' + (p.info.id === 'sun' ? ' star' : ''), true, { kind: 'body', id: p.info.id }, this.discPxCss(p.info.radiusKm, d));
       }
       this.labelScanT -= 1;
       const obs = v3.scale(this.pos, 1 / PC_IN_KM);
@@ -792,7 +795,7 @@ export class ShipView {
       }
       if (sunDist > 3000 * PC_IN_KM) {
         const far = v3.len(v3.sub(GALACTIC_CENTER_PC as V3, obs)) > 40000;
-        put(v3.sub(GALACTIC_CENTER_PC as V3, obs), far ? tx('Via Lattea', 'Milky Way', 'Voie lactée') : tx('Centro galattico', 'Galactic centre', 'Centre galactique'), far ? 'pill' : 'dso', far);
+        put(v3.sub(GALACTIC_CENTER_PC as V3, obs), far ? tx('Via Lattea', 'Milky Way', 'Voie lactée') : tx('Centro galattico', 'Galactic centre', 'Centre galactique'), far ? 'pill' : 'dso', far, { kind: 'deep', id: 'milkyway' });
       }
       for (const m of messier) {
         if (!['M31', 'M33', 'M42', 'M45', 'M13', 'M44', 'M1', 'M8', 'M16'].includes(m.id)) continue;
@@ -808,7 +811,7 @@ export class ShipView {
         const rel = v3.sub(refPosPc(ref)!, obs);
         const d = v3.len(rel);
         const px = ((o.radiusLy / 3.26156) / d) * pxr;
-        if (px > 5 || (outside && o.type === 'galaxy') || d < 60) put(rel, o.name, o.type === 'galaxy' && (outside || px > 30) ? 'pill' : 'dso', false, ref);
+        if (px > 5 || (outside && o.type === 'galaxy') || d < 60) put(rel, o.name, o.type === 'galaxy' && (outside || px > 30) ? 'pill' : 'dso', px > 30, ref, o.type === 'galaxy' || o.type === 'nebula' || o.type === 'gc' ? px * 0.55 : px);
       }
     }
     L.end();

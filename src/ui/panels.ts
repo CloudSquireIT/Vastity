@@ -1,6 +1,6 @@
 // Pannelli dell'interfaccia: scheda oggetto, ricerca, Stasera, Missioni, Avvisi, Mondi, Impostazioni, Macchina del tempo.
 import { closeSheet, fmtDate, fmtTime, h, icon, iconButton, openSheet, sheetOpen, toast } from './dom';
-import { ObjRef, info, refName, search } from '../features/objects';
+import { Category, ObjRef, SearchItem, categories, filterItems, info, refName, search } from '../features/objects';
 import { formatLightTime, formatYear, lightJourney } from '../features/history';
 import { computeTonight } from '../features/tonight';
 import { BADGES, activeMissions, ensureDailyMissions, logObservation, progress, rankOf, visitPlace } from '../features/missions';
@@ -8,7 +8,7 @@ import { ALERT_TYPES, SkyEvent, computeEvents, downloadICS, fmtDay, notification
 import { PLACES, SkyFrame } from '../astro/astro';
 import { bus, saveSettings, setLocation, setTime, state } from '../state';
 import { azName } from '../features/iss';
-import { LANGS, lang, setLang, tx } from '../i18n';
+import { LANGS, lang, num, setLang, tx } from '../i18n';
 import { objectThumb } from './thumb';
 
 export interface AppApi {
@@ -107,19 +107,42 @@ export function openSearch(onPick?: (r: ObjRef) => void) {
     if (state.mode === 'sky') { api.selectSky(r); api.centerSky(r); setTimeout(() => showInfo(r), 1150); }
     else showInfo(r);
   };
+  let cat: Category | null = null;
+  let shown = 60;
+  const row = (it: SearchItem) => h('button', { class: 'row', onclick: () => pick(it.ref) }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, it.name), h('div', { class: 'row-s' }, it.sub)));
   const render = () => {
     const q = input.value;
     list.replaceChildren();
+    if (cat) {
+      // dentro una categoria: elenco completo, filtrabile, caricato a blocchi
+      const c = cat;
+      const items = filterItems(c.items, q);
+      list.append(h('div', { class: 'cat-head' },
+        h('button', { class: 'chip', onclick: () => { cat = null; input.value = ''; input.placeholder = basePh; render(); } }, '‹ ' + tx('Categorie', 'Categories', 'Catégories')),
+        h('span', { class: 'cat-title' }, `${c.name} · ${num(items.length)}`)));
+      if (!items.length) list.append(h('p', { class: 'muted pad' }, tx('Nessun risultato.', 'No results.', 'Aucun résultat.')));
+      for (const it of items.slice(0, shown)) list.append(row(it));
+      if (items.length > shown) list.append(h('button', { class: 'btn more', onclick: () => { shown += 120; render(); } }, tx(`Mostra altri (${num(items.length - shown)})`, `Show more (${num(items.length - shown)})`, `Afficher plus (${num(items.length - shown)})`)));
+      return;
+    }
     if (!q.trim()) {
+      list.append(h('h3', { class: 'sec' }, tx('Suggeriti', 'Suggested', 'Suggestions')));
       list.append(h('div', { class: 'chips' }, ...quick.map((t) => h('button', { class: 'chip', onclick: () => { input.value = t; render(); } }, t))));
+      list.append(h('h3', { class: 'sec' }, tx('Categorie', 'Categories', 'Catégories')));
+      list.append(h('div', { class: 'cats' }, ...categories().map((c) => h('button', { class: 'world cat', onclick: () => {
+        cat = c; shown = 60; input.value = '';
+        input.placeholder = tx(`Filtra in ${c.name}…`, `Filter ${c.name}…`, `Filtrer : ${c.name}…`);
+        render(); list.parentElement?.parentElement?.scrollTo?.(0, 0);
+      } }, h('span', { class: 'cat-ico' }, c.icon), h('span', { class: 'cat-n' }, c.name), h('span', { class: 'cat-c' }, num(c.items.length))))));
       return;
     }
     const res = search(q);
     if (!res.length) list.append(h('p', { class: 'muted pad' }, tx('Nessun risultato.', 'No results.', 'Aucun résultat.')));
-    for (const it of res) list.append(h('button', { class: 'row', onclick: () => pick(it.ref) }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, it.name), h('div', { class: 'row-s' }, it.sub))));
+    for (const it of res) list.append(row(it));
   };
-  input.addEventListener('input', render);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const r = search(input.value)[0]; if (r) pick(r.ref); } });
+  const basePh = input.placeholder;
+  input.addEventListener('input', () => { shown = 60; render(); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const r = cat ? filterItems(cat.items, input.value)[0] : search(input.value)[0]; if (r) pick(r.ref); } });
   render();
   openSheet('search', state.mode === 'ship' ? tx('Dove vuoi andare?', 'Where do you want to go?', 'Où voulez-vous aller ?') : tx('Cerca nel cielo', 'Search the sky', 'Chercher dans le ciel'), h('div', {}, input, list));
   setTimeout(() => input.focus(), 250);
@@ -385,9 +408,9 @@ export function openTime() {
     h('label', { class: 'full' }, tx('Data e ora', 'Date and time', 'Date et heure'), dt),
     h('h3', {}, tx('Velocità del tempo', 'Time speed', 'Vitesse du temps')), chips,
     h('p', { class: 'muted small' }, tx(
-      'Suggerimento: trascina la barra del tempo in basso verso destra o sinistra per scorrere il cielo come un film.',
-      'Tip: drag the time pill at the bottom left or right to play the sky like a film.',
-      'Astuce : faites glisser la barre du temps en bas vers la droite ou la gauche pour dérouler le ciel comme un film.')));
+      'Suggerimento: tocca l\'ora in basso a sinistra per tornare al presente; tienila premuta per riaprire questa macchina del tempo, o trascinala per scorrere il cielo come un film.',
+      'Tip: tap the time at the bottom left to return to the present; press and hold it to reopen this time machine, or drag it to play the sky like a film.',
+      'Astuce : touchez l\'heure en bas à gauche pour revenir au présent ; maintenez-la pour rouvrir cette machine à remonter le temps, ou faites-la glisser pour dérouler le ciel comme un film.')));
   openSheet('time', tx('Macchina del tempo', 'Time machine', 'Machine à remonter le temps'), body, { compact: true });
 }
 

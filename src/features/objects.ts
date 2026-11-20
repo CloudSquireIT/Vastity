@@ -84,6 +84,68 @@ export function searchIndex(): SearchItem[] {
   return items;
 }
 
+// ---------------------------------------------------------------------------
+// Categorie: ogni oggetto del catalogo appartiene ad almeno una categoria
+// ---------------------------------------------------------------------------
+export interface Category { id: string; name: string; icon: string; items: SearchItem[] }
+
+const MESSIER_GROUP: Record<string, string> = {
+  s: 'galaxies', sg: 'galaxies', sd: 'galaxies', s0: 'galaxies', e: 'galaxies', i: 'galaxies',
+  gc: 'clusters', oc: 'clusters', pos: 'clusters', ast: 'clusters', ds: 'clusters',
+  en: 'nebulae', rn: 'nebulae', bn: 'nebulae', sfr: 'nebulae', pn: 'nebulae', snr: 'nebulae', dn: 'nebulae',
+};
+const DEEP_GROUP: Record<string, string> = {
+  galaxy: 'galaxies', nebula: 'nebulae', pn: 'nebulae', snr: 'nebulae', gc: 'clusters', oc: 'clusters',
+  blackhole: 'exotic', quasar: 'exotic', pulsar: 'exotic',
+};
+
+let cats: Category[] | null = null;
+export function categories(): Category[] {
+  if (cats) return cats;
+  const C = (id: string, name: string, icon: string): Category => ({ id, name, icon, items: [] });
+  const list = [
+    C('solar', tx('Sistema solare', 'Solar System', 'Système solaire'), '☉'),
+    C('stars', tx('Stelle', 'Stars', 'Étoiles'), '✦'),
+    C('constellations', tx('Costellazioni', 'Constellations', 'Constellations'), '✧'),
+    C('galaxies', tx('Galassie', 'Galaxies', 'Galaxies'), '◎'),
+    C('nebulae', tx('Nebulose', 'Nebulae', 'Nébuleuses'), '☁'),
+    C('clusters', tx('Ammassi stellari', 'Star clusters', 'Amas d\'étoiles'), '⁂'),
+    C('exotic', tx('Buchi neri, quasar e pulsar', 'Black holes, quasars & pulsars', 'Trous noirs, quasars et pulsars'), '●'),
+    C('messier', tx('Catalogo di Messier', 'Messier catalogue', 'Catalogue de Messier'), 'M'),
+    C('caldwell', tx('Catalogo Caldwell', 'Caldwell catalogue', 'Catalogue de Caldwell'), 'C'),
+  ];
+  const by = Object.fromEntries(list.map((c) => [c.id, c]));
+  for (const it of searchIndex()) {
+    const r = it.ref;
+    let g = '';
+    if (r.kind === 'body' || r.kind === 'iss') g = 'solar';
+    else if (r.kind === 'star') g = 'stars';
+    else if (r.kind === 'constellation') g = 'constellations';
+    else if (r.kind === 'deep') g = deepById(r.id)?.id === 'milkyway' ? 'galaxies' : DEEP_GROUP[deepById(r.id)?.type ?? ''] ?? 'nebulae';
+    else if (r.kind === 'messier') g = MESSIER_GROUP[messier.find((m) => m.id === r.id)?.type ?? ''] ?? 'nebulae';
+    by[g]?.items.push(it);
+  }
+  // cataloghi: tutti gli oggetti, anche quelli che hanno un render dedicato
+  for (const m of messier) {
+    const d = deepForMessier(m.id);
+    const ref: ObjRef = d ? { kind: 'deep', id: d.id } : { kind: 'messier', id: m.id };
+    const name = d ? d.name : messierName(m);
+    const item: SearchItem = { ref, name: name === m.id ? m.id : `${m.id} · ${name}`, sub: `${MESSIER_TYPES[m.type] ?? ''}${m.ngc ? ' · ' + m.ngc : ''}`, key: norm(`${m.id} ${name} ${m.ngc ?? ''}`), rank: +m.id.slice(1) };
+    (m.id[0] === 'C' ? by.caldwell : by.messier).items.push(item);
+  }
+  by.stars.items.sort((a, b) => a.rank - b.rank);
+  by.solar.items.sort((a, b) => a.rank - b.rank);
+  for (const c of [by.constellations, by.galaxies, by.nebulae, by.clusters, by.exotic]) c.items.sort((a, b) => a.name.localeCompare(b.name));
+  for (const c of [by.messier, by.caldwell]) c.items.sort((a, b) => a.rank - b.rank);
+  cats = list;
+  return list;
+}
+
+export function filterItems(items: SearchItem[], q: string) {
+  const nq = norm(q.trim());
+  return nq ? items.filter((it) => it.key.includes(nq) || norm(it.name).includes(nq)) : items;
+}
+
 export function search(q: string, limit = 30): SearchItem[] {
   const nq = norm(q.trim());
   if (!nq) return [];

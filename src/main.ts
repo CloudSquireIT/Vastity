@@ -120,7 +120,27 @@ async function main() {
   });
   const top = h('div', { class: 'top' }, brand, h('div', { class: 'top-r' }, searchBtn, gyroBtn, iconButton('settings', tx('Impostazioni', 'Settings', 'Réglages'), () => openSettings())));
 
-  const timePill = h('button', { class: 'time-pill' }, h('span', { class: 'tp-dot' }), h('span', { class: 'tp-t' }));
+  // controlli del tempo: ora (tocco = presente, pressione lunga = macchina del tempo), indietro, pausa, avanti
+  const timePill = h('button', { class: 'time-pill', 'aria-label': tx('Torna al presente · tieni premuto per la macchina del tempo', 'Back to now · press and hold for the time machine', 'Revenir au présent · maintenez pour la machine à remonter le temps') }, h('span', { class: 'tp-dot' }), h('span', { class: 'tp-t' }));
+  const TIME_STEPS = [60, 600, 3600, 21600, 86400];
+  let timeLevel = 0;
+  let resumeRate = 1;
+  const stepTime = (dir: 1 | -1) => {
+    const same = !state.live && Math.sign(state.timeRate) === dir && Math.abs(state.timeRate) > 1;
+    timeLevel = same ? Math.min(TIME_STEPS.length, timeLevel + 1) : 1;
+    state.live = false;
+    state.timeRate = dir * TIME_STEPS[timeLevel - 1];
+    updateHud();
+  };
+  const togglePause = () => {
+    if (!state.live && state.timeRate === 0) { state.timeRate = resumeRate || 1; }
+    else { resumeRate = state.live ? 1 : state.timeRate; state.live = false; state.timeRate = 0; }
+    updateHud();
+  };
+  const tBack = iconButton('rewind', tx('Indietro nel tempo', 'Back in time', 'Reculer dans le temps'), () => stepTime(-1), 'tbtn');
+  const tPause = iconButton('pause', tx('Pausa', 'Pause', 'Pause'), () => togglePause(), 'tbtn');
+  const tFwd = iconButton('ffwd', tx('Avanti nel tempo', 'Forward in time', 'Avancer dans le temps'), () => stepTime(1), 'tbtn');
+  const timeCtl = h('div', { class: 'time-ctl' }, timePill, tBack, tPause, tFwd);
   const dockSky = h('nav', { class: 'dock' },
     iconButton('tonight', tx('Stasera', 'Tonight', 'Ce soir'), () => openTonight(), 'dbtn'),
     iconButton('missions', tx('Missioni', 'Missions', 'Missions'), () => openMissions(), 'dbtn'),
@@ -134,7 +154,7 @@ async function main() {
     iconButton('stop', tx('Ferma', 'Stop', 'Stop'), () => ship.stop(), 'dbtn'),
     iconButton('sky', tx('Atterra', 'Land', 'Atterrir'), () => setMode('sky'), 'dbtn'),
   );
-  const bottom = h('div', { class: 'bottom' }, timePill, dockSky, dockShip);
+  const bottom = h('div', { class: 'bottom' }, dockSky, dockShip);
   // il pulsante del pannello aperto appare "attivo"; nessuno è evidenziato di default
   const dockIds: [HTMLElement, string][] = [
     [dockSky.children[0] as HTMLElement, 'tonight'], [dockSky.children[1] as HTMLElement, 'missions'],
@@ -168,7 +188,7 @@ async function main() {
   throttle.addEventListener('pointerup', () => { throttleActive = false; });
   throttle.addEventListener('input', () => ship.setThrottle(+throttle.value));
 
-  ui.append(top, reticle, missionChip, zoomPill, telemetry, throttleWrap, bottom, hideBtn);
+  ui.append(top, reticle, missionChip, zoomPill, telemetry, throttleWrap, bottom, timeCtl, hideBtn);
 
   // ------------------------------------------------------------------ modalità
   function setMode(m: 'sky' | 'ship', instant = false) {
@@ -268,27 +288,46 @@ async function main() {
   document.body.classList.toggle('night', state.settings.nightMode);
   document.body.dataset.mode = 'sky';
 
-  // scorrimento del tempo trascinando la pillola
+  // ora: tocco = presente; pressione lunga = macchina del tempo; trascinamento = scorrimento rapido
   {
-    let x0 = 0, dragging = false, moved = false, prevRate = 1, prevLive = true;
-    timePill.addEventListener('pointerdown', (e) => { x0 = e.clientX; dragging = true; moved = false; prevRate = state.timeRate; prevLive = state.live; timePill.setPointerCapture(e.pointerId); });
+    let x0 = 0, dragging = false, moved = false, prevRate = 1, prevLive = true, longT = 0, longDone = false;
+    timePill.addEventListener('pointerdown', (e) => {
+      x0 = e.clientX; dragging = true; moved = false; longDone = false; prevRate = state.timeRate; prevLive = state.live;
+      timePill.setPointerCapture(e.pointerId);
+      clearTimeout(longT);
+      longT = window.setTimeout(() => { if (!moved && dragging) { longDone = true; timePill.classList.remove('press'); openTime(); } }, 520);
+      timePill.classList.add('press');
+    });
     timePill.addEventListener('pointermove', (e) => {
       if (!dragging) return;
       const dx = e.clientX - x0;
-      if (Math.abs(dx) > 6) moved = true;
+      if (Math.abs(dx) > 8) moved = true;
       if (!moved) return;
+      clearTimeout(longT);
+      timePill.classList.remove('press');
       state.live = false;
       state.timeRate = Math.sign(dx) * Math.min(3e6, Math.pow(10, Math.abs(dx) / 32));
       timePill.classList.add('scrub');
     });
-    timePill.addEventListener('pointerup', () => {
+    const end = () => {
+      clearTimeout(longT);
+      timePill.classList.remove('press', 'scrub');
+      if (!dragging) return;
       dragging = false;
-      timePill.classList.remove('scrub');
-      if (!moved) return openTime();
+      if (longDone) return;
+      if (!moved) {
+        setTime(Date.now(), true);
+        timeLevel = 0;
+        toast(tx('Di nuovo nel presente', 'Back to the present', 'Retour au présent'));
+        updateHud();
+        return;
+      }
       state.timeRate = prevLive ? 0 : prevRate;
-      if (prevLive) state.timeRate = 0;
       updateHud();
-    });
+    };
+    timePill.addEventListener('pointerup', end);
+    timePill.addEventListener('pointercancel', end);
+    timePill.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   // auto-nascondi l'interfaccia per l'immersione totale
@@ -305,6 +344,15 @@ async function main() {
       d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }) +
       (state.live ? '' : state.timeRate === 0 ? ' · ' + tx('pausa', 'paused', 'pause') : state.timeRate === 1 ? '' : ` · ${rateLabel(state.timeRate)}`);
     timePill.classList.toggle('live', state.live);
+    const paused = !state.live && state.timeRate === 0;
+    tPause.replaceChildren(icon(paused ? 'play' : 'pause'));
+    tPause.setAttribute('aria-label', paused ? tx('Riprendi', 'Resume', 'Reprendre') : tx('Pausa', 'Pause', 'Pause'));
+    tPause.classList.toggle('on', paused);
+    const fast = !state.live && Math.abs(state.timeRate) > 1;
+    tFwd.classList.toggle('on', fast && state.timeRate > 0);
+    tBack.classList.toggle('on', fast && state.timeRate < 0);
+    tFwd.dataset.lv = fast && state.timeRate > 0 && timeLevel ? `×${timeLevel}` : '';
+    tBack.dataset.lv = fast && state.timeRate < 0 && timeLevel ? `×${timeLevel}` : '';
     placeLbl.textContent = state.mode === 'ship' ? tx('Navicella', 'Spaceship', 'Vaisseau') : sky.place.id === 'earth' ? state.location.name : `${tx('da', 'from', 'depuis')} ${sky.place.name}`;
 
     const m = activeMissions()[0];
@@ -356,7 +404,7 @@ async function main() {
     reticle.classList.toggle('holding', !!hit);
     if (hit && holdT > 1.5) {
       holdT = 0;
-      if (state.live && sky.place.id === 'earth') { tryComplete(hit.ref); updateHud(); }
+      if ((state.live || Math.abs(state.time - Date.now()) < 15 * 60e3) && sky.place.id === 'earth') { tryComplete(hit.ref); updateHud(); }
       else if (!warnedLive) { warnedLive = true; toast(tx('Per completare le missioni torna al tempo reale dalla Terra', 'To complete missions, return to real time on Earth', 'Pour accomplir les missions, revenez au temps réel depuis la Terre')); }
     }
   }
@@ -398,6 +446,7 @@ async function main() {
 
   let last = performance.now();
   let hudT = 0;
+  let lastZoomFov = 60;
   function frame(now: number) {
     const raw = (now - last) / 1000;
     const dt = Math.min(0.1, raw);
@@ -413,6 +462,15 @@ async function main() {
       const label = mag >= 1.5 ? `× ${mag < 10 ? num(mag, 1) : num(Math.round(mag))}` : '';
       if (zoomPill.textContent !== label) zoomPill.textContent = label;
       zoomPill.classList.toggle('off', !label);
+      // zoom su un oggetto: il tempo va in pausa, così l'oggetto resta fermo nell'inquadratura
+      const zf = sky.zoomFov;
+      if (zf < 12 && lastZoomFov >= 12 && !(state.timeRate === 0 && !state.live)) {
+        resumeRate = state.live ? 1 : state.timeRate;
+        state.live = false; state.timeRate = 0;
+        toast(tx('Tempo in pausa durante lo zoom · ▶ per riprendere', 'Time paused while zoomed · ▶ to resume', 'Temps en pause pendant le zoom · ▶ pour reprendre'));
+        updateHud();
+      }
+      lastZoomFov = zf;
     }
     else { ship.update(dt); ship.updateOverlay(); ship.render(renderer); }
     hudT += dt;
