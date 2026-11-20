@@ -1,7 +1,13 @@
 # Brand Vastity
 
-- `brand-logo.py`: genera simbolo e scritta in SVG (`python3 brand-logo.py ../../public/brand <space-grotesk.woff2>`).
-- `gargantua-icon.glsl`: shader (formato Shadertoy) del buco nero con lente gravitazionale usato per l'icona dell'app.
-  Costanti principali: `ZOOM` (grandezza), `INCLINATION` (inclinazione del disco), `BEAMING` (asimmetria di luce), `EXPOSURE`.
-- `render-icon.js`: `node render-icon.js gargantua-icon.glsl vastity-app-icon.png 1024` → icona quadrata piena (iOS/Android/PWA).
-- `compose-macos-icon.js`: da `icon-full.png` crea la versione arrotondata stile macOS e un'anteprima del Dock.
+## Icona dell'app
+1. `gargantua-icon.glsl`: shader (formato Shadertoy) del buco nero su cielo al tramonto.
+2. `node scripts/brand/render-icon.js scripts/brand/gargantua-icon.glsl master-2048.png 2048` → render master.
+3. `python3 scripts/brand/export-icons.py master-2048.png` → genera:
+   - `resources/ios/AppIcon.appiconset/` (tutte le dimensioni iPhone/iPad + `Contents.json`, da copiare in `ios/App/App/Assets.xcassets/`)
+   - `assets/icon-only.png` (sorgente per `npx @capacitor/assets generate`)
+   - `public/icons/` (PWA 192/512/maskable, apple-touch-icon 180, favicon 16/32) e `public/favicon.ico`
+4. `compose-macos-icon.js`: versione arrotondata stile macOS.
+
+## Logo
+- `brand-logo.py`: simbolo e scritta in SVG.
