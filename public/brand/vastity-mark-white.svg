@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><defs></defs><g transform="translate(0 0) scale(1.0)">
+  <mask id="mmark-white" maskUnits="userSpaceOnUse" x="-50" y="-50" width="356" height="356">
+    <rect x="-50" y="-50" width="356" height="356" fill="#fff"/>
+    <path d="M-128,8 C-60,-18 40,-30 128,-10 C40,2 -60,16 -128,8 Z" transform="translate(128 128) rotate(-24)" fill="#000" stroke="#000" stroke-width="16" stroke-linejoin="round"/>
+  </mask>
+  <path d="M48,128 a80,80 0 1,0 160,0 a80,80 0 1,0 -160,0 Z M62,120 a58,58 0 1,1 116,0 a58,58 0 1,1 -116,0 Z" fill-rule="evenodd" fill="#ffffff" mask="url(#mmark-white)"/>
+  <path d="M-128,8 C-60,-18 40,-30 128,-10 C40,2 -60,16 -128,8 Z" transform="translate(128 128) rotate(-24)" fill="#ffffff"/>
+</g></svg>
