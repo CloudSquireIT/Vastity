@@ -181,10 +181,23 @@ def make(a, centre, ang, A, q):
     img = Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8))
     W, H = img.size
     pad = int(2 * A + 10)
+    # il cielo di fondo della foto viene portato a nero prima della rotazione,
+    # e una maschera sfumata nasconde i bordi del fotogramma originale
+    lum = a.mean(2)
+    bgc = np.percentile(a.reshape(-1, 3), 15, axis=0)
+    a2 = np.clip((a - bgc) / np.maximum(1e-3, 1 - bgc), 0, 1)
+    img = Image.fromarray((a2 * 255).astype(np.uint8))
+    valid = Image.new('L', (W, H), 255)
+    m = int(max(4, 0.03 * min(W, H)))
+    valid = Image.fromarray(np.pad(np.full((H - 2 * m, W - 2 * m), 255, np.uint8), m)).filter(ImageFilter.GaussianBlur(m * 0.7))
     canvas = Image.new('RGB', (W + 2 * pad, H + 2 * pad))
     canvas.paste(img, (pad, pad))
+    vcanvas = Image.new('L', (W + 2 * pad, H + 2 * pad))
+    vcanvas.paste(valid, (pad, pad))
     cx, cy = centre[0] + pad, centre[1] + pad
     rot = canvas.rotate(ang, resample=Image.BICUBIC, center=(cx, cy))
+    vrot = vcanvas.rotate(ang, resample=Image.BICUBIC, center=(cx, cy))
+    rot = Image.fromarray((np.asarray(rot).astype(np.float32) * (np.asarray(vrot).astype(np.float32)[..., None] / 255)).astype(np.uint8))
     if q >= 0.28:
         # vista di fronte: si "raddrizza" l'ellisse in un cerchio (deproiezione)
         b = A * q
@@ -201,8 +214,7 @@ def make(a, centre, ang, A, q):
         X, Y = np.meshgrid(np.linspace(-1.2, 1.2, 1024), np.linspace(-0.42, 0.42, 358))
         fade = (np.clip((1.18 - np.abs(X)) / 0.3, 0, 1) * np.clip((0.42 - np.abs(Y)) / 0.14, 0, 1)) ** 1.4
         kind = 'edge'
-    bg = np.percentile(t.mean(2), 10)
-    t = np.clip((t - bg) / max(1e-3, 1 - bg), 0, 1) * fade[..., None]
+    t = t * fade[..., None]
     return Image.fromarray((t * 255).astype(np.uint8)), kind
 
 

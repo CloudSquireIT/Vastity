@@ -12,7 +12,7 @@
   "q": 0.378,
   "file": "Andromeda Galaxy (with h-alpha).jpg",
   "license": "CC BY 2.0",
-  "credit": "",
+  "credit": "Adam Evans",
   "source": "https://commons.wikimedia.org/wiki/File:Andromeda_Galaxy_(with_h-alpha).jpg"
  },
  "m87g": {
@@ -20,7 +20,7 @@
   "q": 0.949,
   "file": "Messier 87 Hubble WikiSky.jpg",
   "license": "Public domain",
-  "credit": "",
+  "credit": "en:NASA , en:STScI , en:WikiSky",
   "source": "https://commons.wikimedia.org/wiki/File:Messier_87_Hubble_WikiSky.jpg"
  },
  "c38g": {
@@ -28,7 +28,7 @@
   "q": 0.264,
   "file": "Needle Wide.png",
   "license": "CC0",
-  "credit": "",
+  "credit": "Chuck Ayoub",
   "source": "https://commons.wikimedia.org/wiki/File:Needle_Wide.png"
  },
  "m51g": {
@@ -36,7 +36,7 @@
   "q": 0.535,
   "file": "Messier51 sRGB.jpg",
   "license": "Public domain",
-  "credit": "",
+  "credit": "NASA and European Space Agency",
   "source": "https://commons.wikimedia.org/wiki/File:Messier51_sRGB.jpg"
  },
  "m104g": {
@@ -44,7 +44,7 @@
   "q": 0.629,
   "file": "M104 ngc4594 sombrero galaxy hi-res.jpg",
   "license": "Public domain",
-  "credit": "",
+  "credit": "NASA/ESA and The Hubble Heritage Team (STScI/AURA)",
   "source": "https://commons.wikimedia.org/wiki/File:M104_ngc4594_sombrero_galaxy_hi-res.jpg"
  },
  "lmc": {
@@ -52,7 +52,7 @@
   "q": 0.893,
   "file": "Eso1021d.jpg",
   "license": "CC BY 4.0",
-  "credit": "",
+  "credit": "Robert Gendler/ESO",
   "source": "https://commons.wikimedia.org/wiki/File:Eso1021d.jpg"
  },
  "smc": {
@@ -68,7 +68,7 @@
   "q": 0.583,
   "file": "Messier 81 HST.jpg",
   "license": "Public domain",
-  "credit": "",
+  "credit": "NASA, ESA and the Hubble Heritage Team (STScI/AURA)",
   "source": "https://commons.wikimedia.org/wiki/File:Messier_81_HST.jpg"
  },
  "m82g": {
@@ -76,7 +76,7 @@
   "q": 0.477,
   "file": "M82 HST ACS 2006-14-a-large web.jpg",
   "license": "Public domain",
-  "credit": "",
+  "credit": "NASA, ESA, and The Hubble Heritage Team (STScI/AURA)",
   "source": "https://commons.wikimedia.org/wiki/File:M82_HST_ACS_2006-14-a-large_web.jpg"
  },
  "m101g": {
@@ -92,7 +92,439 @@
   "q": 0.585,
   "file": "NGC 4826 - HST.png",
   "license": "CC BY 2.0",
-  "credit": "",
+  "credit": "Judy Schmidt from USA",
   "source": "https://commons.wikimedia.org/wiki/File:NGC_4826_-_HST.png"
+ },
+ "cena": {
+  "kind": "face",
+  "q": 0.753,
+  "file": "ESO Centaurus A LABOCA.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:ESO_Centaurus_A_LABOCA.jpg"
+ },
+ "ngc253": {
+  "kind": "face",
+  "q": 0.322,
+  "file": "NGC 253 - Sculptor.png",
+  "license": "CC0",
+  "credit": "Chuck Ayoub",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_253_-_Sculptor.png"
+ },
+ "ngc1300": {
+  "kind": "face",
+  "q": 0.538,
+  "file": "Hubble2005-01-barred-spiral-galaxy-NGC1300.jpg",
+  "license": "Public domain",
+  "credit": "NASA, ESA, and The Hubble Heritage Team STScI/AURA)",
+  "source": "https://commons.wikimedia.org/wiki/File:Hubble2005-01-barred-spiral-galaxy-NGC1300.jpg"
+ },
+ "cartwheel": {
+  "kind": "face",
+  "q": 0.766,
+  "file": "Cartwheel Galaxy.jpg",
+  "license": "Public domain",
+  "credit": "ESA/Hubble & NASA",
+  "source": "https://commons.wikimedia.org/wiki/File:Cartwheel_Galaxy.jpg"
+ },
+ "antennae": {
+  "kind": "face",
+  "q": 0.812,
+  "file": "Antennae Galaxies reloaded.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Antennae_Galaxies_reloaded.jpg"
+ },
+ "ic1101": {
+  "kind": "face",
+  "q": 0.601,
+  "file": "IC 1101 (Abell 2029) - First Draft (46842821831).jpg",
+  "license": "CC BY 2.0",
+  "credit": "Kevin M. Gill",
+  "source": "https://commons.wikimedia.org/wiki/File:IC_1101_(Abell_2029)_-_First_Draft_(46842821831).jpg"
+ },
+ "m49g": {
+  "kind": "face",
+  "q": 0.958,
+  "file": "Messier 49-Rubin Observatory.png",
+  "license": "CC BY 4.0",
+  "credit": "RubinObs/NOIRLab/SLAC/NSF/DOE/AURA",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier_49-Rubin_Observatory.png"
+ },
+ "m59g": {
+  "kind": "face",
+  "q": 0.623,
+  "file": "Messier59 - HST - Potw1921a.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier59_-_HST_-_Potw1921a.jpg"
+ },
+ "m60g": {
+  "kind": "face",
+  "q": 0.61,
+  "file": "Arp116 Hubble.jpg",
+  "license": "CC BY 3.0",
+  "credit": "NASA, ESA",
+  "source": "https://commons.wikimedia.org/wiki/File:Arp116_Hubble.jpg"
+ },
+ "m61g": {
+  "kind": "face",
+  "q": 0.752,
+  "file": "A hungry starburst galaxy.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:A_hungry_starburst_galaxy.jpg"
+ },
+ "m63g": {
+  "kind": "face",
+  "q": 0.583,
+  "file": "M63 (NGC 5055).jpg",
+  "license": "Public domain",
+  "credit": "NASA/ESA - The Hubble Legacy Archive (HLA): Space Telescope Science Institute (STScI), the Space Telescope European Coordinating Facility (ST-ECF), and the Cana",
+  "source": "https://commons.wikimedia.org/wiki/File:M63_(NGC_5055).jpg"
+ },
+ "m66g": {
+  "kind": "face",
+  "q": 0.417,
+  "file": "Phot-33c-03-fullres.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:Phot-33c-03-fullres.jpg"
+ },
+ "m74g": {
+  "kind": "face",
+  "q": 0.821,
+  "file": "Webb and Hubble’s Views of Spiral Galaxy NGC 628 (2024-105).png",
+  "license": "Public domain",
+  "credit": "Image: NASA, ESA, CSA, STScI, Janice Lee (STScI), Thomas Williams (Oxford), PHANGS Team",
+  "source": "https://commons.wikimedia.org/wiki/File:Webb_and_Hubble’s_Views_of_Spiral_Galaxy_NGC_628_(2024-105).png"
+ },
+ "m77g": {
+  "kind": "face",
+  "q": 0.78,
+  "file": "Messier 77 spiral galaxy by HST.jpg",
+  "license": "Public domain",
+  "credit": "NASA, ESA & A. van der Hoeven",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier_77_spiral_galaxy_by_HST.jpg"
+ },
+ "m83g": {
+  "kind": "face",
+  "q": 0.907,
+  "file": "The Outskirts of the Southern Pinwheel Galaxy (noirlab2429a).jpg",
+  "license": "CC BY 4.0",
+  "credit": "NOIRLab",
+  "source": "https://commons.wikimedia.org/wiki/File:The_Outskirts_of_the_Southern_Pinwheel_Galaxy_(noirlab2429a).jpg"
+ },
+ "m84g": {
+  "kind": "face",
+  "q": 0.811,
+  "file": "A_fascinating_core.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:A_fascinating_core.jpg"
+ },
+ "m85g": {
+  "kind": "face",
+  "q": 0.74,
+  "file": "Messier85 - HST - Potw1905a.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier85_-_HST_-_Potw1905a.jpg"
+ },
+ "m86g": {
+  "kind": "face",
+  "q": 0.743,
+  "file": "Beacon of Light Messier 86.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Beacon_of_Light_Messier_86.jpg"
+ },
+ "m89g": {
+  "kind": "face",
+  "q": 0.803,
+  "file": "Messier89 - HST - Potw1902a.tif",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier89_-_HST_-_Potw1902a.tif"
+ },
+ "m90g": {
+  "kind": "face",
+  "q": 0.394,
+  "file": "Messier 90 - HST.png",
+  "license": "CC BY 2.0",
+  "credit": "Judy Schmidt from USA",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier_90_-_HST.png"
+ },
+ "m94g": {
+  "kind": "face",
+  "q": 0.825,
+  "file": "Starburst galaxy Messier 94.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Starburst_galaxy_Messier_94.jpg"
+ },
+ "m95g": {
+  "kind": "face",
+  "q": 0.752,
+  "file": "The VLT goes lion hunting.jpg",
+  "license": "CC BY 3.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:The_VLT_goes_lion_hunting.jpg"
+ },
+ "m96g": {
+  "kind": "face",
+  "q": 0.676,
+  "file": "Messier 96 as Seen with DESI Legacy Survey (noirlab2620a).jpg",
+  "license": "CC BY 4.0",
+  "credit": "NOIRLab",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier_96_as_Seen_with_DESI_Legacy_Survey_(noirlab2620a).jpg"
+ },
+ "m98g": {
+  "kind": "edge",
+  "q": 0.249,
+  "file": "Messier 98.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier_98.jpg"
+ },
+ "m100g": {
+  "kind": "face",
+  "q": 0.875,
+  "file": "Messier 100 — Grand Design Splendour.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier_100_—_Grand_Design_Splendour.jpg"
+ },
+ "m102g": {
+  "kind": "face",
+  "q": 0.497,
+  "file": "M102 PS.jpg",
+  "license": "CC0",
+  "credit": "Sboone61",
+  "source": "https://commons.wikimedia.org/wiki/File:M102_PS.jpg"
+ },
+ "m105g": {
+  "kind": "face",
+  "q": 0.898,
+  "file": "Messier105 - HST - Potw1901a.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier105_-_HST_-_Potw1901a.jpg"
+ },
+ "m106g": {
+  "kind": "face",
+  "q": 0.464,
+  "file": "Messier 106 visible and infrared composite.jpg",
+  "license": "Public domain",
+  "credit": "NASA, ESA, the Hubble Heritage Team (STScI/AURA), and R. Gendler (for the Hubble Heritage Team). Acknowledgment: J. GaBany",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier_106_visible_and_infrared_composite.jpg"
+ },
+ "m108g": {
+  "kind": "face",
+  "q": 0.31,
+  "file": "Messier108 - SDSS DR 14 (panorama).jpg",
+  "license": "CC BY 4.0",
+  "credit": "Sloan Digital Sky Survey",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier108_-_SDSS_DR_14_(panorama).jpg"
+ },
+ "m109g": {
+  "kind": "face",
+  "q": 0.514,
+  "file": "M109 (noao-m109hatfield).jpg",
+  "license": "CC BY 4.0",
+  "credit": "NOIRLab",
+  "source": "https://commons.wikimedia.org/wiki/File:M109_(noao-m109hatfield).jpg"
+ },
+ "c3g": {
+  "kind": "face",
+  "q": 0.325,
+  "file": "NGC 4236 by Matt Smith.jpg",
+  "license": "CC BY 4.0",
+  "credit": "Mattrsmith77",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_4236_by_Matt_Smith.jpg"
+ },
+ "c7g": {
+  "kind": "face",
+  "q": 0.456,
+  "file": "NGC 2403 - A Galaxy of Birth and Death (iotw2221a).jpg",
+  "license": "CC BY 4.0",
+  "credit": "NOIRLab",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_2403_-_A_Galaxy_of_Birth_and_Death_(iotw2221a).jpg"
+ },
+ "c12g": {
+  "kind": "face",
+  "q": 1.0,
+  "file": "Fireworks_Galaxy.jpg",
+  "license": "CC0",
+  "credit": "Andreigusan",
+  "source": "https://commons.wikimedia.org/wiki/File:Fireworks_Galaxy.jpg"
+ },
+ "c21g": {
+  "kind": "face",
+  "q": 0.585,
+  "file": "Starburst in NGC 4449 (captured by the Hubble Space Telescope).jpg",
+  "license": "Public domain",
+  "credit": "NASA, ESA, A. Aloisi (STScI/ESA), and The Hubble Heritage (STScI/AURA)-ESA/Hubble Collaboration",
+  "source": "https://commons.wikimedia.org/wiki/File:Starburst_in_NGC_4449_(captured_by_the_Hubble_Space_Telescope).jpg"
+ },
+ "c23g": {
+  "kind": "edge",
+  "q": 0.279,
+  "file": "NGC 891 Hubble north part.jpg",
+  "license": "Public domain",
+  "credit": "en:NASA , en:STScI , en:WikiSky",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_891_Hubble_north_part.jpg"
+ },
+ "c24g": {
+  "kind": "face",
+  "q": 0.622,
+  "file": "NGC 1275 Hubble.jpg",
+  "license": "Public domain",
+  "credit": "NASA, ESA, and the Hubble Heritage (STScI/AURA)-ESA/Hubble Collaboration",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_1275_Hubble.jpg"
+ },
+ "c26g": {
+  "kind": "edge",
+  "q": 0.136,
+  "file": "NGC 4244 Silver Needle Galaxu.png",
+  "license": "CC0",
+  "credit": "Chuck Ayoub",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_4244_Silver_Needle_Galaxu.png"
+ },
+ "c29g": {
+  "kind": "face",
+  "q": 0.437,
+  "file": "Caldwell 29 (50191857313).jpg",
+  "license": "CC BY 2.0",
+  "credit": "NASA Hubble Space Telescope",
+  "source": "https://commons.wikimedia.org/wiki/File:Caldwell_29_(50191857313).jpg"
+ },
+ "c30g": {
+  "kind": "face",
+  "q": 0.369,
+  "file": "NGC 7331 Acquired with the Schulman Telescope at the Mount Lemmon SkyCenter.jpg",
+  "license": "CC BY 3.0",
+  "credit": "Ngc1535",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_7331_Acquired_with_the_Schulman_Telescope_at_the_Mount_Lemmon_SkyCenter.jpg"
+ },
+ "c32g": {
+  "kind": "edge",
+  "q": 0.203,
+  "file": "Caldwell 32.jpg",
+  "license": "CC BY 2.0",
+  "credit": "NASA Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Caldwell_32.jpg"
+ },
+ "c35g": {
+  "kind": "face",
+  "q": 0.723,
+  "file": "Caldwell 35.jpg",
+  "license": "CC BY 2.0",
+  "credit": "NASA Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Caldwell_35.jpg"
+ },
+ "c36g": {
+  "kind": "face",
+  "q": 0.41,
+  "file": "NGC4559 - SDSS DR14 (panorama).jpg",
+  "license": "CC BY 4.0",
+  "credit": "Sloan Digital Sky Survey",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC4559_-_SDSS_DR14_(panorama).jpg"
+ },
+ "c44g": {
+  "kind": "face",
+  "q": 0.582,
+  "file": "Caldwell 44.jpg",
+  "license": "CC BY 2.0",
+  "credit": "NASA Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Caldwell_44.jpg"
+ },
+ "c45g": {
+  "kind": "face",
+  "q": 0.627,
+  "file": "Caldwell 45 (50291468631).jpg",
+  "license": "CC BY 2.0",
+  "credit": "NASA Hubble Space Telescope",
+  "source": "https://commons.wikimedia.org/wiki/File:Caldwell_45_(50291468631).jpg"
+ },
+ "c48g": {
+  "kind": "face",
+  "q": 0.867,
+  "file": "Spiral, elliptical or neither? (potw2538a).jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Spiral,_elliptical_or_neither?_(potw2538a).jpg"
+ },
+ "c51g": {
+  "kind": "face",
+  "q": 0.757,
+  "file": "Dwarf galaxy IC 1613.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:Dwarf_galaxy_IC_1613.jpg"
+ },
+ "c53g": {
+  "kind": "face",
+  "q": 0.419,
+  "file": "NGC 3115.jpg",
+  "license": "Public domain",
+  "credit": "Image credit: X-ray: NASA/CXC/Univ. of Alabama/K. Wong et al; Optical: ESO/VLT",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_3115.jpg"
+ },
+ "c57g": {
+  "kind": "face",
+  "q": 0.861,
+  "file": "Barnard's Galaxy.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:Barnard's_Galaxy.jpg"
+ },
+ "c62g": {
+  "kind": "face",
+  "q": 0.314,
+  "file": "Wide Field Imager view of the spiral galaxy NGC 247.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:Wide_Field_Imager_view_of_the_spiral_galaxy_NGC_247.jpg"
+ },
+ "c67g": {
+  "kind": "face",
+  "q": 0.76,
+  "file": "NGC1097 - ESO - eso0438d.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC1097_-_ESO_-_eso0438d.jpg"
+ },
+ "c70g": {
+  "kind": "face",
+  "q": 0.767,
+  "file": "View of the southern spiral NGC 300.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:View_of_the_southern_spiral_NGC_300.jpg"
+ },
+ "c72g": {
+  "kind": "edge",
+  "q": 0.216,
+  "file": "Irregular Galaxy NGC 55 (ESO 0914a).jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:Irregular_Galaxy_NGC_55_(ESO_0914a).jpg"
+ },
+ "c83g": {
+  "kind": "edge",
+  "q": 0.215,
+  "file": "Spiral Galaxy NGC 4945.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:Spiral_Galaxy_NGC_4945.jpg"
+ },
+ "c101g": {
+  "kind": "face",
+  "q": 0.653,
+  "file": "Wide Field Imager view of a Milky Way look-alike NGC 6744.jpg",
+  "license": "CC BY 3.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:Wide_Field_Imager_view_of_a_Milky_Way_look-alike_NGC_6744.jpg"
  }
 }

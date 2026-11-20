@@ -7,7 +7,7 @@ import { BodySprite } from '../render/bodies';
 import { LOOKS, PT, atmosphereMaterial, bodySphere, planetMaterial, ringMaterial, tempColor } from '../render/planet';
 import { Streaks } from '../render/streaks';
 import { BODIES, BodyInfo, V3, bodyAxes, v3 } from '../astro/astro';
-import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, messier, radecToVec, starName, starPhysical, stars } from '../data/catalog';
+import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, galaxyPhotos, messier, radecToVec, starName, starPhysical, stars } from '../data/catalog';
 import { ObjRef, formatDistanceKm, refName, refPosPc } from '../features/objects';
 import { deepById, deepForMessier, deepObjects } from '../data/deep';
 import { bus, simDate, state } from '../state';
@@ -302,7 +302,9 @@ export class ShipView {
     let away: V3 = v3.norm(v3.sub([0, 0, 0], t.pos));
     if (v3.len(t.pos) < 1) away = [1, 0, 0];
     const side = v3.norm(v3.cross(away, [0, 0, 1]));
-    const dir = v3.norm(v3.add(away, v3.scale(side, 0.45)));
+    // galassie con foto reale: si arriva lungo la linea di vista della foto (da Terra), così il render coincide
+    const photoGal = ref.kind === 'deep' && galaxyPhotos[ref.id]?.kind === 'face';
+    const dir = v3.norm(v3.add(away, v3.scale(side, photoGal ? 0.06 : 0.45)));
     this.launch = null;
     this.pos = v3.add(t.pos, v3.scale(dir, t.standoff * 1.3));
     this.lookAt(t.pos);
