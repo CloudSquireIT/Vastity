@@ -52,9 +52,45 @@ for name, fill in [("mark-black", "#0b0d12"), ("mark-white", "#ffffff")]:
     save(f"vastity-{name}.svg", svg(256, 256, mark(fill, name)))
 save("vastity-mark-color.svg", svg(256, 256, mark(None, "c", ring="url(#gr)", disk="#ffffff"), defs=GRAD))
 
-# icona app (sfondo scuro con bagliore)
-ICON_DEFS = GRAD + '''<radialGradient id="bg" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="#121a30"/><stop offset="1" stop-color="#000"/></radialGradient>'''
-save("vastity-app-icon.svg", svg(512, 512, f'<rect width="512" height="512" fill="url(#bg)"/>' + mark(None, "i", x=56, y=56, s=1.5625, ring="url(#gr)", disk="#ffffff"), defs=ICON_DEFS))
+# icona app: sfondo blu notte, stelle e buco nero al centro
+import random, math
+def stars(seed=7, n=70, size=1024):
+    rnd = random.Random(seed); out = []
+    c = size / 2
+    while len(out) < n:
+        x, y = rnd.uniform(0, size), rnd.uniform(0, size)
+        if math.hypot(x - c, y - c) < size * 0.30: continue   # niente stelle sopra il buco nero
+        r = rnd.choice([1.6, 2, 2.4, 3, 3.6, 4.6]) * size / 1024
+        o = rnd.uniform(.35, .95)
+        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="#fff" opacity="{o:.2f}"/>')
+    # qualche stella più brillante a croce
+    for (x, y, k) in [(.20, .22, 1), (.80, .76, .8), (.84, .18, .6), (.16, .80, .55)]:
+        X, Y, L = x * size, y * size, 22 * k * size / 1024
+        out.append(f'<path d="M{X},{Y-L} Q{X},{Y} {X+L},{Y} Q{X},{Y} {X},{Y+L} Q{X},{Y} {X-L},{Y} Q{X},{Y} {X},{Y-L} Z" fill="#fff" opacity=".9"/>')
+    return "".join(out)
+
+ICON_DEFS = GRAD + '''
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2c66"/><stop offset=".55" stop-color="#0f1b45"/><stop offset="1" stop-color="#070d26"/></linearGradient>
+<radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#6f8fff" stop-opacity=".45"/><stop offset=".55" stop-color="#3a55c8" stop-opacity=".18"/><stop offset="1" stop-color="#3a55c8" stop-opacity="0"/></radialGradient>
+<radialGradient id="hole" cx="50%" cy="50%" r="50%"><stop offset=".7" stop-color="#02040c"/><stop offset="1" stop-color="#02040c" stop-opacity="0"/></radialGradient>'''
+
+def icon_art(size=1024, uid="i"):
+    s = size / 1024
+    return (f'<rect width="{size}" height="{size}" fill="url(#sky)"/>'
+            + stars(size=size)
+            + f'<circle cx="{size/2}" cy="{size/2}" r="{430*s}" fill="url(#glow)"/>'
+            + f'<circle cx="{size/2 - 14*s}" cy="{size/2 - 14*s}" r="{190*s}" fill="url(#hole)"/>'
+            + mark(None, uid, x=size/2 - 330*s, y=size/2 - 330*s, s=660*s/256, ring="url(#gr)", disk="#ffffff"))
+
+# quadrato pieno: per iOS / Android / PWA (il sistema applica la sua maschera)
+save("vastity-app-icon.svg", svg(1024, 1024, icon_art(), defs=ICON_DEFS))
+# forma da app macOS: squircle 824 su tela 1024 con ombra
+MAC = f'''<filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity=".35"/></filter>
+<clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>'''
+body = ('<rect x="100" y="100" width="824" height="824" rx="185" fill="#0f1b45" filter="url(#sh)"/>'
+        + '<g clip-path="url(#sq)"><g transform="translate(100 100) scale(0.8046875)">' + icon_art(uid="m") + '</g></g>'
+        + '<rect x="100.5" y="100.5" width="823" height="823" rx="184.5" fill="none" stroke="#fff" stroke-opacity=".12"/>')
+save("vastity-app-icon-macos.svg", svg(1024, 1024, body, defs=ICON_DEFS + MAC))
 
 # lockup orizzontale e verticale
 d, wlen = word("VASTITY")
