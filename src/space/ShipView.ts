@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import * as A from 'astronomy-engine';
 import { Background, GALACTIC_CENTER_PC } from '../render/background';
 import { BodySprite } from '../render/bodies';
-import { PT, PlanetLook, atmosphereMaterial, bodySphere, planetMaterial, ringMaterial, tempColor } from '../render/planet';
+import { LOOKS, PT, atmosphereMaterial, bodySphere, planetMaterial, ringMaterial, tempColor } from '../render/planet';
 import { Streaks } from '../render/streaks';
 import { BODIES, BodyInfo, V3, bodyAxes, v3 } from '../astro/astro';
 import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, messier, radecToVec, starName, starPhysical, stars } from '../data/catalog';
@@ -39,19 +39,6 @@ export interface Telemetry {
   shipTime: number; earthTime: number; where: string; autopilot: boolean; arrived: string | null;
 }
 
-const LOOKS: Record<string, PlanetLook & { shell?: [number, number, number] }> = {
-  sun: { type: PT.star, map: 'sun', color: 0xffe2b0, bright: 1.45 },
-  mercury: { type: PT.rocky, map: 'mercury', bump: 2.4 },
-  venus: { type: PT.venus, map: 'venus', atm: 0xffe0a8, atmK: 0.45, shell: [0xffcf8a, 1.04, 0.9] },
-  earth: { type: PT.earth, map: 'earth', atm: 0x6fa8ff, atmK: 0.7, bump: 0.5, shell: [0x6aa2ff, 1.022, 0.7] },
-  moon: { type: PT.rocky, map: 'moon', bump: 2.8 },
-  mars: { type: PT.rocky, map: 'mars', bump: 1.8, atm: 0xe0a080, atmK: 0.22, shell: [0xe8a07a, 1.015, 0.45] },
-  jupiter: { type: PT.gas, map: 'jupiter', atm: 0xe8d6b8, atmK: 0.18 },
-  saturn: { type: PT.gas, map: 'saturn', atm: 0xf0e0b8, atmK: 0.15 },
-  uranus: { type: PT.gas, map: 'uranus', atm: 0xa8ecff, atmK: 0.35, shell: [0x9fe6ff, 1.03, 0.5] },
-  neptune: { type: PT.gas, map: 'neptune', atm: 0x6f8cff, atmK: 0.4, shell: [0x5d7cff, 1.03, 0.55] },
-  pluto: { type: PT.rocky, color: 0xc9b29a },
-};
 
 /** Magnitudine assoluta (a 1 UA dal Sole e dall'osservatore). */
 const H_MAG: Record<string, number> = { mercury: -0.6, venus: -4.4, earth: -3.99, moon: 0.28, mars: -1.52, jupiter: -9.4, saturn: -8.88, uranus: -7.19, neptune: -6.87, pluto: -1.0 };
@@ -154,6 +141,8 @@ export class ShipView {
   constructor(private bg: Background, overlay: HTMLElement) {
     this.scene.add(this.root);
     this.scene.add(this.camera);
+    // blu notte profondo invece del nero assoluto
+    this.scene.background = new THREE.Color(0x050a18);
     this.labels = new LabelLayer<ObjRef>(overlay);
     this.labels.el.style.display = 'none';
     this.labels.onPick = (r) => bus.emit('ship-select', r);
@@ -268,13 +257,13 @@ export class ShipView {
     }
     if (ref.kind === 'star') {
       const R = Math.min(1500, starPhysical(ref.index).R) * 696340;
-      return { pos: v3.scale([stars.pos[ref.index * 3], stars.pos[ref.index * 3 + 1], stars.pos[ref.index * 3 + 2]], PC_IN_KM), standoff: Math.max(R * 9, 3e6), radius: R };
+      return { pos: v3.scale([stars.pos[ref.index * 3], stars.pos[ref.index * 3 + 1], stars.pos[ref.index * 3 + 2]], PC_IN_KM), standoff: Math.max(R * 7, 3e5), radius: R };
     }
     if (ref.kind === 'messier') {
       const p = refPosPc(ref)!;
       const m = messier.find((x) => x.id === ref.id)!;
-      const gal = ['sg', 's0', 'sd', 'i', 'e'].includes(m.type);
-      const ly = gal ? (m.id === 'M31' ? 160000 : 90000) : m.type === 'gc' ? 250 : 40;
+      const gal = ['s', 'sg', 's0', 'sd', 'i', 'e'].includes(m.type);
+      const ly = gal ? (m.id === 'M31' ? 105000 : 60000) : m.type === 'gc' ? 250 : 40;
       return { pos: v3.scale(p, PC_IN_KM), standoff: ly * LY_IN_KM, radius: ly * LY_IN_KM * 0.3 };
     }
     return null;
@@ -423,7 +412,7 @@ export class ShipView {
         this.quat.slerp(this.tq, 1 - Math.exp(-2.6 * dt));
         const angle = this.quat.angleTo(this.tq);
         if (remaining <= Math.max(1, t.standoff * 0.015)) {
-          this.stop();
+          this.stop(true);
           this.arrived = refName(this.target);
           bus.emit('arrived', this.target);
           bus.emit('flash');
@@ -440,6 +429,15 @@ export class ShipView {
     this.logSpeed.smoothTime = this.autopilot ? 0.75 : 0.9;
     const ls = this.logSpeed.to(goal, dt);
     this.speed = ls <= -0.5 ? 0 : Math.pow(10, ls);
+    // in avvicinamento la velocità non supera mai quella che permette di fermarsi in tempo
+    if (this.autopilot && this.target) {
+      const t = this.targetInfo(this.target);
+      if (t) {
+        const rem = Math.max(0, v3.len(v3.sub(t.pos, this.pos)) - t.standoff);
+        const cap = rem / 0.32;
+        if (this.speed > cap) { this.speed = cap; this.logSpeed.value = Math.log10(Math.max(cap, 0.1)); this.logSpeed.velocity = Math.min(0, this.logSpeed.velocity); }
+      }
+    }
     const accel = (ls - this.lastLog) / Math.max(dt, 1e-3);
     this.lastLog = ls;
     this.shake = damp(this.shake, Math.min(1, Math.abs(accel) * 0.12) * (this.speed > 1000 ? 1 : 0), 6, dt);
@@ -483,7 +481,7 @@ export class ShipView {
       obsPc: this.obsV, beta: this.betaV,
       magLimit: 7.2, pixelScale: dpr, pixPerRad, dim: 1, galaxyDim: state.settings.milkyWay ? 1 : 0,
       linesOpacity: state.settings.constellations ? 0.16 * Math.max(0, Math.min(1, (100 - v3.len(this.pos) / LY_IN_KM) / 80)) : 0,
-      twinkle: 0, time: this.time, nearCutPc: 0.003, galSpin: this.galSpin,
+      twinkle: 0, time: this.time, nearCutPc: 0.003, galSpin: this.galSpin, deepField: true,
     });
     this.streaks.update(this.obsV, this.fwdV, warp);
     this.updateSolarSystem(date, pixPerRad, dpr, dt);
@@ -701,8 +699,24 @@ export class ShipView {
       if (!p.front || p.x < -40 || p.x > this.w + 40 || p.y < -20 || p.y > this.h + 20) return;
       L.add(p.x, p.y, text, cls, force, ref);
     };
+    // dischi dei pianeti sullo schermo: le etichette delle stelle dietro di essi vengono nascoste
+    const discs: number[] = [];
+    for (const p of this.planets) {
+      if (!p.mesh.visible) continue;
+      const rel = v3.sub(p.pos, this.pos);
+      const r = this.discPxCss(p.info.radiusKm * (p.info.rings ? 2.2 : 1), v3.len(rel));
+      if (r < 8) continue;
+      const q = this.project(rel);
+      if (q.front) discs.push(q.x, q.y, r);
+    }
+    const hidden = (rel: V3) => {
+      if (!discs.length) return false;
+      const q = this.project(rel);
+      for (let k = 0; k < discs.length; k += 3) if (Math.hypot(q.x - discs[k], q.y - discs[k + 1]) < discs[k + 2]) return true;
+      return false;
+    };
     if (state.settings.labels) {
-      if (sunDist > 2000 * AU_IN_KM) put(v3.scale(this.pos, -1), tx('Sole', 'Sun', 'Soleil'), 'pill star', true, { kind: 'body', id: 'sun' });
+      if (sunDist > 2000 * AU_IN_KM && sunDist < 30000 * PC_IN_KM) put(v3.scale(this.pos, -1), tx('Sole', 'Sun', 'Soleil'), 'pill star', true, { kind: 'body', id: 'sun' });
       for (const p of this.planets) {
         const rel = v3.sub(p.pos, this.pos);
         const d = v3.len(rel);
@@ -729,9 +743,13 @@ export class ShipView {
         const rel: V3 = [stars.pos[i * 3] - obs[0], stars.pos[i * 3 + 1] - obs[1], stars.pos[i * 3 + 2] - obs[2]];
         const dpc = v3.len(rel);
         const near = dpc < 2 ? ` · ${formatDistanceKm(dpc * PC_IN_KM)}` : '';
+        if (hidden(rel)) continue;
         put(rel, starName(i) + near, 'star', false, { kind: 'star', index: i });
       }
-      if (sunDist > 3000 * PC_IN_KM) put(v3.sub(GALACTIC_CENTER_PC as V3, obs), tx('Centro galattico', 'Galactic centre', 'Centre galactique'), 'dso');
+      if (sunDist > 3000 * PC_IN_KM) {
+        const far = v3.len(v3.sub(GALACTIC_CENTER_PC as V3, obs)) > 40000;
+        put(v3.sub(GALACTIC_CENTER_PC as V3, obs), far ? tx('Via Lattea', 'Milky Way', 'Voie lactée') : tx('Centro galattico', 'Galactic centre', 'Centre galactique'), far ? 'pill' : 'dso', far);
+      }
       for (const m of messier) {
         if (!['M31', 'M33', 'M42', 'M45', 'M13', 'M44', 'M1', 'M8', 'M16'].includes(m.id)) continue;
         const ref: ObjRef = { kind: 'messier', id: m.id };

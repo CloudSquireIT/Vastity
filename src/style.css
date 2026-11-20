@@ -388,3 +388,77 @@ input[type="range"]:not(.throttle) { width: 100%; accent-color: var(--accent); }
 .tour-gesture { width: 54px; height: 54px; margin: 2px auto 8px; border-radius: 50%; border: 2px solid rgba(207, 224, 255, .8); animation: gesture 2.2s ease-in-out infinite; }
 @keyframes gesture { 0% { transform: translateX(-36px); opacity: 0; } 20% { opacity: 1; } 70% { transform: translateX(36px); opacity: 1; } 100% { transform: translateX(36px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .tour-gesture { animation: none; } }
+
+/* =====================================================================
+   Gerarchia tipografica
+   Titoli: Space Grotesk · Testo ed etichette: Inter · Dati: JetBrains Mono
+   ===================================================================== */
+:root {
+  --f-display: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;
+  --f-text: 'Inter Variable', 'Inter', system-ui, -apple-system, sans-serif;
+  --f-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --t-title: #ffffff;
+  --t-section: #e2e8f0;
+  --t-body: #cbd5e1;
+  --t-label: #f8fafc;
+  --t-cons: #94a3b8;
+  --t-cyan: #38bdf8;
+  --t-amber: #fbbf24;
+  --badge: rgba(15, 23, 42, 0.75);
+}
+body { font-family: var(--f-text); font-size: 15.5px; line-height: 1.5; }
+
+/* titolo dell'oggetto celeste */
+.sheet-title { font-family: var(--f-display); font-weight: 700; font-size: 26px; letter-spacing: -0.02em; line-height: 1.2; color: var(--t-title); }
+/* intestazioni di sezione */
+h3 { font-family: var(--f-display); font-weight: 600; font-size: 17px; letter-spacing: -0.01em; line-height: 1.3; color: var(--t-section); text-transform: none; margin: 24px 0 10px; }
+/* testo enciclopedico */
+.info-desc, .journey p, .tour-text, .sheet-body p { font-family: var(--f-text); font-weight: 400; font-size: 15.5px; line-height: 1.5; color: var(--t-body); }
+.info-sub, .row-s, .muted { color: rgba(203, 213, 225, 0.78); }
+.row-t, .world-n, .tonight-label, .rank-n, .badge-n { font-family: var(--f-display); letter-spacing: -0.01em; }
+.tonight-label, .rank-n { font-weight: 600; color: var(--t-title); }
+.journey-big { font-family: var(--f-display); font-weight: 600; letter-spacing: -0.01em; color: var(--t-title); }
+.journey-k, .tour-step { font-family: var(--f-mono); font-weight: 500; font-size: 10.5px; letter-spacing: 0.08em; }
+.facts dt { color: rgba(203, 213, 225, 0.7); }
+.facts dd { font-family: var(--f-mono); font-size: 13px; color: var(--t-label); }
+.score-n { font-family: var(--f-mono); font-weight: 400; }
+.tour-title { font-family: var(--f-display); font-weight: 700; letter-spacing: -0.02em; font-size: 22px; }
+.brand-n { font-family: var(--f-display); font-weight: 500; }
+
+/* etichette nel cielo */
+.label { font-family: var(--f-text); font-weight: 500; font-size: 12.5px; letter-spacing: 0.01em; color: var(--t-label); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.85); }
+.label.star { font-size: 12px; color: rgba(248, 250, 252, 0.82); }
+.label.cons { font-family: var(--f-text); font-weight: 600; font-size: 11.5px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--t-cons); text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 6px rgba(0, 0, 0, 0.9); }
+.label.pill { font-family: var(--f-text); font-weight: 500; font-size: 13px; letter-spacing: 0.01em; color: var(--t-label); }
+.label.dso { color: #d8c6ff; }
+.label.below { opacity: 0.55; }
+
+/* etichette di catalogo */
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag { font-family: var(--f-mono); font-weight: 500; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: #e2e8f0; background: var(--badge); padding: 3px 8px; border-radius: 999px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+
+/* intestazione della scheda con foto */
+.info-head { display: flex; gap: 14px; align-items: center; margin: 2px 0 6px; }
+.info-head-text { min-width: 0; }
+.thumb { width: 84px; height: 84px; flex-shrink: 0; border-radius: 22px; overflow: hidden; background: #05070f; box-shadow: 0 8px 24px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .12); }
+.thumb img, .thumb canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* telemetria della navicella in una pillola liquid glass */
+.telemetry { top: calc(12px + var(--safe-t)); width: auto; max-width: min(92vw, 560px); padding: 9px 18px 10px; border-radius: 26px; background: var(--lg-fill); -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur); box-shadow: var(--lg-shadow); }
+.telemetry::before { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; background: var(--lg-edge); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
+.tm-speed { font-family: var(--f-mono); font-weight: 400; font-size: 19px; letter-spacing: 0; color: var(--t-cyan); font-variant-numeric: tabular-nums; text-shadow: none; line-height: 1.25; }
+.tm-target { font-family: var(--f-text); font-weight: 500; font-size: 13px; color: var(--t-label); text-shadow: none; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm-target b { font-family: var(--f-mono); font-weight: 400; color: var(--t-amber); }
+.tm-sub { font-family: var(--f-mono); font-size: 11px; color: rgba(203, 213, 225, 0.72); text-shadow: none; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.throttle-marks span { font-family: var(--f-mono); }
+.time-pill { font-family: var(--f-mono); font-size: 12.5px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.mission-chip { font-family: var(--f-text); font-weight: 500; font-size: 12.5px; }
+.ship-target span, .sel-arrow span { font-family: var(--f-text); font-weight: 500; }
+.ship-target span b, .sel-arrow span b { font-family: var(--f-mono); font-weight: 400; color: var(--t-amber); }
+.zoom-pill { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(126px + var(--safe-b)); font-family: var(--f-mono); font-size: 12px; color: var(--t-cyan); padding: 4px 11px; border-radius: 999px; background: var(--badge); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); pointer-events: none !important; transition: opacity .4s; }
+.zoom-pill.off { opacity: 0; }
+body[data-mode="ship"] .zoom-pill { display: none; }
+@media (max-width: 480px) { .telemetry { max-width: calc(100vw - 130px); } .tm-speed { font-size: 17px; } }
+.sel-arrow span { left: -40px; top: 18px; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 520px) { body[data-mode="ship"] .brand { display: none; } }
+.top-r { margin-left: auto; }

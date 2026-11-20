@@ -132,6 +132,8 @@ uniform vec3 uSunGal;
 uniform float uSpin;
 uniform float uTime;
 uniform float uMaxPx;
+uniform float uBoost;
+uniform float uOther;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vSoft;
@@ -156,7 +158,8 @@ void main() {
   if (px > uMaxPx) { alpha *= uMaxPx / px; px = uMaxPx; }
   gl_PointSize = px;
   float shimmer = 0.92 + 0.08 * sin(uTime * (0.3 + aSeed * 0.6) + aSeed * 40.0);
-  vAlpha = alpha * shimmer / max(1.0, D * D);
+  // la Via Lattea vista da fuori viene schiarita; le altre galassie restano naturali
+  vAlpha = alpha * shimmer / max(1.0, D * D) * (aKind < 0.5 ? uBoost : uOther);
   vColor = color * clamp(sqrt(D), 0.4, 1.4);
   vSoft = aKind > 1.5 ? 1.0 : 0.0;
 }
@@ -238,6 +241,37 @@ void main() {
   float w = fbm(q + fbm(q * 1.7 + uTime * 0.01));
   float shape = smoothstep(1.0, 0.15, r) * smoothstep(0.25, 0.85, w);
   gl_FragColor = vec4(vColor * shape * vAlpha * uDim, 1.0);
+}
+`;
+
+// galassie lontane: piccole ellissi di luce con orientamento casuale
+const deepVert = /* glsl */ `
+attribute vec3 color;
+attribute float size;
+attribute float aAngle;
+uniform float uScale;
+varying vec3 vColor;
+varying float vAngle;
+void main() {
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = size * uScale;
+  vColor = color;
+  vAngle = aAngle;
+}
+`;
+const deepFrag = /* glsl */ `
+uniform float uK;
+varying vec3 vColor;
+varying float vAngle;
+void main() {
+  vec2 p = (gl_PointCoord - 0.5) * 2.0;
+  float c = cos(vAngle), s = sin(vAngle);
+  p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+  p.y *= 2.6;
+  float r2 = dot(p, p);
+  if (r2 > 1.0) discard;
+  float f = exp(-r2 * 4.0) + exp(-r2 * 30.0) * 0.6;
+  gl_FragColor = vec4(vColor * f * uK * 0.55, 1.0);
 }
 `;
 
@@ -347,12 +381,12 @@ function buildDiskGalaxy(p: Particles, dust: Particles, n: number, raDeg: number
     const th = core ? r() * 6.283 : Math.log(rad / (radiusPc * 0.1) + 1) * 3.2 + Math.floor(r() * 2) * Math.PI + gauss(r) * 0.35;
     const c = core ? [1, 0.85, 0.65] : r() < 0.05 ? [1.2, 0.5, 0.6] : [0.75, 0.82, 1];
     const k = (0.5 + r() * 0.5) * bright;
-    put(p, rad, th, gauss(r) * radiusPc * (core ? 0.06 : 0.015), [c[0] * k, c[1] * k, c[2] * k], radiusPc * (core ? 0.05 : 0.035));
+    put(p, rad, th, gauss(r) * radiusPc * (core ? 0.06 : 0.015), [c[0] * k, c[1] * k, c[2] * k], radiusPc * (core ? 0.022 : 0.012));
   }
   for (let i = 0; i < n * 0.25; i++) {
     const rad = radiusPc * (0.15 + r() * 0.7);
     const th = Math.log(rad / (radiusPc * 0.1) + 1) * 3.2 + Math.floor(r() * 2) * Math.PI - 0.15 + gauss(r) * 0.15;
-    put(dust, rad, th, gauss(r) * radiusPc * 0.006, [0.5, 0.55, 0.7], radiusPc * 0.03);
+    put(dust, rad, th, gauss(r) * radiusPc * 0.006, [0.35, 0.38, 0.5], radiusPc * 0.01);
   }
 }
 
@@ -364,7 +398,7 @@ function buildBlob(p: Particles, n: number, raDeg: number, decDeg: number, distP
     const k = (0.5 + r() * 0.5) * bright;
     const pink = r() < 0.06;
     p.col.push((pink ? 1.1 : 0.8) * k, (pink ? 0.45 : 0.85) * k, (pink ? 0.6 : 1) * k);
-    p.size.push(radiusPc * 0.12);
+    p.size.push(radiusPc * 0.07);
     p.kind.push(1);
     p.seed.push(r());
   }
@@ -430,6 +464,8 @@ export interface BackgroundUpdate {
   nearCutPc: number;
   galSpin?: number;
   spikes?: number;
+  /** Mostra il fondale di galassie lontane (solo in navicella). */
+  deepField?: boolean;
 }
 
 export class Background {
@@ -444,7 +480,8 @@ export class Background {
   private galMat: THREE.ShaderMaterial;
   private dustMat: THREE.ShaderMaterial;
   private nebMat: THREE.ShaderMaterial;
-  private baseGain = 0.04;
+  deep: THREE.Points;
+  private deepMat: THREE.ShaderMaterial;
   /** Per ogni costellazione: indici dei vertici-stella delle sue linee. */
   lineStars: Map<string, number[]> = new Map();
 
@@ -532,8 +569,8 @@ export class Background {
     const glow = P();
     const dust = P();
     buildMilkyWay(glow, dust, quality.galaxyParticles, quality.dustParticles);
-    buildDiskGalaxy(glow, dust, 9000, 10.6847, 41.2687, 765000, 30000, (77 * Math.PI) / 180, (38 * Math.PI) / 180, 1.6, 7);
-    buildDiskGalaxy(glow, dust, 2500, 23.4621, 30.6599, 840000, 9000, (55 * Math.PI) / 180, (23 * Math.PI) / 180, 1.2, 9);
+    buildDiskGalaxy(glow, dust, quality.tier === 'low' ? 9000 : 18000, 10.6847, 41.2687, 765000, 30000, (77 * Math.PI) / 180, (38 * Math.PI) / 180, 1.6, 7);
+    buildDiskGalaxy(glow, dust, quality.tier === 'low' ? 2500 : 5000, 23.4621, 30.6599, 840000, 9000, (55 * Math.PI) / 180, (23 * Math.PI) / 180, 1.2, 9);
     buildBlob(glow, 3500, 80.894, -69.756, 50000, 1600, 1.2, 11);
     buildBlob(glow, 1800, 13.187, -72.829, 62000, 1000, 1.1, 13);
     const galToEqM = new THREE.Matrix3().set(
@@ -546,10 +583,9 @@ export class Background {
       uGalToEq: { value: galToEqM }, uSunGal: { value: new THREE.Vector3(...SUN_GAL) }, uSpin: { value: 0 },
     };
     const mobile = quality.tier !== 'high';
-    this.baseGain = mobile ? 0.05 : 0.04;
     this.galMat = new THREE.ShaderMaterial({
       vertexShader: galVert, fragmentShader: galFrag,
-      uniforms: { ...shared, uGain: { value: mobile ? 0.05 : 0.04 }, uMaxPx: { value: 90 } },
+      uniforms: { ...shared, uGain: { value: mobile ? 0.05 : 0.04 }, uMaxPx: { value: 90 }, uBoost: { value: 1 }, uOther: { value: 1 } },
       blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
     });
     this.galaxy = new THREE.Points(toGeometry(glow), this.galMat);
@@ -558,7 +594,7 @@ export class Background {
 
     this.dustMat = new THREE.ShaderMaterial({
       vertexShader: galVert, fragmentShader: dustFrag,
-      uniforms: { ...shared, uGain: { value: 0.022 }, uMaxPx: { value: 110 } },
+      uniforms: { ...shared, uGain: { value: 0.022 }, uMaxPx: { value: 110 }, uBoost: { value: 1 }, uOther: { value: 1 } },
       blending: THREE.CustomBlending, blendEquation: THREE.ReverseSubtractEquation,
       blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
       depthTest: false, depthWrite: false, transparent: true,
@@ -578,7 +614,35 @@ export class Background {
     this.nebulae.frustumCulled = false;
     this.nebulae.renderOrder = 0.7;
 
-    this.group.add(this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
+    // --- fondale di galassie lontanissime (direzioni fisse, distanza "infinita") ---
+    const dr = rng(101);
+    const nDeep = quality.tier === 'low' ? 1200 : 2400;
+    const dp: number[] = [], dc: number[] = [], ds: number[] = [], da: number[] = [];
+    for (let i = 0; i < nDeep; i++) {
+      const z = dr() * 2 - 1, ph = dr() * Math.PI * 2, rr = Math.sqrt(1 - z * z);
+      dp.push(rr * Math.cos(ph) * 1000, rr * Math.sin(ph) * 1000, z * 1000);
+      const warm = dr() < 0.55;
+      const k = 0.35 + dr() * 0.65;
+      dc.push((warm ? 1.0 : 0.7) * k, (warm ? 0.85 : 0.8) * k, (warm ? 0.65 : 1.0) * k);
+      ds.push(2 + Math.pow(dr(), 3) * 9);
+      da.push(dr() * Math.PI);
+    }
+    const dg = new THREE.BufferGeometry();
+    dg.setAttribute('position', new THREE.Float32BufferAttribute(dp, 3));
+    dg.setAttribute('color', new THREE.Float32BufferAttribute(dc, 3));
+    dg.setAttribute('size', new THREE.Float32BufferAttribute(ds, 1));
+    dg.setAttribute('aAngle', new THREE.Float32BufferAttribute(da, 1));
+    this.deepMat = new THREE.ShaderMaterial({
+      vertexShader: deepVert, fragmentShader: deepFrag,
+      uniforms: { uK: { value: 0 }, uScale: { value: 1 } },
+      blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
+    });
+    this.deep = new THREE.Points(dg, this.deepMat);
+    this.deep.frustumCulled = false;
+    this.deep.renderOrder = -1;
+    this.deep.visible = false;
+
+    this.group.add(this.deep, this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
   }
 
   update(u: BackgroundUpdate) {
@@ -592,14 +656,24 @@ export class Background {
     su.uTwinkle.value = u.twinkle;
     su.uNearCut.value = u.nearCutPc;
     su.uSpikes.value = u.spikes ?? 1;
+    this.deepMat.uniforms.uScale.value = u.pixelScale;
     this.lineMat.uniforms.uOpacity.value = u.linesOpacity;
     this.lines.visible = u.linesOpacity > 0.001;
     const gu = this.galMat.uniforms;
     // vista da fuori: più luce e polveri più marcate per far risaltare bracci e bande scure
     const dgc = Math.hypot(u.obsPc.x - GALACTIC_CENTER_PC[0], u.obsPc.y - GALACTIC_CENTER_PC[1], u.obsPc.z - GALACTIC_CENTER_PC[2]);
     const out = Math.max(0, Math.min(1, (dgc - 12000) / 18000));
-    gu.uGain.value = this.baseGain * (1 + 1.8 * out);
-    this.dustMat.uniforms.uGain.value = 0.022 * (1 + 4 * out);
+    // da molto lontano le particelle diventano più piccole di un pixel: si compensa per vedere la galassia intera
+    const far = Math.max(0, Math.min(1, (dgc - 80000) / 500000));
+    gu.uBoost.value = 1 + 1.8 * out + 6 * far;
+    this.dustMat.uniforms.uBoost.value = 1 + 4 * out;
+    // fondale di galassie lontane: compare quando ci si allontana dal Sole
+    const fromSun = u.obsPc.length();
+    this.deepMat.uniforms.uK.value = u.deepField ?? 0 ? Math.max(0, Math.min(1, (Math.log10(Math.max(fromSun, 1)) - 2.3) / 2.2)) : 0;
+    this.deep.visible = this.deepMat.uniforms.uK.value > 0.01;
+    // le altre galassie risaltano di più quando si viaggia nello spazio intergalattico
+    gu.uOther.value = 1 + 1.6 * this.deepMat.uniforms.uK.value;
+    this.dustMat.uniforms.uOther.value = 1 + 1.6 * this.deepMat.uniforms.uK.value;
     gu.uPixPerRad.value = u.pixPerRad;
     gu.uDim.value = u.galaxyDim;
     gu.uSpin.value = u.galSpin ?? 0;

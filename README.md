@@ -78,4 +78,6 @@ Con `@capacitor/local-notifications` gli avvisi diventano notifiche di sistema a
 - Costellazioni e Messier: [d3-celestial](https://github.com/ofrohn/d3-celestial), BSD-3-Clause
 - Calcoli: [Astronomy Engine](https://github.com/cosinekitty/astronomy), MIT; [satellite.js](https://github.com/shashwatak/satellite-js), MIT
 - Meteo: [Open-Meteo](https://open-meteo.com); orbite ISS: [CelesTrak](https://celestrak.org)
+- Foto nelle schede: NASA, ESA, ESO, Hubble via Wikimedia Commons (fonte di ogni immagine in `public/photos/credits.json`)
+- Font: Inter, Space Grotesk, JetBrains Mono (SIL Open Font License) tramite Fontsource
 - Texture di pianeti, Luna e Sole: [Solar System Scope](https://www.solarsystemscope.com/textures/), CC BY 4.0, basate su dati NASA (convertite in WebP in 3 risoluzioni in `public/textures`)

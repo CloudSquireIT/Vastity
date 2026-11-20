@@ -1,5 +1,5 @@
 // Service worker: l'app funziona anche offline dopo la prima visita.
-const CACHE = 'vastity-v2';
+const CACHE = 'vastity-v3';
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', 'index.html', 'manifest.webmanifest', 'data/stars.json', 'data/constellations.json', 'data/messier.json', 'icons/icon-192.png'])).then(() => self.skipWaiting()));
 });

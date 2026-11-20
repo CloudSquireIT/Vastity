@@ -9,6 +9,7 @@ import { PLACES, SkyFrame } from '../astro/astro';
 import { bus, saveSettings, setLocation, setTime, state } from '../state';
 import { azName } from '../features/iss';
 import { LANGS, lang, setLang, tx } from '../i18n';
+import { objectThumb } from './thumb';
 
 export interface AppApi {
   frame(): SkyFrame;
@@ -33,7 +34,13 @@ export function initPanels(a: AppApi) { api = a; }
 export function showInfo(ref: ObjRef) {
   const d = info(ref, api.frame());
   const body = h('div', { class: 'info' });
-  if (d.subtitle) body.append(h('div', { class: 'info-sub' }, d.subtitle));
+  // intestazione: foto reale o render generico, tipo e etichette di catalogo
+  const tags = h('div', { class: 'tags' });
+  for (const [k, v] of d.facts) {
+    if (/Magnitud|Magnitude/.test(k)) tags.append(h('span', { class: 'tag' }, `MAG ${v}`));
+    if (/Catalogo|Catalogue|Sigla|Abbreviation|Abréviation|Tipo spettrale|Spectral type|Type spectral/.test(k)) tags.append(h('span', { class: 'tag' }, v));
+  }
+  body.append(h('div', { class: 'info-head' }, objectThumb(ref), h('div', { class: 'info-head-text' }, d.subtitle ? h('div', { class: 'info-sub' }, d.subtitle) : null, tags)));
   if (d.desc) body.append(h('p', { class: 'info-desc' }, d.desc));
 
   const actions = h('div', { class: 'actions' });

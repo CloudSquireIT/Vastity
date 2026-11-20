@@ -1,5 +1,8 @@
 // Vastity — punto di ingresso: crea il renderer, le due viste (Cielo e Navicella) e l'interfaccia.
 import * as THREE from 'three';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/space-grotesk';
+import '@fontsource-variable/jetbrains-mono';
 import './style.css';
 import { loadCatalogs } from './data/catalog';
 import { Background } from './render/background';
@@ -125,12 +128,13 @@ async function main() {
 
   const reticle = h('div', { class: 'reticle' }, h('div', { class: 'ret-ring' }), h('div', { class: 'ret-name' }));
   const missionChip = h('button', { class: 'mission-chip', onclick: () => openMissions() });
+  const zoomPill = h('div', { class: 'zoom-pill off', 'aria-hidden': 'true' });
 
   // telemetria della navicella
   const tSpeed = h('div', { class: 'tm-speed' });
   const tSub = h('div', { class: 'tm-sub' });
   const tTarget = h('div', { class: 'tm-target' });
-  const telemetry = h('div', { class: 'telemetry' }, tSpeed, tSub, tTarget);
+  const telemetry = h('div', { class: 'telemetry' }, tSpeed, tTarget, tSub);
   const throttle = h('input', { type: 'range', min: '0', max: '1', step: '0.001', value: '0', class: 'throttle', 'aria-label': tx('Manetta', 'Throttle', 'Manette des gaz') }) as HTMLInputElement;
   const throttleMarks = h('div', { class: 'throttle-marks' }, h('span', { style: { bottom: '100%' } }, '10¹² c'), h('span', { style: { bottom: '55%' } }, tx('luce', 'light', 'lumière')), h('span', { style: { bottom: '35%' } }, `${num(0.1, 1, 1)} c`), h('span', { style: { bottom: '2%' } }, '0'));
   const throttleWrap = h('div', { class: 'throttle-wrap' }, throttleMarks, throttle);
@@ -139,7 +143,7 @@ async function main() {
   throttle.addEventListener('pointerup', () => { throttleActive = false; });
   throttle.addEventListener('input', () => ship.setThrottle(+throttle.value));
 
-  ui.append(top, reticle, missionChip, telemetry, throttleWrap, bottom);
+  ui.append(top, reticle, missionChip, zoomPill, telemetry, throttleWrap, bottom);
 
   // ------------------------------------------------------------------ modalità
   function setMode(m: 'sky' | 'ship', instant = false) {
@@ -292,7 +296,11 @@ async function main() {
     if (t.speed >= C_KMS * 0.99995) parts.push(tx('Motore a curvatura', 'Warp drive', 'Moteur de distorsion'));
     parts.push(t.nearest ? `${t.where} · ${tx('vicino a', 'near', 'près de')} ${t.nearest} (${t.nearestDist})` : t.where);
     tSub.textContent = parts.join(' · ');
-    if (t.target) tTarget.textContent = `◎ ${t.target}${t.targetDist ? ' · ' + t.targetDist : ''}${t.eta ? ' · ' + tx('arrivo tra', 'arriving in', 'arrivée dans') + ' ' + t.eta : ''}${t.autopilot ? ' · ' + tx('pilota automatico', 'autopilot', 'pilote automatique') : ''}`;
+    if (t.target) {
+      tTarget.replaceChildren(`◎ ${t.target}${t.targetDist ? ' · ' + t.targetDist : ''}`);
+      if (t.eta) tTarget.append(' · ', h('b', {}, `${tx('arrivo', 'ETA', 'arrivée')} ${t.eta}`));
+      if (t.autopilot) tTarget.append(' · ', tx('pilota automatico', 'autopilot', 'pilote auto'));
+    }
     else if (t.speed > 1) tTarget.textContent = tx(`Alla velocità attuale: Luna in ${formatDuration(384400 / t.speed)} · Proxima Centauri in ${formatDuration(4.0e13 / t.speed)}`, `At this speed: Moon in ${formatDuration(384400 / t.speed)} · Proxima Centauri in ${formatDuration(4.0e13 / t.speed)}`, `À cette vitesse : la Lune en ${formatDuration(384400 / t.speed)} · Proxima du Centaure en ${formatDuration(4.0e13 / t.speed)}`);
     else tTarget.textContent = tx('Trascina per orientarti · alza la manetta per partire', 'Drag to look around · push the throttle to go', 'Glissez pour vous orienter · poussez la manette pour partir');
     if (!throttleActive) throttle.value = String(speedToThrottle(t.speed));
@@ -367,7 +375,14 @@ async function main() {
     tick(dt);
     idleT += dt;
     if (idleT > 6 && !sheetOpen() && !throttleActive && !document.body.classList.contains('touring')) document.body.classList.add('idle');
-    if (state.mode === 'sky') { sky.update(dt); sky.updateOverlay(); sky.render(renderer); }
+    if (state.mode === 'sky') {
+      sky.update(dt); sky.updateOverlay(); sky.render(renderer);
+      // ingrandimento come in un telescopio: 1× ≈ campo dell'occhio
+      const mag = 60 / sky.zoomFov;
+      const label = mag >= 1.5 ? `× ${mag < 10 ? num(mag, 1) : num(Math.round(mag))}` : '';
+      if (zoomPill.textContent !== label) zoomPill.textContent = label;
+      zoomPill.classList.toggle('off', !label);
+    }
     else { ship.update(dt); ship.updateOverlay(); ship.render(renderer); }
     hudT += dt;
     if (hudT > 0.2) {

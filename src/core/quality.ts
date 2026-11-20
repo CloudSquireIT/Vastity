@@ -71,11 +71,12 @@ export class AdaptiveResolution {
     this.acc = 0;
     this.frames = 0;
     if (this.cooldown > 0) return;
-    const budget = this.minDelta;
+    // obiettivo: almeno ~50 fps; non scendere mai sotto una nitidezza minima
     const maxS = Math.min(window.devicePixelRatio || 1, quality.maxDpr);
+    const minS = Math.min(maxS, (window.devicePixelRatio || 1) >= 2 ? 1.5 : 1);
     let next = this.scale;
-    if (avg > budget * 1.35) next = Math.max(0.75, this.scale * 0.85);
-    else if (avg < budget * 1.08 && this.scale < maxS) next = Math.min(maxS, this.scale * 1.1);
+    if (avg > 1 / 45) next = Math.max(minS, this.scale * 0.88);
+    else if (avg < 1 / 56 && this.scale < maxS) next = Math.min(maxS, this.scale * 1.12);
     if (Math.abs(next - this.scale) > 0.02) {
       this.scale = next;
       this.renderer.setPixelRatio(next);

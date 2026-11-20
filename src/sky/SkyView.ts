@@ -4,8 +4,11 @@ import { Background } from '../render/background';
 import { BodySprite } from '../render/bodies';
 import { Place, SkyFrame, V3, bodyAxes, bodyById, horToEqj, placeById, skyFrame, v3 } from '../astro/astro';
 import { planetTexture } from '../core/textures';
+import { LOOKS, bodySphere, planetMaterial, ringMaterial } from '../render/planet';
 import { damp } from '../core/motion';
 
+/** Campo visivo minimo: circa 30″, abbastanza per vedere gli anelli di Saturno. */
+const MIN_FOV = 0.008;
 const TEXTURED = new Set(['sun', 'mercury', 'venus', 'earth', 'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']);
 import { constellations, messier, messierName, radecToVec, starAppMag, starName, stars } from '../data/catalog';
 import { ObjRef, refDirection, sameRef } from '../features/objects';
@@ -36,9 +39,9 @@ void main() {
   float up = max(v.y, 0.0);
   float hor = pow(1.0 - up, 4.0);
   float cosS = dot(v, uSun);
-  vec3 night = vec3(0.004, 0.006, 0.014);
+  vec3 night = vec3(0.026, 0.04, 0.095);
   vec3 zen = mix(night, uDay * 0.55, day);
-  vec3 horizon = mix(night * 2.0, mix(uDay, vec3(1.0), 0.45) * 0.95, day);
+  vec3 horizon = mix(night * 1.7, mix(uDay, vec3(1.0), 0.45) * 0.95, day);
   vec3 c = mix(zen, horizon, hor);
   float sunSide = pow(max(cosS, 0.0), 3.0);
   c += vec3(1.0, 0.45, 0.18) * tw * (0.15 + 0.85 * sunSide) * hor * 0.9;
@@ -75,6 +78,13 @@ export class SkyView {
   ar = false;
 
   private sprites = new Map<string, BodySprite>();
+  /** Modelli 3D (sfere con texture, anelli) per i corpi abbastanza grandi sullo schermo. */
+  private meshes = new Map<string, { mesh: THREE.Mesh; mat: THREE.ShaderMaterial; ring?: THREE.Mesh }>();
+  private sphereGeo = bodySphere(96);
+  private m4 = new THREE.Matrix4();
+  private vA = new THREE.Vector3();
+  private vB = new THREE.Vector3();
+  private vC = new THREE.Vector3();
   private issSprite = new BodySprite(3);
   private dome: THREE.Mesh;
   private ground: THREE.Mesh;
@@ -95,7 +105,7 @@ export class SkyView {
   private slewing = false;
   /** Oggetto inseguito durante lo spostamento (si aggiorna se il tempo scorre). */
   private trackRef: ObjRef | null = null;
-  private groundAlpha = 1;
+  private groundAlpha = 0.78;
   private gyroQ = new THREE.Quaternion();
   private gyroHas = false;
   private alphaOffset: number | null = null;
@@ -192,6 +202,7 @@ export class SkyView {
   }
 
   // --- orientamento ---------------------------------------------------------
+  get zoomFov() { return this.fov; }
   get viewAz() { return ((this.yaw / D2R) % 360 + 360) % 360; }
   get viewAlt() { return this.pitch / D2R; }
 
@@ -286,13 +297,13 @@ export class SkyView {
         this.tPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.tPitch + dy * radPerPx()));
       },
       dragEnd: (vx, vy) => { this.vYaw = -vx * radPerPx() * 60; this.vPitch = vy * radPerPx() * 60; },
-      pinch: (s) => { this.slewing = false; this.tFov = Math.max(0.5, Math.min(100, this.tFov / s)); },
-      wheel: (d) => { this.slewing = false; this.tFov = Math.max(0.5, Math.min(100, this.tFov * Math.exp(d * 0.0012))); },
+      pinch: (s) => { this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(100, this.tFov / s)); },
+      wheel: (d) => { this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(100, this.tFov * Math.exp(d * 0.0012))); },
       tap: (x, y) => this.select(this.pick(x, y)),
       doubleTap: (x, y) => {
         const p = this.pick(x, y);
         if (p) { this.select(p); this.centerOn(p); }
-        else this.tFov = Math.max(0.5, this.tFov / 2);
+        else this.tFov = Math.max(MIN_FOV, this.tFov / 2.5);
       },
     };
   }
@@ -311,7 +322,7 @@ export class SkyView {
     return v3.norm([stars.pos[i * 3] - o[0], stars.pos[i * 3 + 1] - o[1], stars.pos[i * 3 + 2] - o[2]]);
   }
 
-  private visibleAlt(alt: number) { return !this.groundOn() || alt > -0.5 || this.groundAlpha < 0.6; }
+  private visibleAlt(_alt: number) { return true; }
   private groundOn() { return state.settings.ground && !this.ar; }
 
   pick(x: number, y: number): ObjRef | null {
@@ -447,7 +458,7 @@ export class SkyView {
     // terreno semitrasparente quando guardi un oggetto sotto l'orizzonte
     const selDir = this.selected ? refDirection(this.selected, this.frame, this.issDir) : null;
     const selBelow = !!selDir && this.tmp.set(...selDir).applyMatrix4(this.celestial.matrix).y < 0 && this.pitch < 0.05;
-    this.groundAlpha = damp(this.groundAlpha, selBelow ? 0.3 : 1, 5, dt);
+    this.groundAlpha = damp(this.groundAlpha, selBelow ? 0.28 : (this.pitch < -0.05 ? 0.55 : 0.78), 5, dt);
     this.groundMat.uniforms.uAlpha.value = this.groundAlpha;
 
     // stelle e Via Lattea
@@ -514,7 +525,9 @@ export class SkyView {
       const quadPx = Math.max(disc * 1.2, glowPx * 2.4);
       u.uQuad.value = (quadPx / pixPerRad) * 900;
       u.uQuadPx.value = quadPx;
-      u.uDiscPx.value = disc;
+      const use3d = !b.isStar && disc > 3 && LOOKS[b.id] !== undefined;
+      u.uDiscPx.value = use3d ? 0 : disc;
+      this.updateMesh(b, use3d, disc, date, day);
       u.uGlowPx.value = glowPx;
       u.uGlow.value = glow;
       u.uStar.value = b.isStar ? 1 : 0;
@@ -531,6 +544,58 @@ export class SkyView {
       } else u.uViewToBody.value.copy(viewToEqj);
     });
     for (const [id, sp] of this.sprites) if (!seen.has(id)) sp.mesh.visible = false;
+  }
+
+  /** Pianeti e Luna come vere sfere 3D orientate e illuminate, con gli anelli per Saturno. */
+  private updateMesh(b: SkyFrame['bodies'][number], show: boolean, disc: number, date: Date, day: number) {
+    let m = this.meshes.get(b.id);
+    if (!show) { if (m) { m.mesh.visible = false; if (m.ring) m.ring.visible = false; } return; }
+    if (!m) {
+      const mat = planetMaterial(LOOKS[b.id]);
+      mat.transparent = true;
+      const mesh = new THREE.Mesh(this.sphereGeo, mat);
+      mesh.renderOrder = 3.5;
+      mesh.frustumCulled = false;
+      this.celestial.add(mesh);
+      m = { mesh, mat };
+      if (bodyById(b.id)?.rings) {
+        const ring = new THREE.Mesh(new THREE.RingGeometry(74500, 140220, 160, 1), ringMaterial(74500, 140220));
+        ring.renderOrder = 3.6;
+        ring.frustumCulled = false;
+        this.celestial.add(ring);
+        m.ring = ring;
+      }
+      this.meshes.set(b.id, m);
+    }
+    const D = 600;
+    const R = D * Math.tan(b.angRadius);
+    m.mesh.visible = true;
+    m.mesh.position.set(b.dir[0] * D, b.dir[1] * D, b.dir[2] * D);
+    m.mesh.scale.setScalar(R);
+    const info = bodyById(b.id);
+    if (info?.body) {
+      try {
+        const ax = bodyAxes(info.body, date);
+        this.m4.makeBasis(this.vA.set(...ax.X), this.vB.set(...ax.Y), this.vC.set(...ax.Z));
+        m.mesh.quaternion.setFromRotationMatrix(this.m4);
+      } catch { /* */ }
+    }
+    const L = this.vA.set(...b.lightDir).transformDirection(this.viewRot);
+    m.mat.uniforms.uLight.value.copy(L);
+    m.mat.uniforms.uTime.value = this.time;
+    m.mat.uniforms.uBright.value = 1;
+    void disc; void day;
+    if (m.ring) {
+      m.ring.visible = true;
+      m.ring.position.copy(m.mesh.position);
+      m.ring.quaternion.copy(m.mesh.quaternion);
+      m.ring.scale.setScalar(R / (info?.radiusKm ?? 1));
+      const ru = (m.ring.material as THREE.ShaderMaterial).uniforms;
+      ru.uPlanetV.value.copy(m.mesh.position).applyMatrix4(this.viewRot);
+      ru.uPlanetR.value = R;
+      ru.uLight.value.copy(L);
+      ru.uLit.value = 0.25 + 0.75 * Math.abs(this.vC.dot(this.vB.set(...b.lightDir)));
+    }
   }
 
   private updateISS(date: Date, pixPerRad: number, dpr: number, day: number) {
@@ -566,8 +631,8 @@ export class SkyView {
     const put = (dir: V3, text: string, cls: string, force = false, ref?: ObjRef, offset = 0) => {
       const p = this.project(dir);
       if (!p.front || p.x < -50 || p.x > this.w + 50 || p.y < -20 || p.y > this.h + 20) return;
-      if (!this.visibleAlt(p.alt)) return;
-      L.add(p.x + offset, p.y + offset * 0.6, text, cls, force, ref);
+      const below = this.groundOn() && p.alt < -0.3;
+      L.add(p.x + offset, p.y + offset * 0.6, text, below ? cls + ' below' : cls, force, ref);
     };
     // punti cardinali
     if (this.groundOn() || this.ar) {

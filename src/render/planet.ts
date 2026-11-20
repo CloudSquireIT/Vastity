@@ -130,6 +130,20 @@ void main() {
 
 export interface PlanetLook { type: number; map?: string; color?: number; atm?: number; atmK?: number; bump?: number; bright?: number }
 
+export const LOOKS: Record<string, PlanetLook & { shell?: [number, number, number] }> = {
+  sun: { type: PT.star, map: 'sun', color: 0xffe2b0, bright: 1.45 },
+  mercury: { type: PT.rocky, map: 'mercury', bump: 2.4 },
+  venus: { type: PT.venus, map: 'venus', atm: 0xffe0a8, atmK: 0.45, shell: [0xffcf8a, 1.04, 0.9] },
+  earth: { type: PT.earth, map: 'earth', atm: 0x6fa8ff, atmK: 0.7, bump: 0.5, shell: [0x6aa2ff, 1.022, 0.7] },
+  moon: { type: PT.rocky, map: 'moon', bump: 2.8 },
+  mars: { type: PT.rocky, map: 'mars', bump: 1.8, atm: 0xe0a080, atmK: 0.22, shell: [0xe8a07a, 1.015, 0.45] },
+  jupiter: { type: PT.gas, map: 'jupiter', atm: 0xe8d6b8, atmK: 0.18 },
+  saturn: { type: PT.gas, map: 'saturn', atm: 0xf0e0b8, atmK: 0.15 },
+  uranus: { type: PT.gas, map: 'uranus', atm: 0xa8ecff, atmK: 0.35, shell: [0x9fe6ff, 1.03, 0.5] },
+  neptune: { type: PT.gas, map: 'neptune', atm: 0x6f8cff, atmK: 0.4, shell: [0x5d7cff, 1.03, 0.55] },
+  pluto: { type: PT.rocky, color: 0xc9b29a },
+};
+
 export function planetMaterial(look: PlanetLook) {
   const map = look.map ? planetTexture(look.map) : blankTexture;
   const scl = look.type === PT.earth ? planetTexture('earth_scl', false) : blankTexture;
