@@ -1,0 +1,159 @@
+// Idea 1 — "Stasera vale la pena?": un punteggio della serata che unisce meteo reale,
+// Luna, buio e inquinamento luminoso, e suggerisce cosa guardare e quando.
+import { A, BODIES, eqjToHor, moonPhaseName, nightWindow, observer, sunAltitude, v3 } from '../astro/astro';
+import { MESSIER_EXTRA, constellations, messier, messierName, radecToVec } from '../data/catalog';
+import { ObjRef } from './objects';
+import { IssPass, issPasses, loadISS } from './iss';
+import { WeatherHour, effectiveCloud, getWeather, weatherAt } from './weather';
+import { state } from '../state';
+
+export interface HourScore { t: number; score: number; cloud: number | null; moonUp: boolean; sunAlt: number }
+export interface Suggestion { ref: ObjRef; name: string; when: Date; alt: number; az: number; note: string; icon: string }
+
+export interface Tonight {
+  score: number;
+  label: string;
+  summary: string;
+  weather: boolean;
+  start: Date;
+  end: Date;
+  best: Date;
+  hours: HourScore[];
+  moon: { phase: string; illum: number; rise: Date | null; set: Date | null };
+  suggestions: Suggestion[];
+  iss: IssPass[];
+  factors: { name: string; value: string; ok: boolean }[];
+}
+
+const SHOWPIECES = ['M31', 'M42', 'M45', 'M13', 'M44', 'M8', 'M57', 'M27', 'M51', 'M81', 'M22', 'M7', 'M6', 'M11', 'M35', 'M41', 'M3', 'M5', 'M92', 'M20', 'M17'];
+
+export function scoreLabel(s: number) {
+  if (s >= 80) return 'Serata eccezionale';
+  if (s >= 62) return 'Ottima serata';
+  if (s >= 42) return 'Serata discreta';
+  if (s >= 22) return 'Serata mediocre';
+  return 'Meglio restare a casa';
+}
+
+function moonState(t: Date) {
+  const obs = observer();
+  const eq = A.Equator(A.Body.Moon, t, obs, true, true);
+  const alt = A.Horizon(t, obs, eq.ra, eq.dec).altitude;
+  const illum = A.Illumination(A.Body.Moon, t).phase_fraction;
+  return { alt, illum };
+}
+
+export function hourScore(t: Date, w: WeatherHour | null) {
+  const sunAlt = sunAltitude(t);
+  const darkness = sunAlt <= -18 ? 1 : sunAlt <= -12 ? 0.8 : sunAlt <= -6 ? 0.45 : 0.05;
+  const m = moonState(t);
+  const moonPen = m.illum * Math.max(0, Math.min(1, (m.alt + 4) / 25));
+  const moonF = 1 - 0.5 * moonPen;
+  const b = state.settings.bortle;
+  const pollF = 1 - (b - 1) * 0.045;
+  let cloudF = 1, humF = 1, cloud: number | null = null;
+  if (w) {
+    cloud = effectiveCloud(w);
+    cloudF = Math.pow(1 - cloud / 100, 1.4);
+    humF = (w.humidity > 92 ? 0.8 : w.humidity > 82 ? 0.92 : 1) * (w.visibility < 8000 ? 0.75 : 1) * (1 - (w.precip / 100) * 0.6);
+  }
+  return { score: 100 * darkness * moonF * pollF * cloudF * humF, cloud, moonUp: m.alt > 0, sunAlt, moonPen };
+}
+
+export async function computeTonight(now = new Date()): Promise<Tonight> {
+  const [weather] = await Promise.all([getWeather(), loadISS().catch(() => undefined)]);
+  const win = nightWindow(now);
+  let start = win.dusk ?? win.sunset ?? new Date(now.getTime());
+  let end = win.dawn ?? new Date(start.getTime() + 8 * 3600e3);
+  if (end.getTime() - now.getTime() < 90 * 60e3) { // la notte è (quasi) finita: guarda alla prossima
+    const next = nightWindow(new Date(now.getTime() + 12 * 3600e3));
+    start = next.dusk ?? start; end = next.dawn ?? end;
+  }
+  const from = now > start ? now : start;
+  const hours: HourScore[] = [];
+  for (let t = from.getTime(); t <= end.getTime(); t += 1800e3) {
+    const d = new Date(t);
+    const s = hourScore(d, weatherAt(weather, t));
+    hours.push({ t, score: s.score, cloud: s.cloud, moonUp: s.moonUp, sunAlt: s.sunAlt });
+  }
+  if (!hours.length) hours.push({ t: from.getTime(), score: 0, cloud: null, moonUp: false, sunAlt: 0 });
+  const sorted = [...hours].sort((a, b) => b.score - a.score);
+  const bestH = sorted[0];
+  // il punteggio della serata pesa la ora migliore e la media delle 3 ore migliori
+  const top = sorted.slice(0, Math.min(6, sorted.length));
+  const score = Math.round(bestH.score * 0.5 + (top.reduce((s, h) => s + h.score, 0) / top.length) * 0.5);
+  const best = new Date(bestH.t);
+
+  // Luna
+  const mph = A.MoonPhase(best);
+  const ill = A.Illumination(A.Body.Moon, best).phase_fraction;
+  const obs = observer();
+  const safe = (f: () => A.AstroTime | null) => { try { return f()?.date ?? null; } catch { return null; } };
+  const moon = {
+    phase: moonPhaseName(mph), illum: ill,
+    rise: safe(() => A.SearchRiseSet(A.Body.Moon, obs, +1, new Date(start.getTime() - 6 * 3600e3), 1.2)),
+    set: safe(() => A.SearchRiseSet(A.Body.Moon, obs, -1, new Date(start.getTime() - 6 * 3600e3), 1.2)),
+  };
+
+  // cosa guardare
+  const sugg: Suggestion[] = [];
+  const sample = (dirAt: (t: Date) => [number, number, number]) => {
+    let bestAlt = -90, bt = best, baz = 0;
+    for (const h of hours) {
+      if (h.score < bestH.score * 0.35 && hours.length > 2) continue;
+      const d = new Date(h.t);
+      const hz = eqjToHor(dirAt(d), d);
+      if (hz.alt > bestAlt) { bestAlt = hz.alt; bt = d; baz = hz.az; }
+    }
+    return { alt: bestAlt, when: bt, az: baz };
+  };
+  for (const b of BODIES) {
+    if (!b.body || b.id === 'sun' || b.id === 'earth' || b.id === 'pluto') continue;
+    const r = sample((d) => { const e = A.Equator(b.body!, d, obs, false, true); return v3.norm([e.vec.x, e.vec.y, e.vec.z]); });
+    if (r.alt < 8) continue;
+    const mag = A.Illumination(b.body, r.when).mag;
+    const note = b.id === 'moon' ? `${moonPhaseName(mph)}, illuminata al ${Math.round(ill * 100)}%`
+      : b.id === 'uranus' || b.id === 'neptune' ? 'Serve un binocolo o un telescopio'
+      : b.id === 'jupiter' ? 'Con un binocolo vedi le sue 4 lune più grandi'
+      : b.id === 'saturn' ? 'Con un piccolo telescopio vedi gli anelli'
+      : b.id === 'venus' ? 'L\'oggetto più luminoso dopo Sole e Luna'
+      : b.id === 'mars' ? 'Riconoscibile dal colore rosso-arancio'
+      : `Magnitudine ${mag.toFixed(1)}`;
+    sugg.push({ ref: { kind: 'body', id: b.id }, name: b.it, when: r.when, alt: r.alt, az: r.az, note, icon: b.id === 'moon' ? 'moon' : 'planet' });
+  }
+  const dso: Suggestion[] = [];
+  for (const id of SHOWPIECES) {
+    const m = messier.find((x) => x.id === id);
+    if (!m) continue;
+    const dir = radecToVec(m.ra, m.dec);
+    const r = sample(() => dir);
+    if (r.alt < 25) continue;
+    const ly = MESSIER_EXTRA[m.id]?.ly;
+    dso.push({ ref: { kind: 'messier', id }, name: messierName(m), when: r.when, alt: r.alt, az: r.az, note: `${m.id}${ly ? ` · la sua luce viaggia da ${ly >= 1e6 ? (ly / 1e6).toFixed(1).replace('.', ',') + ' milioni di' : Math.round(ly).toLocaleString('it-IT')} anni` : ''}`, icon: 'dso' });
+  }
+  dso.sort((a, b) => b.alt - a.alt);
+  sugg.push(...dso.slice(0, 3));
+  const cons = constellations.filter((c) => c.rank === 1).map((c) => {
+    const hz = eqjToHor(radecToVec(c.c[0], c.c[1]), best);
+    return { c, ...hz };
+  }).filter((c) => c.alt > 35).sort((a, b) => b.alt - a.alt).slice(0, 2);
+  for (const c of cons) sugg.push({ ref: { kind: 'constellation', id: c.c.id }, name: c.c.it, when: best, alt: c.alt, az: c.az, note: 'Alta nel cielo, facile da riconoscere', icon: 'cons' });
+
+  const iss = issPasses(new Date(Math.max(now.getTime(), start.getTime() - 3600e3)), 1).filter((p) => p.visible && p.peak <= end && p.maxAlt > 15);
+
+  const w = weatherAt(weather, best.getTime());
+  const factors = [
+    { name: 'Nuvole', value: w ? `${Math.round(effectiveCloud(w))}%` : 'n.d.', ok: w ? effectiveCloud(w) < 35 : true },
+    { name: 'Luna', value: `${Math.round(ill * 100)}%${bestH.moonUp ? ' · alta' : ' · sotto l\'orizzonte'}`, ok: !bestH.moonUp || ill < 0.35 },
+    { name: 'Buio', value: bestH.sunAlt <= -18 ? 'notte piena' : 'crepuscolo', ok: bestH.sunAlt <= -12 },
+    { name: 'Umidità', value: w ? `${Math.round(w.humidity)}%` : 'n.d.', ok: w ? w.humidity < 85 : true },
+    { name: 'Inquinamento luminoso', value: `Bortle ${state.settings.bortle}`, ok: state.settings.bortle <= 4 },
+  ];
+  const fmtT = (d: Date) => d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  let summary: string;
+  if (score < 22) summary = w && effectiveCloud(w) > 70 ? 'Il cielo sarà coperto per gran parte della notte.' : 'Condizioni difficili: prova un\'altra sera.';
+  else summary = `Il momento migliore è intorno alle ${fmtT(best)}${moon.illum > 0.6 && bestH.moonUp ? ', ma la Luna illuminerà il cielo' : ''}.`;
+  if (!weather) summary += ' (Meteo non disponibile: punteggio basato solo su Luna e buio.)';
+
+  return { score, label: scoreLabel(score), summary, weather: !!weather, start: from, end, best, hours, moon, suggestions: sugg, iss, factors };
+}
