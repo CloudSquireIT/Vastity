@@ -204,24 +204,15 @@ vec3 cameraRay(mat3 cam, vec2 uv, float focal) {
 }
 
 // ---- shader-skills library: color ----
+// Exact sRGB decode (EOTF): encoded [0,1] -> linear.
+vec3 srgbToLinear(vec3 c) {
+    c = max(c, 0.0);
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
 // Exact sRGB encode (OETF): linear -> display [0,1]. Apply exactly once, after tonemapping. pow(c, 1/2.2) is visibly wrong near black (0.001 encodes to 0.013 here vs 0.043 with 2.2).
 vec3 linearToSrgb(vec3 c) {
     c = max(c, 0.0);
     return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
-}
-// Approximate linear sRGB color of a blackbody at temperature kelvin (1000-15000 K), normalized to max channel 1. Uses the Krystek (1985) Planckian-locus fit -> XYZ -> sRGB.
-vec3 blackbody(float kelvin) {
-    float T = clamp(kelvin, 1000.0, 15000.0);
-    float u = (0.860117757 + 1.54118254e-4 * T + 1.28641212e-7 * T * T) / (1.0 + 8.42420235e-4 * T + 7.08145163e-7 * T * T);
-    float v = (0.317398726 + 4.22806245e-5 * T + 4.20481691e-8 * T * T) / (1.0 - 2.89741816e-5 * T + 1.61456053e-7 * T * T);
-    float x = 3.0 * u / (2.0 * u - 8.0 * v + 4.0);
-    float y = 2.0 * v / (2.0 * u - 8.0 * v + 4.0);
-    vec3 xyz = vec3(x / y, 1.0, (1.0 - x - y) / y);
-    vec3 rgb = xyz * mat3(3.2406, -1.5372, -0.4986,
-                          -0.9689, 1.8758, 0.0415,
-                          0.0557, -0.2040, 1.0570);
-    rgb = max(rgb, 0.0);
-    return rgb / max(max(rgb.r, rgb.g), max(rgb.b, 1e-6));
 }
 
 // ---- shader-skills library: tonemap ----
@@ -267,7 +258,11 @@ vec3 diskLight(vec3 p, float shift) {
     float heat = (0.45 + 0.9 * filaments) * (0.75 + 0.6 * turbulent);
     float radial = smoothstep(1.75, 2.3, r) * (1.0 - smoothstep(4.8, 7.6, r));
     float temperature = 7600.0 * pow(3.0 / r, 0.8) * shift * (0.85 + 0.2 * heat);
-    return blackbody(max(1000.0, temperature)) * radial * heat * pow(shift, BEAMING) * 4.2 / sqrt(r);
+    // palette Vastity: blu profondo all'esterno, bianco nella parte più calda
+    float t = clamp(temperature / 11000.0, 0.0, 1.0);
+    vec3 tint = mix(srgbToLinear(vec3(0.24, 0.46, 0.98)), srgbToLinear(vec3(0.56, 0.71, 1.0)), smoothstep(0.25, 0.6, t));
+    tint = mix(tint, vec3(1.0), smoothstep(0.5, 0.95, t));
+    return tint * radial * heat * pow(shift, BEAMING) * 3.6 / sqrt(r);
 }
 
 vec3 distantStars(vec3 dir) {
@@ -282,7 +277,7 @@ vec3 distantStars(vec3 dir) {
 }
 
 vec4 diskTransfer(vec2 fragCoord) {
-    vec2 uv = rot2(0.16) * ((2.0 * fragCoord - iResolution.xy) / iResolution.y);
+    vec2 uv = rot2(-0.16) * ((2.0 * fragCoord - iResolution.xy) / iResolution.y);
     vec3 radial = vec3(0.0, sin(INCLINATION), cos(INCLINATION));
     vec3 ro = CAMERA_RADIUS * radial;
     vec3 rd = cameraRay(cameraMatrix(ro, vec3(0), 0.0), uv, ZOOM);
@@ -335,7 +330,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 #endif
     vec2 sv = fragCoord / iResolution.xy;
     // cielo blu notte in spazio display (non passa dal tonemap)
-    vec3 sky = mix(vec3(0.030, 0.050, 0.150), vec3(0.105, 0.170, 0.400), sv.y * sv.y);
+    vec3 sky = mix(vec3(0.004, 0.008, 0.030), vec3(0.050, 0.085, 0.230), sv.y * sv.y);
     bool escaped = false;
     vec3 col = vec3(0.0);
     if (transfer.w > 1.5) {
