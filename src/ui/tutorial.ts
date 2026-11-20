@@ -28,7 +28,21 @@ function steps(): Step[] {
         'Vous ne trouvez pas quelque chose ? Touchez la loupe et tapez par exemple « Andromède », ou parcourez les catégories : étoiles, planètes, galaxies, nébuleuses et plus.'),
     },
     {
-      target: '.top-r .ibtn:nth-child(2)', round: true,
+      target: '.zoom-ctl',
+      title: tx('Ingrandisci', 'Zoom in', 'Zoomez'),
+      text: tx('Usa lo slider (o + e −) per avvicinarti come con un telescopio: Saturno, gli anelli, le galassie. La vista parte sempre dallo zoom minimo; in navicella lo slider è in basso a sinistra.',
+        'Use the slider (or + and −) to zoom in like a telescope: Saturn, its rings, galaxies. The view always starts fully zoomed out; in the spaceship the slider is at the bottom left.',
+        'Utilisez le curseur (ou + et −) pour vous rapprocher comme avec un télescope : Saturne, ses anneaux, les galaxies. La vue part toujours du zoom minimal ; dans le vaisseau, le curseur est en bas à gauche.'),
+    },
+    {
+      target: '.journal-btn', round: true,
+      title: tx('Il tuo diario', 'Your log', 'Votre journal'),
+      text: tx('Tutto quello che salvi con «Diario» o trovi con le missioni finisce qui, giorno per giorno. Tocca un oggetto per riaprirlo.',
+        'Everything you save with “Log” or find through missions ends up here, day by day. Tap an object to open it again.',
+        'Tout ce que vous enregistrez avec « Journal » ou trouvez avec les missions arrive ici, jour par jour. Touchez un objet pour le rouvrir.'),
+    },
+    {
+      target: '.top-r .ibtn:nth-child(3)', round: true,
       title: tx('Punta il telefono', 'Point your phone', 'Pointez votre téléphone'),
       text: tx('Attiva la bussola e alza il telefono verso il cielo: Vastity ti mostra esattamente cosa stai guardando.',
         'Turn on the compass and raise your phone to the sky: Vastity shows exactly what you are looking at.',

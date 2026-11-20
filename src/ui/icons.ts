@@ -19,6 +19,7 @@ export const icons = {
   share: s('<path d="M12 3v12M7.5 7.5L12 3l4.5 4.5"/><path d="M5 13v6h14v-6"/>'),
   calendar: s('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
   check: s('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  minus: s('<path d="M5 12h14"/>'),
   plus: s('<path d="M12 5v14M5 12h14"/>'),
   journal: s('<path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6z"/><path d="M6 3v18M10 8h5M10 12h5"/>'),
   clock: s('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),

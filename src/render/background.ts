@@ -354,6 +354,41 @@ void main() {
 }
 `;
 
+// Cielo intergalattico: blu notte con velature e stelle lontanissime, visibile fuori dalla Via Lattea
+const igVert = /* glsl */ `
+varying vec3 vDir;
+void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position * 950.0, 1.0); }
+`;
+const igFrag = /* glsl */ `
+uniform float uK;
+uniform float uScale;
+varying vec3 vDir;
+float h3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float n3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+float fbm(vec3 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * n3(p); p *= 2.03; a *= 0.5; } return s; }
+float starLayer(vec3 d, float cells, float thr, float sz) {
+  vec3 p = d * cells; vec3 c = floor(p); float r = h3(c);
+  if (r < thr) return 0.0;
+  vec3 o = vec3(h3(c + 1.7), h3(c + 3.1), h3(c + 5.3));
+  float dist = length(fract(p) - o);
+  return smoothstep(sz, 0.0, dist) * (0.4 + 0.6 * h3(c + 9.1));
+}
+void main() {
+  vec3 d = normalize(vDir);
+  // velature morbide: rumore a bassa frequenza, deformato per togliere ogni forma "a blocchi"
+  vec3 q = d * 1.6 + vec3(fbm(d * 1.3 + 1.0), fbm(d * 1.3 + 5.0), fbm(d * 1.3 + 9.0)) * 1.4;
+  float cloud = smoothstep(0.25, 0.8, fbm(q));
+  vec3 col = mix(vec3(0.016, 0.03, 0.072), vec3(0.03, 0.055, 0.12), cloud);
+  // stelle di sfondo (molto meno fitte che nella Via Lattea), di colori diversi
+  float s = starLayer(d, 70.0, 0.9, 0.22 * uScale) + starLayer(d, 160.0, 0.95, 0.24 * uScale) * 0.55;
+  vec3 tint = mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.85, 0.7), h3(floor(d * 70.0)));
+  col += tint * s * 1.3;
+  gl_FragColor = vec4(col * uK, 1.0);
+}
+`;
+
 // Matrice equatoriale J2000 → galattica (righe); la sua trasposta va da galattico a EQJ
 const R_EQ_GAL = [
   [-0.0548755604, -0.873437090, -0.4838350155],
@@ -617,6 +652,8 @@ export class Background {
   nebulae: THREE.Points;
   panorama: THREE.Mesh;
   private panoMat: THREE.ShaderMaterial;
+  intergalactic: THREE.Mesh;
+  private igMat: THREE.ShaderMaterial;
   private starMat: THREE.ShaderMaterial;
   private lineMat: THREE.ShaderMaterial;
   private galMat: THREE.ShaderMaterial;
@@ -777,6 +814,15 @@ export class Background {
     this.panorama.frustumCulled = false;
     this.panorama.renderOrder = -0.5;
 
+    this.igMat = new THREE.ShaderMaterial({
+      vertexShader: igVert, fragmentShader: igFrag, uniforms: { uK: { value: 0 }, uScale: { value: 1 } },
+      side: THREE.BackSide, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
+    });
+    this.intergalactic = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), this.igMat);
+    this.intergalactic.frustumCulled = false;
+    this.intergalactic.renderOrder = -2;
+    this.intergalactic.visible = false;
+
     const neb = P();
     buildNebulae(neb);
     this.nebMat = new THREE.ShaderMaterial({
@@ -819,7 +865,7 @@ export class Background {
     const mwPlane = { a: new THREE.Vector3(...galToEq(1, 0, 0)), b: new THREE.Vector3(...galToEq(0, 1, 0)) };
     this.deepObjects = new DeepRenderer(GALACTIC_CENTER_PC, mwPlane);
 
-    this.group.add(this.deep, this.panorama, this.deepObjects.group, this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
+    this.group.add(this.intergalactic, this.deep, this.panorama, this.deepObjects.group, this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
   }
 
   update(u: BackgroundUpdate) {
@@ -848,6 +894,11 @@ export class Background {
     const out = Math.max(0, Math.min(1, (dgc - 12000) / 18000));
     // da molto lontano le particelle diventano più piccole di un pixel: si compensa per vedere la galassia intera
     const far = Math.max(0, Math.min(1, (dgc - 80000) / 500000));
+    // fuori dalla Via Lattea: cielo intergalattico blu notte con stelle lontane
+    const ig = u.deepField ? Math.max(0, Math.min(1, (dgc - 22000) / 40000)) : 0;
+    this.igMat.uniforms.uK.value = ig;
+    this.igMat.uniforms.uScale.value = Math.min(2, Math.max(0.6, u.pixPerRad / 900));
+    this.intergalactic.visible = ig > 0.01;
     gu.uBoost.value = 1 + 1.8 * out + 6 * far;
     this.dustMat.uniforms.uBoost.value = 1 + 4 * out;
     // fondale di galassie lontane: compare quando ci si allontana dal Sole

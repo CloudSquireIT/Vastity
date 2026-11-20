@@ -10,6 +10,8 @@ import { damp } from '../core/motion';
 
 /** Campo visivo minimo: circa 30″, abbastanza per vedere gli anelli di Saturno. */
 const MIN_FOV = 0.008;
+/** Zoom minimo (campo più ampio): da qui parte sempre la vista. */
+const MAX_FOV = 75;
 const TEXTURED = new Set(['sun', 'mercury', 'venus', 'earth', 'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']);
 import { constellations, messier, messierName, radecToVec, starAppMag, starName, stars } from '../data/catalog';
 import { ObjRef, refDirection, sameRef } from '../features/objects';
@@ -103,13 +105,13 @@ export class SkyView {
   private arrow: HTMLDivElement;
   private yaw = 0;      // azimut (rad) da Nord verso Est
   private pitch = 0.5;  // altezza (rad)
-  private fov = 70;
+  private fov = 75;
   private vYaw = 0;
   private vPitch = 0;
   /** Obiettivi verso cui la camera si muove in modo morbido. */
   private tYaw = 0;
   private tPitch = 0.5;
-  private tFov = 70;
+  private tFov = MAX_FOV;
   private slewing = false;
   /** Oggetto inseguito durante lo spostamento (si aggiorna se il tempo scorre). */
   private trackRef: ObjRef | null = null;
@@ -211,6 +213,10 @@ export class SkyView {
 
   // --- orientamento ---------------------------------------------------------
   get zoomFov() { return this.fov; }
+  /** Zoom 0 (campo più ampio) … 1 (massimo ingrandimento), scala logaritmica. */
+  get zoom() { return Math.log(this.tFov / MAX_FOV) / Math.log(MIN_FOV / MAX_FOV); }
+  set zoom(z: number) { this.slewing = false; this.tFov = MAX_FOV * Math.pow(MIN_FOV / MAX_FOV, Math.max(0, Math.min(1, z))); }
+  get magnification() { return 60 / this.fov; }
   get viewAz() { return ((this.yaw / D2R) % 360 + 360) % 360; }
   get viewAlt() { return this.pitch / D2R; }
 
@@ -244,8 +250,8 @@ export class SkyView {
     const d = refDirection(ref, this.frame, this.issDir);
     if (!d) return;
     this.trackRef = ref;
-    const fov = ref.kind === 'constellation' ? 60 : ref.kind === 'body' && (ref.id === 'moon' || ref.id === 'sun') ? 6 : ref.kind === 'body' ? Math.min(this.tFov, 25) : Math.min(this.tFov, 40);
-    this.lookAtEqj(d, true, fov);
+    // si parte sempre dallo zoom minimo: l'utente ingrandisce con lo slider
+    this.lookAtEqj(d, true, MAX_FOV);
   }
 
   select(ref: ObjRef | null) {
@@ -312,8 +318,8 @@ export class SkyView {
         this.tPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.tPitch + dy * radPerPx()));
       },
       dragEnd: (vx, vy) => { this.vYaw = -vx * radPerPx() * 60; this.vPitch = vy * radPerPx() * 60; },
-      pinch: (s) => { this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(100, this.tFov / s)); },
-      wheel: (d) => { this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(100, this.tFov * Math.exp(d * 0.0012))); },
+      pinch: (s) => { this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(MAX_FOV, this.tFov / s)); },
+      wheel: (d) => { this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(MAX_FOV, this.tFov * Math.exp(d * 0.0012))); },
       tap: (x, y) => this.select(this.pick(x, y)),
       doubleTap: (x, y) => {
         const p = this.pick(x, y);

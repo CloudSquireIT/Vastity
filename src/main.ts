@@ -12,7 +12,7 @@ import { V3, v3 } from './astro/astro';
 import { bus, setTime, simDate, state, tick } from './state';
 import { attachPointer } from './ui/pointer';
 import { closeSheet, h, icon, iconButton, initSheet, initToasts, openSheet, sheetOpen, toast } from './ui/dom';
-import { AppApi, applyAccessibility, initPanels, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
+import { AppApi, applyAccessibility, initPanels, openJournal, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
 import { ObjRef, refName, sameRef, search } from './features/objects';
 import { activeMissions, ensureDailyMissions, flag, tryComplete } from './features/missions';
 import { loadISS } from './features/iss';
@@ -38,11 +38,12 @@ function findHip(hip: string) {
 const routeTo = (r: ObjRef) => tx(`Rotta verso ${refName(r)}`, `Course set for ${refName(r)}`, `Cap sur ${refName(r)}`);
 const LYS = tx('anni luce', 'light years', 'années-lumière');
 const loader = document.getElementById('loader');
-const loaderBar = document.querySelector('.loader-bar b') as HTMLElement | null;
+const loaderRing = document.querySelector('.bh-ring .fg') as SVGCircleElement | null;
 
 async function main() {
   // schermata iniziale: barra di avanzamento reale del caricamento dei cataloghi
-  setLoadProgress((p) => { if (loaderBar) loaderBar.style.transform = `scaleX(${Math.min(1, p / 0.86)})`; });
+  // l'anello attorno al buco nero si riempie mentre i cataloghi arrivano
+  setLoadProgress((p) => { if (loaderRing) loaderRing.style.strokeDashoffset = String(100 - Math.min(100, (p / 0.86) * 100)); });
   await loadCatalogs();
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
@@ -126,7 +127,7 @@ async function main() {
     const ok = await sky.setGyro(!state.gyro);
     if (!ok) toast(tx('Sensori di orientamento non disponibili su questo dispositivo', 'Orientation sensors are not available on this device', 'Capteurs d\'orientation indisponibles sur cet appareil'));
   });
-  const top = h('div', { class: 'top' }, brand, h('div', { class: 'top-r' }, searchBtn, gyroBtn, iconButton('settings', tx('Impostazioni', 'Settings', 'Réglages'), () => openSettings())));
+  const top = h('div', { class: 'top' }, brand, h('div', { class: 'top-r' }, searchBtn, iconButton('journal', tx('Diario', 'Log', 'Journal'), () => openJournal(), 'ibtn journal-btn'), gyroBtn, iconButton('settings', tx('Impostazioni', 'Settings', 'Réglages'), () => openSettings())));
 
   // controlli del tempo: ora (tocco = presente, pressione lunga = macchina del tempo), indietro, pausa, avanti
   const timePill = h('button', { class: 'time-pill', 'aria-label': tx('Torna al presente · tieni premuto per la macchina del tempo', 'Back to now · press and hold for the time machine', 'Revenir au présent · maintenez pour la machine à remonter le temps') }, h('span', { class: 'tp-dot' }), h('span', { class: 'tp-t' }));
@@ -181,7 +182,21 @@ async function main() {
 
   const reticle = h('div', { class: 'reticle' }, h('div', { class: 'ret-ring' }), h('div', { class: 'ret-name' }));
   const missionChip = h('button', { class: 'mission-chip', onclick: () => openMissions() });
-  const zoomPill = h('div', { class: 'zoom-pill off', 'aria-hidden': 'true' });
+  // slider dello zoom (in basso a destra nel cielo, in basso a sinistra in navicella)
+  const zoomRange = h('input', { type: 'range', min: '0', max: '1', step: '0.001', value: '0', class: 'zoom-range', 'aria-label': tx('Zoom', 'Zoom', 'Zoom') }) as HTMLInputElement;
+  const zoomLbl = h('span', { class: 'zoom-lbl' }, '×1');
+  const zView = () => (state.mode === 'sky' ? sky : ship);
+  let zoomDrag = false;
+  const nudgeZoom = (dz: number) => { zView().zoom = Math.max(0, Math.min(1, zView().zoom + dz)); };
+  zoomRange.addEventListener('pointerdown', () => { zoomDrag = true; });
+  zoomRange.addEventListener('pointerup', () => { zoomDrag = false; });
+  zoomRange.addEventListener('input', () => { zView().zoom = +zoomRange.value; });
+  const zoomCtl = h('div', { class: 'zoom-ctl' },
+    zoomLbl,
+    iconButton('plus', tx('Ingrandisci', 'Zoom in', 'Zoomer'), () => nudgeZoom(0.08), 'tbtn'),
+    h('div', { class: 'zoom-track' }, zoomRange),
+    iconButton('minus', tx('Riduci', 'Zoom out', 'Dézoomer'), () => nudgeZoom(-0.08), 'tbtn'));
+  const zoomPill = zoomCtl;
 
   // telemetria della navicella
   const tSpeed = h('div', { class: 'tm-speed' });
@@ -233,8 +248,16 @@ async function main() {
       bus.emit('mode', m);
     };
     if (instant) return go();
+    // transizione: la vista "si tuffa" (zoom + sfocatura) in un velo blu notte, poi riemerge nella nuova modalità
+    document.body.classList.add('mode-out', m === 'ship' ? 'to-ship' : 'to-sky');
     fade.classList.add('on');
-    setTimeout(() => { go(); setTimeout(() => fade.classList.remove('on'), 60); }, 380);
+    setTimeout(() => {
+      go();
+      document.body.classList.remove('mode-out');
+      document.body.classList.add('mode-in');
+      setTimeout(() => fade.classList.remove('on'), 60);
+      setTimeout(() => document.body.classList.remove('mode-in', 'to-ship', 'to-sky'), 700);
+    }, 420);
   }
 
   function flyTo(r: ObjRef) {
@@ -444,7 +467,7 @@ async function main() {
     if (p.get('place')) sky.setPlace(p.get('place')!);
     if (p.get('t')) setTime(+p.get('t')!);
     if (p.get('lat') && p.get('lon')) state.location = { ...state.location, lat: +p.get('lat')!, lon: +p.get('lon')!, name: tx('Vista condivisa', 'Shared view', 'Vue partagée'), source: 'manual' };
-    if (p.get('az')) sky.setView(+p.get('az')!, +(p.get('alt') ?? 30), 60);
+    if (p.get('az')) sky.setView(+p.get('az')!, +(p.get('alt') ?? 30), 75);
     state.timeRate = 0;
   }
 
@@ -459,13 +482,20 @@ async function main() {
   resize();
   if (state.location.source === 'default') locate(false);
   readHash();
-  sky.setView(180, 25, 70);
+  sky.setView(180, 25, 75);
   if (location.hash) readHash();
   updateHud();
 
   let last = performance.now();
   let hudT = 0;
   let lastZoomFov = 60;
+  function syncZoom() {
+    const v = zView();
+    if (!zoomDrag) zoomRange.value = String(v.zoom);
+    const mag = state.mode === 'sky' ? 75 / sky.zoomFov : ship.magnification;
+    const label = `×${mag < 10 ? num(mag, 1) : num(Math.round(mag))}`;
+    if (zoomLbl.textContent !== label) zoomLbl.textContent = label;
+  }
   function frame(now: number) {
     const raw = (now - last) / 1000;
     const dt = Math.min(0.1, raw);
@@ -477,10 +507,7 @@ async function main() {
     if (state.mode === 'sky') {
       sky.update(dt); sky.updateOverlay(); sky.render(renderer);
       // ingrandimento come in un telescopio: 1× ≈ campo dell'occhio
-      const mag = 60 / sky.zoomFov;
-      const label = mag >= 1.5 ? `× ${mag < 10 ? num(mag, 1) : num(Math.round(mag))}` : '';
-      if (zoomPill.textContent !== label) zoomPill.textContent = label;
-      zoomPill.classList.toggle('off', !label);
+      syncZoom();
       // zoom su un oggetto: il tempo va in pausa, così l'oggetto resta fermo nell'inquadratura
       const zf = sky.zoomFov;
       if (zf < 12 && lastZoomFov >= 12 && !(state.timeRate === 0 && !state.live)) {
@@ -491,7 +518,7 @@ async function main() {
       }
       lastZoomFov = zf;
     }
-    else { ship.update(dt); ship.updateOverlay(); ship.render(renderer); }
+    else { ship.update(dt); ship.updateOverlay(); ship.render(renderer); syncZoom(); }
     hudT += dt;
     if (hudT > 0.2) {
       checkMissions(hudT);
@@ -501,9 +528,12 @@ async function main() {
     }
   }
   renderer.setAnimationLoop(frame);
+  // uscita dal caricamento: si entra nel buco nero, poi il cielo appare
+  document.body.classList.add('intro');
   loader?.classList.add('done');
-  if (!state.settings.tutorialDone && !location.hash) setTimeout(() => startTutorial(ui), 1300);
-  setTimeout(() => loader?.remove(), 900);
+  setTimeout(() => document.body.classList.remove('intro'), 1600);
+  if (!state.settings.tutorialDone && !location.hash) setTimeout(() => startTutorial(ui), 1500);
+  setTimeout(() => loader?.remove(), 1300);
 
   // dati di rete in secondo piano
   loadISS().then(() => { ensureDailyMissions(); updateHud(); refreshAlerts(); }).catch(() => { ensureDailyMissions(); updateHud(); });

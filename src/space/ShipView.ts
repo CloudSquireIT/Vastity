@@ -122,6 +122,8 @@ export class ShipView {
   private labelStars: number[] = [];
   private labelScanT = 0;
   private baseFov = 70;
+  static readonly FOV_WIDE = 70;
+  static readonly FOV_TELE = 0.3;
   private fov = new SmoothValue(70, 0.6);
   private logSpeed = new SmoothValue(-1, 0.9);
   private lastLog = -1;
@@ -301,7 +303,7 @@ export class ShipView {
         if (!this.mwView) this.mwView = this.milkyWayViewpoint();
         return { pos: this.mwView, standoff: 0, radius: 0, look: c };
       }
-      const k = o.type === 'galaxy' ? 1.7 : o.type === 'blackhole' || o.type === 'quasar' ? 3.2 : o.type === 'pulsar' ? 6 : 2.2;
+      const k = o.type === 'galaxy' ? 1.7 : o.type === 'blackhole' || o.type === 'quasar' ? 1.9 : o.type === 'pulsar' ? 6 : 2.2;
       return { pos: v3.scale(refPosPc(ref)!, PC_IN_KM), standoff: R * k, radius: R };
     }
     if (ref.kind === 'messier') {
@@ -346,6 +348,7 @@ export class ShipView {
 
   placeAt(pos: V3, look: V3, up: V3 = [0, 0, 1]) {
     this.launch = null;
+    this.resetZoom();
     this.pos = pos;
     this.lookAt(look, up);
     this.stop(true);
@@ -386,6 +389,7 @@ export class ShipView {
     const t0 = this.targetInfo(ref);
     this.apStart = t0 ? { quat: this.quat.clone(), rem0: Math.max(1, v3.len(v3.sub(t0.pos, this.pos)) - t0.standoff), t: 0 } : null;
     this.autopilot = true;
+    this.resetZoom();
     this.arrived = null;
     this.launch = null;
   }
@@ -395,6 +399,12 @@ export class ShipView {
     this.targetSpeed = throttleToSpeed(t);
   }
   get throttle() { return speedToThrottle(this.speed); }
+  /** Zoom ottico della navicella 0 (grandangolo) … 1 (teleobiettivo ×230). */
+  get zoom() { return Math.log(this.baseFov / ShipView.FOV_WIDE) / Math.log(ShipView.FOV_TELE / ShipView.FOV_WIDE); }
+  set zoom(z: number) { this.baseFov = ShipView.FOV_WIDE * Math.pow(ShipView.FOV_TELE / ShipView.FOV_WIDE, Math.max(0, Math.min(1, z))); }
+  get magnification() { return ShipView.FOV_WIDE / this.baseFov; }
+  /** Torna allo zoom minimo (all'arrivo e a ogni nuova destinazione). */
+  resetZoom() { this.baseFov = ShipView.FOV_WIDE; }
 
   // --- input ----------------------------------------------------------------
   handlers(): PointerHandlers {
@@ -409,8 +419,8 @@ export class ShipView {
       },
       dragEnd: (vx, vy) => { this.yawV = -vx * k() * 50; this.pitchV = -vy * k() * 50; },
       down: () => { this.yawV = this.pitchV = 0; },
-      pinch: (s) => { this.baseFov = Math.max(15, Math.min(100, this.baseFov / s)); },
-      wheel: (d) => { this.baseFov = Math.max(15, Math.min(100, this.baseFov * Math.exp(d * 0.001))); },
+      pinch: (s) => { this.baseFov = Math.max(ShipView.FOV_TELE, Math.min(ShipView.FOV_WIDE, this.baseFov / s)); },
+      wheel: (d) => { this.baseFov = Math.max(ShipView.FOV_TELE, Math.min(ShipView.FOV_WIDE, this.baseFov * Math.exp(d * 0.001))); },
       tap: (x, y) => { const r = this.pick(x, y); if (r) bus.emit('ship-select', r); },
     };
   }
@@ -504,6 +514,7 @@ export class ShipView {
           this.stop(true);
           if (t.look) this.settleLook = t.look;
           this.arrived = refName(this.target);
+          this.resetZoom();
           bus.emit('arrived', this.target);
         } else {
           const aligned = smoothstep(1.1, 0.3, angle);

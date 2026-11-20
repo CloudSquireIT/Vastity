@@ -246,25 +246,49 @@ void main() {
   vec3 col = vec3(0.0);
   float occ = 0.0;
   if (uKind < 1.5) {
-    float rs = 0.16;
-    // disco di accrescimento inclinato, più luminoso dal lato che si avvicina (Doppler)
-    vec2 d = vec2(p.x, p.y / max(0.12, uTilt));
+    float rs = 0.17;                       // raggio dell'ombra
+    float lr = length(p);
+    float tilt = max(0.12, uTilt);
+    // --- disco di accrescimento (immagine diretta), ellisse inclinata
+    vec2 d = vec2(p.x, p.y / tilt);
     float dr = length(d);
     float ang = atan(d.y, d.x);
-    float swirl = fbm(vec2(ang * 3.0 - uTime * 0.8, dr * 18.0) + uSeed);
-    float disk = smoothstep(rs * 1.5, rs * 1.9, dr) * (1.0 - smoothstep(0.45, 0.95, dr)) * (0.55 + 0.6 * swirl);
-    float dopp = 0.55 + 0.75 * (0.5 + 0.5 * cos(ang));
-    vec3 hot = mix(vec3(1.0, 0.45, 0.15), vec3(1.0, 0.93, 0.8), smoothstep(0.6, 0.2, dr));
-    // la parte posteriore del disco piegata sopra l'ombra (lente gravitazionale)
-    vec2 lp = vec2(p.x, (p.y - rs * 1.25) / 0.55);
-    float lens = smoothstep(rs * 1.6, rs * 1.9, length(lp)) * (1.0 - smoothstep(rs * 2.6, rs * 3.4, length(lp))) * step(0.0, p.y) * 0.6;
-    col = hot * (disk * dopp + lens) * 1.6;
-    // anello di fotoni e ombra
-    col += vec3(1.0, 0.85, 0.65) * exp(-pow((r - rs * 1.05) / 0.012, 2.0)) * 1.5;
-    float shadow = 1.0 - smoothstep(rs * 0.95, rs * 1.02, r);
-    col *= 1.0 - shadow;
-    occ = shadow;
-    col += vec3(1.0, 0.6, 0.3) * exp(-r * 4.0) * 0.12 * (1.0 - shadow);
+    float inner = rs * 1.55;
+    float spin = uTime * 0.9 * pow(inner / max(dr, inner), 1.5);   // rotazione kepleriana
+    float ph = ang - spin;
+    vec2 cs = vec2(cos(ph), sin(ph));
+    float turb = fbm(cs * 3.5 + vec2(dr * 26.0, uSeed));
+    float streak = fbm(cs * 9.0 + vec2(dr * 90.0 + turb * 2.0, uSeed * 2.0));
+    float rings = 0.8 + 0.2 * sin(dr * 120.0 + turb * 9.0 + streak * 4.0);
+    float diskMask = smoothstep(inner * 0.97, inner * 1.12, dr) * (1.0 - smoothstep(0.5, 0.97, dr));
+    float T = pow(inner / max(dr, inner), 0.9);                     // temperatura: più calda all'interno
+    vec3 hot = mix(vec3(0.55, 0.1, 0.03), vec3(1.0, 0.48, 0.14), smoothstep(0.15, 0.55, T));
+    hot = mix(hot, vec3(1.0, 0.9, 0.78), smoothstep(0.6, 1.0, T));
+    // effetto Doppler relativistico: il lato che si avvicina è molto più brillante e più azzurro
+    float approach = cos(ang);
+    float beam = pow(1.0 / (1.0 - 0.38 * approach), 3.0);
+    hot = mix(hot, hot * vec3(0.85, 0.95, 1.15), clamp(approach, 0.0, 1.0) * 0.5);
+    float I = diskMask * T * T * (0.25 + 1.1 * streak * streak + 0.4 * turb) * rings * beam;
+    // la parte posteriore del disco (d.y > 0) passa dietro l'ombra
+    float behind = step(0.0, d.y) * (1.0 - smoothstep(rs * 0.98, rs * 1.03, lr));
+    vec3 disk = hot * I * (1.0 - behind);
+    // --- immagine "piegata" dalla gravità: il retro del disco appare come un arco sopra e sotto l'ombra
+    float arcR = rs * (1.3 + 0.08 * sin(atan(p.y, p.x) * 2.0));
+    float arc = exp(-pow((lr - arcR) / (rs * 0.17), 2.0));
+    float top = smoothstep(-0.35, 0.8, p.y / max(lr, 1e-4));
+    float arcAng = atan(p.y, p.x) - uTime * 0.7;
+    float arcTex = 0.55 + 0.6 * fbm(vec2(cos(arcAng), sin(arcAng)) * 6.0 + uSeed);
+    vec3 lens = mix(vec3(1.0, 0.55, 0.2), vec3(1.0, 0.85, 0.65), 0.4) * arc * (0.25 + 1.1 * top) * arcTex * (0.75 + 0.5 * pow(1.0 / (1.0 - 0.45 * p.x / max(lr, 1e-4)), 2.0));
+    // anello di fotoni: sottilissimo e nitido sul bordo dell'ombra
+    float ring = exp(-pow((lr - rs * 1.04) / (rs * 0.022), 2.0));
+    vec3 photon = vec3(1.0, 0.72, 0.42) * ring * (0.55 + 0.45 * pow(1.0 / (1.0 - 0.45 * p.x / max(lr, 1e-4)), 2.0)) * 0.8;
+    // ombra: nero assoluto dentro, tranne il disco che le passa davanti
+    float shadow = 1.0 - smoothstep(rs * 0.97, rs * 1.01, lr);
+    col = (lens + photon) * (1.0 - shadow) + disk;
+    // luce diffusa tenue attorno
+    col += vec3(1.0, 0.5, 0.2) * exp(-lr * 5.0) * 0.06 * (1.0 - shadow);
+    col = 1.0 - exp(-col * 1.4);
+    occ = max(shadow * (1.0 - min(1.0, I * 3.0)), 0.0);
     if (uKind > 0.5) {
       // quasar: nucleo accecante e getti relativistici
       float jet = exp(-pow(p.x / (0.02 + abs(p.y) * 0.05), 2.0)) * smoothstep(1.0, 0.1, abs(p.y));
@@ -411,7 +435,8 @@ export class DeepRenderer {
         const mesh = new THREE.Mesh(quad, new THREE.ShaderMaterial({
           vertexShader: coreVert, fragmentShader: exoticFrag,
           uniforms: {
-            uObs: this.obs, uCenter: { value: center }, uR: { value: R }, uTime: this.time, uK: { value: 0 },
+            // posizione relativa calcolata in doppia precisione sulla CPU (distanze di decine di milioni di pc)
+            uObs: { value: new THREE.Vector3() }, uCenter: { value: center.clone() }, uR: { value: R }, uTime: this.time, uK: { value: 0 },
             uKind: { value: o.type === 'blackhole' ? 0 : o.type === 'quasar' ? 1 : 2 }, uTilt: { value: 0.22 + (seed % 5) * 0.06 }, uSeed: { value: seed++ },
           },
           blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
@@ -466,6 +491,7 @@ export class DeepRenderer {
       c.mesh.visible = k > 0.003;
     }
     for (const e of this.exotics) {
+      (e.mesh.material as THREE.ShaderMaterial).uniforms.uCenter.value.set(e.center.x - obsPc.x, e.center.y - obsPc.y, e.center.z - obsPc.z);
       const d = this.tmp.copy(e.center).sub(obsPc).length();
       const px = (e.R / d) * pixPerRad;
       const k = smooth(2, 10, px) * dim;

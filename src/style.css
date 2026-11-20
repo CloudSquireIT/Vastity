@@ -645,3 +645,87 @@ body.reduce-motion .warp-flash { display: none; }
 .credits-page .row { text-decoration: none; color: inherit; }
 .ship-target.top span { top: calc(var(--s) / -2 - 38px); }
 .ship-target.nolabel span { display: none; }
+
+/* ---- Round 8: slider dello zoom ---- */
+.zoom-pill { display: none !important; }
+.zoom-ctl { position: absolute; right: calc(14px + env(safe-area-inset-right, 0px)); bottom: calc(66px + var(--safe-b)); z-index: 5;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; transition: opacity var(--dur-4) var(--ease-out), transform var(--dur-4) var(--ease-out); }
+body[data-mode="ship"] .zoom-ctl { right: auto; left: calc(14px + env(safe-area-inset-left, 0px)); bottom: calc(14px + var(--safe-b)); }
+.zoom-track { position: relative; width: 34px; height: 116px; border-radius: 17px; background: var(--lg-fill); -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur); box-shadow: var(--lg-shadow); }
+.zoom-range { -webkit-appearance: none; appearance: none; position: absolute; left: 50%; top: 50%; width: 100px; height: 30px; margin: 0; transform: translate(-50%, -50%) rotate(-90deg); background: transparent; touch-action: none; cursor: pointer; }
+.zoom-range::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .25); }
+.zoom-range::-moz-range-track { height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .25); }
+.zoom-range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7.5px; border-radius: 50%; background: #eef4ff; box-shadow: 0 0 10px rgba(143, 180, 255, .7); }
+.zoom-range::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: #eef4ff; box-shadow: 0 0 10px rgba(143, 180, 255, .7); }
+.zoom-lbl { font: 500 11px/1 var(--f-mono); color: #38bdf8; padding: 3px 7px; border-radius: 999px; background: var(--badge); min-width: 34px; text-align: center; }
+body.idle .zoom-ctl { opacity: 0; pointer-events: none; transform: translateY(10px); }
+body.ui-hidden .zoom-ctl { opacity: 0 !important; pointer-events: none !important; }
+@media (max-height: 420px) { .zoom-track { height: 92px; } .zoom-range { width: 78px; } }
+/* diario */
+.journal-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 4px; }
+.journal-stats > div { padding: 10px; border-radius: 16px; background: var(--ctl-fill); border: 1px solid var(--ctl-border); text-align: center; }
+.journal-stats b { display: block; font: 700 22px/1.1 var(--f-display); color: #fff; }
+.journal-stats span { font: 500 10.5px/1.4 var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; }
+.journal-row { align-items: center; }
+.journal-row .thumb { width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0; }
+.journal-row .row-main { text-align: left; flex: 1; min-width: 0; }
+.journal h3.sec { text-transform: capitalize; }
+
+/* ---- Round 8: caricamento con buco nero e anello di avanzamento ---- */
+.loader-orbit, .loader-bar { display: none; }
+.bh-load { position: relative; width: 168px; height: 168px; margin: 0 auto 22px; }
+.bh-ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.bh-ring circle { fill: none; stroke-width: 2; }
+.bh-ring .bg { stroke: rgba(160, 190, 255, .12); }
+.bh-ring .fg { stroke: url(#none); stroke: #ffd7a0; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 96; transition: stroke-dashoffset .35s ease-out; filter: drop-shadow(0 0 4px rgba(255, 190, 120, .8)); }
+.bh-core { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: #000;
+  box-shadow: 0 0 0 1.5px rgba(255, 214, 160, .85), 0 0 10px 2px rgba(255, 170, 90, .45); }
+.bh-lens { position: absolute; left: 50%; top: 50%; width: 70px; height: 70px; margin: -35px 0 0 -35px; border-radius: 50%;
+  background: radial-gradient(circle, transparent 46%, rgba(255, 196, 130, .55) 52%, rgba(255, 150, 70, .18) 62%, transparent 72%);
+  -webkit-mask: linear-gradient(#000 0 0); filter: blur(.6px); animation: bh-pulse 3.2s ease-in-out infinite; }
+.bh-back, .bh-front { position: absolute; left: 50%; top: 50%; width: 132px; height: 132px; margin: -66px 0 0 -66px; transform: scaleY(.2); }
+.bh-front { clip-path: inset(50% 0 0 0); }
+.bh-back i, .bh-front i { position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, #fff3dc, #ffb25c 12%, #a2461a 30%, #ff9a45 46%, #fff0d0 52%, #ffb25c 64%, #6d2a10 80%, #ffd29a 92%, #fff3dc);
+  -webkit-mask: radial-gradient(circle, transparent 34%, #000 38%, #000 58%, rgba(0, 0, 0, .55) 75%, transparent 100%);
+  mask: radial-gradient(circle, transparent 34%, #000 38%, #000 58%, rgba(0, 0, 0, .55) 75%, transparent 100%);
+  animation: vx-spin 2.2s linear infinite; filter: blur(.4px) saturate(1.1); }
+@keyframes bh-pulse { 50% { opacity: .75; transform: scale(1.04); } }
+#loader .loader-n { animation: vx-fadein 1.2s ease-out both; }
+@keyframes vx-fadein { from { opacity: 0; letter-spacing: .8em; } }
+@media (prefers-reduced-motion: reduce) { .bh-back i, .bh-front i { animation-duration: 14s; } .bh-lens { animation: none; } }
+
+/* ---- Round 8: transizioni ---- */
+/* uscita dal caricamento: il buco nero si avvicina e ci si "entra" */
+#loader { transition: opacity 1s var(--ease-in-out) .25s; }
+#loader .bh-load, #loader .loader-n, #loader .loader-s { transition: transform 1.1s var(--ease-in-out), opacity .7s ease; }
+#loader.done .bh-load { transform: scale(7); opacity: 0; }
+#loader.done .loader-n { transform: translateY(14px); opacity: 0; letter-spacing: .9em; }
+#loader.done .loader-s { opacity: 0; }
+/* il cielo appare dal centro con una leggera messa a fuoco */
+body.intro canvas.gl { animation: vx-intro 1.5s var(--ease-out) both; }
+@keyframes vx-intro { from { transform: scale(1.12); filter: blur(6px) brightness(.4); } }
+body.intro .top, body.intro .bottom, body.intro .time-ctl, body.intro .zoom-ctl, body.intro .hide-ui { animation: vx-ui-in .9s var(--ease-out) .6s both; }
+@keyframes vx-ui-in { from { opacity: 0; transform: translateY(12px); } }
+/* cambio modalità: tuffo con zoom e sfocatura */
+canvas.gl { transition: transform .42s var(--ease-in-out), filter .42s var(--ease-in-out); transform-origin: 50% 50%; }
+body.mode-out.to-ship canvas.gl { transform: scale(1.35); filter: blur(8px) brightness(1.4); }
+body.mode-out.to-sky canvas.gl { transform: scale(.82); filter: blur(8px); }
+body.mode-in canvas.gl { animation: vx-mode-in .65s var(--ease-out) both; }
+body.mode-in.to-sky canvas.gl { animation-name: vx-mode-in-sky; }
+@keyframes vx-mode-in { from { transform: scale(.88); filter: blur(6px); } }
+@keyframes vx-mode-in-sky { from { transform: scale(1.12); filter: blur(6px); } }
+.fade { background: radial-gradient(circle at 50% 50%, #0b1838, #02040b 70%); }
+/* pannelli: il contenuto entra a cascata */
+.sheet.open .sheet-body > * > * { animation: vx-rise .45s var(--ease-out) both; }
+.sheet.open .sheet-body > * > *:nth-child(2) { animation-delay: .04s; }
+.sheet.open .sheet-body > * > *:nth-child(3) { animation-delay: .08s; }
+.sheet.open .sheet-body > * > *:nth-child(4) { animation-delay: .12s; }
+.sheet.open .sheet-body > * > *:nth-child(n+5) { animation-delay: .16s; }
+@keyframes vx-rise { from { opacity: 0; transform: translateY(10px); } }
+/* toast con piccolo rimbalzo; pulsanti attivi con "respiro" */
+.toast.in { animation: vx-pop .42s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes vx-pop { from { transform: translateY(-8px) scale(.96); } }
+.dbtn.on .ico, .tbtn.on .ico { animation: vx-breathe 2.4s ease-in-out infinite; }
+@keyframes vx-breathe { 50% { transform: scale(1.08); } }
+body.reduce-motion canvas.gl { transition: none !important; animation: none !important; transform: none !important; filter: none !important; }

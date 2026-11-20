@@ -1,5 +1,5 @@
 // Pannelli dell'interfaccia: scheda oggetto, ricerca, Stasera, Missioni, Avvisi, Mondi, Impostazioni, Macchina del tempo.
-import { closeSheet, fmtDate, fmtTime, h, icon, iconButton, openSheet, sheetOpen, toast } from './dom';
+import { closeSheet, fmtTime, h, icon, iconButton, openSheet, sheetOpen, toast } from './dom';
 import { galaxyPhotos } from '../data/catalog';
 import { feel, reducedMotion } from '../core/feel';
 import { diagnosticsReport, issueCount } from '../core/diagnostics';
@@ -12,7 +12,7 @@ import { ALERT_TYPES, SkyEvent, computeEvents, downloadICS, fmtDay, notification
 import { PLACES, SkyFrame } from '../astro/astro';
 import { bus, saveSettings, setLocation, setTime, state } from '../state';
 import { azName } from '../features/iss';
-import { LANGS, lang, num, setLang, tx } from '../i18n';
+import { LANGS, LOCALE, lang, num, setLang, tx } from '../i18n';
 import { objectThumb } from './thumb';
 
 export interface AppApi {
@@ -258,18 +258,8 @@ export function openMissions() {
     'Gardez l\'objet dans le viseur central quelques instants. Avec le gyroscope (vrai ciel), vous gagnez le double de points.')));
   body.append(h('h3', {}, 'Badge'));
   body.append(h('div', { class: 'badges' }, ...BADGES.map((b) => h('div', { class: 'badge' + (progress.badges[b.id] ? ' got' : ''), title: b.desc }, h('div', { class: 'badge-i' }, b.icon), h('div', { class: 'badge-n' }, b.name), h('div', { class: 'badge-d' }, b.desc)))));
-  body.append(h('h3', {}, tx('Diario delle osservazioni', 'Observation log', 'Journal d\'observation')));
-  const j = h('div', { class: 'list' });
-  if (!progress.journal.length) j.append(h('p', { class: 'muted' }, tx('Ancora vuoto. Ogni oggetto trovato finisce qui.', 'Still empty. Every object you find ends up here.', 'Encore vide. Chaque objet trouvé s\'ajoute ici.')));
-  for (const e of progress.journal.slice(0, 60)) {
-    const note = e.note === 'mission' || e.note === 'Missione completata' ? tx('Missione completata', 'Mission complete', 'Mission accomplie') : e.note;
-    const from = e.place !== 'earth' ? ' · ' + tx('da', 'from', 'depuis') + ' ' + (PLACES.find((p) => p.id === e.place)?.name ?? '') : '';
-    const row = h('div', { class: 'row static' }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, refName(e.ref)),
-      h('div', { class: 'row-s' }, `${fmtDate(new Date(e.t))} ${fmtTime(new Date(e.t))}${e.gyro ? ' · ' + tx('cielo vero', 'real sky', 'vrai ciel') : ''}${from}${note ? ' · ' + note : ''}`)),
-      iconButton('close', tx('Rimuovi dal diario', 'Remove from log', 'Retirer du journal'), () => { removeJournalEntry(e.t); row.remove(); }, 'ibtn small row-del'));
-    j.append(row);
-  }
-  body.append(j);
+  body.append(h('h3', {}, tx('Diario delle osservazioni', 'Observation log', 'Journal d\'observation')),
+    h('button', { class: 'btn', onclick: () => openJournal() }, icon('journal'), tx(`Apri il diario (${progress.journal.length})`, `Open the log (${progress.journal.length})`, `Ouvrir le journal (${progress.journal.length})`)));
   openSheet('missions', tx('Caccia al tesoro celeste', 'Celestial treasure hunt', 'Chasse au trésor céleste'), body, { wide: true });
 }
 
@@ -407,6 +397,40 @@ export function openSettings() {
       diagButton()),
   );
   openSheet('settings', tx('Impostazioni', 'Settings', 'Réglages'), body, { wide: true });
+}
+
+/** Diario delle osservazioni: tutto ciò che hai salvato o trovato, raggruppato per giorno. */
+export function openJournal() {
+  const body = h('div', { class: 'journal' });
+  const render = () => {
+    body.replaceChildren();
+    const list = progress.journal;
+    body.append(h('div', { class: 'journal-stats' },
+      h('div', {}, h('b', {}, num(new Set(list.map((e) => JSON.stringify(e.ref))).size)), h('span', {}, tx('oggetti', 'objects', 'objets'))),
+      h('div', {}, h('b', {}, num(progress.days.length)), h('span', {}, tx('notti', 'nights', 'nuits'))),
+      h('div', {}, h('b', {}, num(progress.xp)), h('span', {}, 'XP'))));
+    if (!list.length) {
+      body.append(h('p', { class: 'muted pad' }, tx('Il diario è vuoto. Apri la scheda di un oggetto e tocca «Diario» per salvarlo, oppure completa una missione.', 'Your log is empty. Open an object\'s card and tap “Log” to save it, or complete a mission.', 'Le journal est vide. Ouvrez la fiche d\'un objet et touchez « Journal » pour l\'enregistrer, ou accomplissez une mission.')));
+      return;
+    }
+    let day = '';
+    for (const e of list) {
+      const d = new Date(e.t);
+      const k = d.toDateString();
+      if (k !== day) { day = k; body.append(h('h3', { class: 'sec' }, d.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))); }
+      const note = e.note === 'mission' || e.note === 'Missione completata' ? tx('Missione completata', 'Mission complete', 'Mission accomplie') : e.note;
+      const from = e.place !== 'earth' ? tx('da', 'from', 'depuis') + ' ' + (PLACES.find((p) => p.id === e.place)?.name ?? '') : '';
+      const row = h('div', { class: 'row journal-row' },
+        objectThumb(e.ref),
+        h('button', { class: 'row-main', onclick: () => { closeSheet(); setTimeout(() => showInfo(e.ref), 380); } },
+          h('div', { class: 'row-t' }, refName(e.ref)),
+          h('div', { class: 'row-s' }, [fmtTime(d), e.gyro ? tx('cielo vero', 'real sky', 'vrai ciel') : '', from, note].filter(Boolean).join(' · '))),
+        iconButton('close', tx('Rimuovi dal diario', 'Remove from log', 'Retirer du journal'), () => { removeJournalEntry(e.t); render(); }, 'ibtn small row-del'));
+      body.append(row);
+    }
+  };
+  render();
+  openSheet('journal', tx('Diario delle osservazioni', 'Observation log', 'Journal d\'observation'), body, { wide: true });
 }
 
 /** Dimensione del testo dell'interfaccia (90–130%). */
