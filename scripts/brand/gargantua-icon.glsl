@@ -244,25 +244,33 @@ vec3 ditherTPDF(vec2 fragCoord, int frame) {
 const float INCLINATION = 0.085;  // camera elevation above disk in radians
 const float CAMERA_RADIUS = 30.0;
 const float ANGLE_STEP = 0.048;
-const float EXPOSURE = 0.8;
-const float ZOOM = 3.35;      // focale: più alta = buco nero più grande
-const float BEAMING = 0.9;   // asimmetria Doppler (4 = fisica, basso = stile Interstellar)
+const float EXPOSURE = 1.0;
+const float ZOOM = 3.0;      // focale: più alta = buco nero più grande
+const float BEAMING = 1.6;   // asimmetria di luce: il lato che viene verso di noi è più brillante
+const vec3 HOT = vec3(1.0, 0.95, 0.86);          // colore del gas più caldo (sRGB)
+const float STREAK = 0.06;   // intensità delle venature
+const float R_IN = 2.7;          // bordo interno del disco
+const float R_OUT = 11.0;      // estensione del disco
+const float FALL = 2.0;       // quanto rapidamente il disco si spegne verso l'esterno
 
 vec3 diskLight(vec3 p, float shift) {
     float r = length(p);
     float az = atan(p.z, p.x);
     float phi = az - iTime * 0.85 / pow(r / 3.0, 1.5);
     vec2 orbit = vec2(cos(phi), sin(phi));
-    float turbulent = fbm(vec2(r * 1.8, dot(orbit, vec2(2.0, 1.3))) + 0.22 * orbit, 4);
-    float filaments = 0.8 + 0.2 * sin(13.0 * r + 9.0 * turbulent + 3.0 * sin(phi + r));
-    float heat = (0.45 + 0.9 * filaments) * (0.75 + 0.6 * turbulent);
-    float radial = smoothstep(1.75, 2.3, r) * (1.0 - smoothstep(4.8, 7.6, r));
-    float temperature = 7600.0 * pow(3.0 / r, 0.8) * shift * (0.85 + 0.2 * heat);
-    // palette Vastity: blu profondo all'esterno, bianco nella parte più calda
-    float t = clamp(temperature / 11000.0, 0.0, 1.0);
-    vec3 tint = mix(srgbToLinear(vec3(0.24, 0.46, 0.98)), srgbToLinear(vec3(0.56, 0.71, 1.0)), smoothstep(0.25, 0.6, t));
-    tint = mix(tint, vec3(1.0), smoothstep(0.5, 0.95, t));
-    return tint * radial * heat * pow(shift, BEAMING) * 3.6 / sqrt(r);
+    float turbulent = fbm(vec2(r * 3.0, dot(orbit, vec2(2.0, 1.3))) + 0.22 * orbit, 3);
+    // venature sottili e appena accennate
+    float streaks = 1.0 + STREAK * sin(38.0 * r + 5.0 * turbulent);
+    // bordo interno netto (orbita stabile più interna), coda esterna lunga e morbida
+    float radial = smoothstep(R_IN - 0.35, R_IN + 0.15, r) * (1.0 - smoothstep(R_OUT * 0.45, R_OUT, r));
+    float emiss = pow(R_IN / r, FALL) * radial * streaks * (1.0 + 0.12 * turbulent);
+    float t = clamp(pow(R_IN / r, 0.9) * shift, 0.0, 1.4);
+    vec3 cOut = srgbToLinear(vec3(0.30, 0.45, 1.0));
+    vec3 cMid = srgbToLinear(vec3(0.66, 0.78, 1.0));
+    vec3 cHot = srgbToLinear(HOT);
+    vec3 tint = mix(cOut, cMid, smoothstep(0.35, 0.7, t));
+    tint = mix(tint, cHot, smoothstep(0.75, 1.15, t));
+    return tint * emiss * pow(shift, BEAMING) * 6.0;
 }
 
 vec3 distantStars(vec3 dir) {
@@ -277,7 +285,7 @@ vec3 distantStars(vec3 dir) {
 }
 
 vec4 diskTransfer(vec2 fragCoord) {
-    vec2 uv = rot2(-0.16) * ((2.0 * fragCoord - iResolution.xy) / iResolution.y);
+    vec2 uv = rot2(-0.208) * ((2.0 * fragCoord - iResolution.xy) / iResolution.y);
     vec3 radial = vec3(0.0, sin(INCLINATION), cos(INCLINATION));
     vec3 ro = CAMERA_RADIUS * radial;
     vec3 rd = cameraRay(cameraMatrix(ro, vec3(0), 0.0), uv, ZOOM);
@@ -294,7 +302,7 @@ vec4 diskTransfer(vec2 fragCoord) {
         vec2 next = nullOrbitStep(orbit, ANGLE_STEP);
         if (phi + ANGLE_STEP >= crossing) {
             vec2 atDisk = nullOrbitStep(orbit, clamp(crossing - phi, 0.0, ANGLE_STEP));
-            if (atDisk.x > 1.0 / 7.6 && atDisk.x < 1.0 / 1.75) {
+            if (atDisk.x > 1.0 / R_OUT && atDisk.x < 1.0 / (R_IN - 0.4)) {
                 vec3 er = cos(crossing) * radial + sin(crossing) * side;
                 vec3 ep = -sin(crossing) * radial + cos(crossing) * side;
                 vec3 view = normalize(atDisk.y * er - atDisk.x * sqrt(1.0 - atDisk.x) * ep);
@@ -318,6 +326,14 @@ vec4 diskTransfer(vec2 fragCoord) {
     return vec4(0.0);
 }
 
+float bigStar(vec2 uv, vec2 c, float r, float px) {
+    vec2 d = uv - c; float l = length(d);
+    float core = 1.0 - smoothstep(r * 0.22, r * 0.22 + 2.0 * px, l);
+    float glow = exp(-l * l / (r * r * 0.10)) * 1.1 + exp(-l / (r * 0.9)) * 0.25;
+    float spikes = exp(-abs(d.x) / (2.2 * px)) * exp(-abs(d.y) / (r * 0.45)) + exp(-abs(d.y) / (2.2 * px)) * exp(-abs(d.x) / (r * 0.45));
+    return core + glow + 0.45 * spikes;
+}
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 #if DISK_PASS == 2
     vec4 transfer = texelFetch(iChannel0, ivec2(fragCoord), 0);
@@ -330,7 +346,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 #endif
     vec2 sv = fragCoord / iResolution.xy;
     // cielo blu notte in spazio display (non passa dal tonemap)
-    vec3 sky = mix(vec3(0.004, 0.008, 0.030), vec3(0.050, 0.085, 0.230), sv.y * sv.y);
+    // tramonto: blu in alto, viola al centro, arancione in basso
+    float ty = sv.y;
+    vec3 sky = mix(vec3(0.93, 0.47, 0.22), vec3(0.42, 0.16, 0.48), smoothstep(0.0, 0.45, ty));
+    sky = mix(sky, vec3(0.16, 0.10, 0.42), smoothstep(0.35, 0.72, ty));
+    sky = mix(sky, vec3(0.04, 0.07, 0.26), smoothstep(0.65, 1.0, ty));
+    if (iFrame == 1) sky = vec3(0.0); // passata per il bagliore: solo disco e stelle
     bool escaped = false;
     vec3 col = vec3(0.0);
     if (transfer.w > 1.5) {
@@ -343,24 +364,20 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         escaped = true;
     }
     vec3 outc = linearToSrgb(tonemapAgX(EXPOSURE * col));
-    // i bordi sfumati del disco si fondono col cielo invece di diventare scuri
-    if (transfer.w > 1.5) outc += sky * (1.0 - smoothstep(0.0, 0.55, dot(outc, vec3(0.3, 0.5, 0.2))));
+    // il gas è luminoso e semitrasparente: si somma al cielo (fusione "screen"), niente contorni
+    if (transfer.w > 1.5) outc = 1.0 - (1.0 - sky) * (1.0 - outc);
     if (escaped) {
-        // stelle tonde in spazio schermo, più rade vicino al buco nero
+        // poche stelle grandi e molto luminose, posizionate lontano dal disco
         float px = 2.0 / iResolution.y;
         vec2 suv = (2.0 * fragCoord - iResolution.xy) / iResolution.y;
         float stars = 0.0;
-        for (int k = 0; k < 2; ++k) {
-            float cells = k == 0 ? 26.0 : 60.0;
-            vec2 q = suv * cells; vec2 id = floor(q);
-            vec3 h = hash32(id + float(k) * 91.0);
-            vec2 c = (id + 0.15 + 0.7 * h.xy) / cells;
-            float rad = (k == 0 ? 2.6 : 1.6) * px * (0.6 + 0.8 * h.z);
-            float on = step(k == 0 ? 0.94 : 0.93, h.z);
-            stars += on * (0.35 + 0.65 * h.y) * (1.0 - smoothstep(rad * 0.5, rad, length(suv - c)));
-        }
-        stars *= smoothstep(0.55, 0.95, length(suv));
-        outc = sky + outc + vec3(0.9, 0.94, 1.0) * stars;
+        stars += bigStar(suv, vec2(-0.66, 0.70), 0.110, px);
+        stars += bigStar(suv, vec2(0.60, 0.80), 0.075, px);
+        stars += bigStar(suv, vec2(0.80, -0.58), 0.095, px);
+        stars += bigStar(suv, vec2(-0.50, -0.78), 0.070, px);
+        stars += bigStar(suv, vec2(0.08, -0.90), 0.050, px);
+        stars += bigStar(suv, vec2(-0.88, 0.22), 0.050, px);
+        outc = sky + outc + vec3(0.93, 0.96, 1.0) * stars;
     }
     fragColor = vec4(outc + ditherTPDF(fragCoord, iFrame), 1.0);
 }
