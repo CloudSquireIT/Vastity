@@ -9,6 +9,7 @@ import { Streaks } from '../render/streaks';
 import { BODIES, BodyInfo, V3, bodyAxes, v3 } from '../astro/astro';
 import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, messier, radecToVec, starName, starPhysical, stars } from '../data/catalog';
 import { ObjRef, formatDistanceKm, refName, refPosPc } from '../features/objects';
+import { deepById, deepForMessier, deepObjects } from '../data/deep';
 import { bus, simDate, state } from '../state';
 import { LabelLayer } from '../ui/labels';
 import { num, tx } from '../i18n';
@@ -125,6 +126,8 @@ export class ShipView {
   private marker: HTMLDivElement;
   private markerArrow: HTMLDivElement;
   private cloudOffset = 0;
+  /** Dopo l'arrivo, punto verso cui girarsi dolcemente. */
+  private settleLook: V3 | null = null;
   // oggetti riutilizzati per non allocare a ogni fotogramma
   private tq = new THREE.Quaternion();
   private te = new THREE.Euler();
@@ -250,7 +253,7 @@ export class ShipView {
   }
 
   /** Posizione (km) e raggio di "arrivo" per un oggetto. */
-  targetInfo(ref: ObjRef): { pos: V3; standoff: number; radius: number } | null {
+  targetInfo(ref: ObjRef): { pos: V3; standoff: number; radius: number; look?: V3 } | null {
     if (ref.kind === 'body') {
       const b = BODIES.find((x) => x.id === ref.id)!;
       return { pos: this.bodyPosKm(ref.id), standoff: b.radiusKm * (b.id === 'sun' ? 10 : b.rings ? 6.5 : 3.6), radius: b.radiusKm };
@@ -259,7 +262,22 @@ export class ShipView {
       const R = Math.min(1500, starPhysical(ref.index).R) * 696340;
       return { pos: v3.scale([stars.pos[ref.index * 3], stars.pos[ref.index * 3 + 1], stars.pos[ref.index * 3 + 2]], PC_IN_KM), standoff: Math.max(R * 7, 3e5), radius: R };
     }
+    if (ref.kind === 'deep') {
+      const o = deepById(ref.id);
+      if (!o) return null;
+      const R = o.radiusLy * LY_IN_KM;
+      if (o.id === 'milkyway') {
+        // la Via Lattea si guarda dall'alto: punto di vista sopra il polo galattico
+        const c = v3.scale(GALACTIC_CENTER_PC as V3, PC_IN_KM);
+        const ngp = radecToVec(192.85948, 27.12825);
+        return { pos: v3.add(c, v3.scale(ngp, 95000 * LY_IN_KM)), standoff: 0, radius: 0, look: c };
+      }
+      const k = o.type === 'galaxy' ? 2.4 : o.type === 'blackhole' || o.type === 'quasar' ? 3.2 : o.type === 'pulsar' ? 6 : 2.2;
+      return { pos: v3.scale(refPosPc(ref)!, PC_IN_KM), standoff: R * k, radius: R };
+    }
     if (ref.kind === 'messier') {
+      const linked = deepForMessier(ref.id);
+      if (linked) return this.targetInfo({ kind: 'deep', id: linked.id });
       const p = refPosPc(ref)!;
       const m = messier.find((x) => x.id === ref.id)!;
       const gal = ['s', 'sg', 's0', 'sd', 'i', 'e'].includes(m.type);
@@ -273,6 +291,12 @@ export class ShipView {
   placeNear(ref: ObjRef) {
     const t = this.targetInfo(ref);
     if (!t) return;
+    if (t.look) {
+      this.placeAt(t.pos, t.look, v3.norm(v3.scale(t.look, -1)));
+      this.target = ref;
+      this.arrived = refName(ref);
+      return;
+    }
     let away: V3 = v3.norm(v3.sub([0, 0, 0], t.pos));
     if (v3.len(t.pos) < 1) away = [1, 0, 0];
     const side = v3.norm(v3.cross(away, [0, 0, 1]));
@@ -339,6 +363,7 @@ export class ShipView {
     const k = () => ((this.camera.fov * D2R) / this.h);
     return {
       drag: (dx, dy) => {
+        this.settleLook = null;
         this.pendYaw += -dx * k();
         this.pendPitch += -dy * k();
         if (this.autopilot) this.autopilot = false;
@@ -386,6 +411,13 @@ export class ShipView {
     const damping = Math.exp(-2.2 * dt);
     this.yawV *= damping; this.pitchV *= damping;
 
+    if (this.settleLook && !this.autopilot) {
+      const n = v3.norm(v3.sub(this.settleLook, this.pos));
+      this.tm.lookAt(this.tv.set(0, 0, 0), this.tv2.set(n[0], n[1], n[2]), this.upV.set(0, 1, 0).applyQuaternion(this.quat));
+      this.tq.setFromRotationMatrix(this.tm);
+      this.quat.slerp(this.tq, 1 - Math.exp(-2 * dt));
+      if (this.quat.angleTo(this.tq) < 0.005) this.settleLook = null;
+    }
     // decollo
     if (this.launch) {
       const L = this.launch;
@@ -413,6 +445,7 @@ export class ShipView {
         const angle = this.quat.angleTo(this.tq);
         if (remaining <= Math.max(1, t.standoff * 0.015)) {
           this.stop(true);
+          if (t.look) this.settleLook = t.look;
           this.arrived = refName(this.target);
           bus.emit('arrived', this.target);
           bus.emit('flash');
@@ -687,6 +720,11 @@ export class ShipView {
       const p = refPosPc({ kind: 'messier', id: m.id })!;
       c({ kind: 'messier', id: m.id }, v3.sub(p, obs), 0);
     }
+    for (const o of deepObjects()) {
+      const ref: ObjRef = { kind: 'deep', id: o.id };
+      const rel = v3.sub(refPosPc(ref)!, obs);
+      c(ref, rel, this.discPxCss(o.radiusLy / 3.26156, v3.len(rel)));
+    }
     return best;
   }
 
@@ -755,6 +793,17 @@ export class ShipView {
         const ref: ObjRef = { kind: 'messier', id: m.id };
         put(v3.sub(refPosPc(ref)!, obs), refName(ref), 'dso', false, ref);
       }
+      // oggetti del catalogo profondo: etichetta quando sono abbastanza grandi o (galassie) quando sei fuori dalla Via Lattea
+      const outside = v3.len(v3.sub(GALACTIC_CENTER_PC as V3, obs)) > 40000;
+      const pxr = this.h / (2 * Math.tan((this.camera.fov * D2R) / 2));
+      for (const o of deepObjects()) {
+        if (o.id === 'milkyway') continue;
+        const ref: ObjRef = { kind: 'deep', id: o.id };
+        const rel = v3.sub(refPosPc(ref)!, obs);
+        const d = v3.len(rel);
+        const px = ((o.radiusLy / 3.26156) / d) * pxr;
+        if (px > 5 || (outside && o.type === 'galaxy') || d < 60) put(rel, o.name, o.type === 'galaxy' && (outside || px > 30) ? 'pill' : 'dso', false, ref);
+      }
     }
     L.end();
     this.updateTargetMarker();
@@ -764,7 +813,7 @@ export class ShipView {
   private updateTargetMarker() {
     const t = this.target ? this.targetInfo(this.target) : null;
     if (!t || !this.target) { this.marker.style.display = this.markerArrow.style.display = 'none'; return; }
-    const rel = v3.sub(t.pos, this.pos);
+    const rel = v3.sub(t.look ?? t.pos, this.pos);
     const dist = v3.len(rel);
     const p = this.project(rel);
     const label = `${refName(this.target)} · ${formatDistanceKm(Math.max(0, dist - t.radius))}`;
@@ -810,7 +859,7 @@ export class ShipView {
       const t = this.targetInfo(this.target);
       if (t) {
         const full = v3.len(v3.sub(t.pos, this.pos));
-        td = formatDistanceKm(Math.max(0, full - t.radius));
+        td = formatDistanceKm(t.look ? v3.len(v3.sub(t.look, this.pos)) : Math.max(0, full - t.radius));
         // il pilota automatico rallenta in modo esponenziale: stima del tempo reale di arrivo
         const rem = Math.max(0, full - t.standoff);
         eta = this.autopilot && rem > 0 ? formatDuration(Math.max(1, 0.55 * Math.log(Math.max(1, rem / Math.max(1, t.standoff * 0.015))) + 0.8)) : '';

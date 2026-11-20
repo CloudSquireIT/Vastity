@@ -4,7 +4,9 @@
 // Tutto è calcolato rispetto a un osservatore uObs (parsec): funziona dalla Terra, da un
 // esopianeta o dalla navicella, con effetti relativistici opzionali.
 import * as THREE from 'three';
-import { constellations, radecToVec, stars } from '../data/catalog';
+import { MESSIER_EXTRA, constellations, messier, radecToVec, stars } from '../data/catalog';
+import { deepObjects } from '../data/deep';
+import { DeepRenderer } from './deepRender';
 import { quality } from '../core/quality';
 
 const BLACKBODY = /* glsl */ `
@@ -134,6 +136,8 @@ uniform float uTime;
 uniform float uMaxPx;
 uniform float uBoost;
 uniform float uOther;
+uniform float uPF[5];
+attribute float aGal;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vSoft;
@@ -159,7 +163,7 @@ void main() {
   gl_PointSize = px;
   float shimmer = 0.92 + 0.08 * sin(uTime * (0.3 + aSeed * 0.6) + aSeed * 40.0);
   // la Via Lattea vista da fuori viene schiarita; le altre galassie restano naturali
-  vAlpha = alpha * shimmer / max(1.0, D * D) * (aKind < 0.5 ? uBoost : uOther);
+  vAlpha = alpha * shimmer / max(1.0, D * D) * (aKind < 0.5 ? uBoost : uOther) * uPF[int(aGal + 0.5)];
   vColor = color * clamp(sqrt(D), 0.4, 1.4);
   vSoft = aKind > 1.5 ? 1.0 : 0.0;
 }
@@ -307,8 +311,8 @@ function gauss(r: () => number) {
 const SUN_GAL: [number, number, number] = [-8200, 0, 20];
 export const GALACTIC_CENTER_PC = galToEq(8200, 0, -20);
 
-interface Particles { pos: number[]; col: number[]; size: number[]; kind: number[]; seed: number[] }
-const P = (): Particles => ({ pos: [], col: [], size: [], kind: [], seed: [] });
+interface Particles { pos: number[]; col: number[]; size: number[]; kind: number[]; seed: number[]; gal: number[] }
+const P = (): Particles => ({ pos: [], col: [], size: [], kind: [], seed: [], gal: [] });
 
 const PITCH = (12.5 * Math.PI) / 180;
 const armAngle = (rad: number, arm: number) => Math.log(rad / 2400) / Math.tan(PITCH) + (arm * Math.PI) / 2;
@@ -316,7 +320,7 @@ const armAngle = (rad: number, arm: number) => Math.log(rad / 2400) / Math.tan(P
 function buildMilkyWay(p: Particles, dust: Particles, n: number, nd: number) {
   const r = rng(42);
   const push = (q: Particles, x: number, y: number, z: number, c: number[], s: number, kind: number) => {
-    q.pos.push(x, y, z); q.col.push(c[0], c[1], c[2]); q.size.push(s); q.kind.push(kind); q.seed.push(r());
+    q.pos.push(x, y, z); q.col.push(c[0], c[1], c[2]); q.size.push(s); q.kind.push(kind); q.seed.push(r()); q.gal.push(0);
   };
   for (let i = 0; i < n; i++) {
     const u = r();
@@ -361,7 +365,7 @@ function buildMilkyWay(p: Particles, dust: Particles, n: number, nd: number) {
   }
 }
 
-function buildDiskGalaxy(p: Particles, dust: Particles, n: number, raDeg: number, decDeg: number, distPc: number, radiusPc: number, incl: number, pa: number, bright: number, seed: number) {
+function buildDiskGalaxy(p: Particles, dust: Particles, n: number, raDeg: number, decDeg: number, distPc: number, radiusPc: number, incl: number, pa: number, bright: number, seed: number, gal: number) {
   const r = rng(seed);
   const L = new THREE.Vector3(...radecToVec(raDeg, decDeg));
   const n0 = new THREE.Vector3(0, 0, 1).sub(L.clone().multiplyScalar(L.z)).normalize();
@@ -373,7 +377,7 @@ function buildDiskGalaxy(p: Particles, dust: Particles, n: number, raDeg: number
   const center = L.clone().multiplyScalar(distPc);
   const put = (q: Particles, rad: number, th: number, zz: number, c: number[], s: number) => {
     const v = center.clone().add(a.clone().multiplyScalar(rad * Math.cos(th))).add(b.clone().multiplyScalar(rad * Math.sin(th))).add(normal.clone().multiplyScalar(zz));
-    q.pos.push(v.x, v.y, v.z); q.col.push(c[0], c[1], c[2]); q.size.push(s); q.kind.push(1); q.seed.push(r());
+    q.pos.push(v.x, v.y, v.z); q.col.push(c[0], c[1], c[2]); q.size.push(s); q.kind.push(1); q.seed.push(r()); q.gal.push(gal);
   };
   for (let i = 0; i < n; i++) {
     const core = r() < 0.25;
@@ -390,7 +394,7 @@ function buildDiskGalaxy(p: Particles, dust: Particles, n: number, raDeg: number
   }
 }
 
-function buildBlob(p: Particles, n: number, raDeg: number, decDeg: number, distPc: number, radiusPc: number, bright: number, seed: number) {
+function buildBlob(p: Particles, n: number, raDeg: number, decDeg: number, distPc: number, radiusPc: number, bright: number, seed: number, gal: number) {
   const r = rng(seed);
   const c = radecToVec(raDeg, decDeg).map((v) => v * distPc);
   for (let i = 0; i < n; i++) {
@@ -400,44 +404,100 @@ function buildBlob(p: Particles, n: number, raDeg: number, decDeg: number, distP
     p.col.push((pink ? 1.1 : 0.8) * k, (pink ? 0.45 : 0.85) * k, (pink ? 0.6 : 1) * k);
     p.size.push(radiusPc * 0.07);
     p.kind.push(1);
+    p.gal.push(gal);
     p.seed.push(r());
   }
 }
 
-/** Nebulose principali: [AR°, Dec°, distanza al, raggio al, colore principale, colore secondario]. */
-const NEBULAE: [number, number, number, number, number[], number[]][] = [
-  [83.82, -5.39, 1344, 12, [1.0, 0.35, 0.45], [0.35, 0.8, 0.85]], // Orione M42
-  [161.27, -59.87, 7500, 120, [1.0, 0.4, 0.4], [0.9, 0.7, 0.4]], // Carena
-  [270.9, -24.38, 4100, 50, [1.0, 0.35, 0.5], [0.5, 0.6, 1.0]], // Laguna M8
-  [274.7, -13.81, 7000, 35, [0.95, 0.55, 0.35], [0.4, 0.7, 0.8]], // Aquila M16
-  [270.6, -23.03, 4100, 20, [1.0, 0.35, 0.45], [0.35, 0.5, 1.0]], // Trifida M20
-  [275.2, -16.17, 5500, 20, [1.0, 0.4, 0.5], [0.8, 0.5, 0.4]], // Omega M17
-  [97.98, 4.94, 5200, 60, [1.0, 0.3, 0.4], [0.9, 0.5, 0.4]], // Rosetta
-  [314.7, 44.3, 2590, 50, [1.0, 0.35, 0.4], [0.7, 0.4, 0.4]], // Nord America
-  [83.63, 22.01, 6500, 5.5, [0.6, 0.75, 1.0], [1.0, 0.45, 0.35]], // Granchio M1
-  [337.41, -20.84, 655, 1.4, [0.35, 0.9, 0.85], [1.0, 0.4, 0.35]], // Elica
-  [299.9, 22.72, 1360, 1.5, [0.4, 0.9, 0.9], [1.0, 0.45, 0.4]], // Manubrio M27
-  [85.25, -2.46, 1375, 8, [1.0, 0.3, 0.35], [0.6, 0.35, 0.4]], // Testa di Cavallo / IC 434
+/** Nebulose extra non presenti nei cataloghi (Rosetta, Nord America). */
+const EXTRA_NEB: { ra: number; dec: number; ly: number; r: number; type: string }[] = [
+  { ra: 97.98, dec: 4.94, ly: 5200, r: 60, type: 'nebula' },
+  { ra: 314.7, dec: 44.3, ly: 2590, r: 50, type: 'nebula' },
 ];
 
+/** Nubi, gusci e anelli generati in base al tipo di nebulosa. */
 function buildNebulae(p: Particles) {
   const r = rng(77);
   const LY = 1 / 3.26156;
-  for (const [ra, dec, ly, rad, c1, c2] of NEBULAE) {
-    const c = radecToVec(ra, dec).map((v) => v * ly * LY);
-    const R = rad * LY;
-    const count = 34;
+  const list: { ra: number; dec: number; ly: number; r: number; type: string }[] = [...EXTRA_NEB];
+  for (const o of deepObjects()) if (['nebula', 'pn', 'snr'].includes(o.type)) list.push({ ra: o.ra, dec: o.dec, ly: o.ly, r: o.radiusLy, type: o.type });
+  for (const m of messier) {
+    const ex = MESSIER_EXTRA[m.id];
+    if (!ex) continue;
+    const t = m.type === 'pn' ? 'pn' : m.type === 'snr' ? 'snr' : ['en', 'rn', 'bn', 'sfr'].includes(m.type) ? 'nebula' : '';
+    if (!t) continue;
+    const rad = t === 'pn' ? 1.2 : t === 'snr' ? 5.5 : Math.max(10, ex.ly * 0.006);
+    list.push({ ra: m.ra, dec: m.dec, ly: ex.ly, r: rad, type: t });
+  }
+  const palettes: number[][][] = [
+    [[1.0, 0.32, 0.45], [0.35, 0.8, 0.85], [1.0, 0.7, 0.5]],
+    [[1.0, 0.4, 0.35], [0.9, 0.7, 0.4], [0.5, 0.6, 1.0]],
+    [[0.35, 0.9, 0.85], [1.0, 0.4, 0.35], [0.6, 0.5, 1.0]],
+  ];
+  for (const n of list) {
+    const c = radecToVec(n.ra, n.dec).map((v) => v * n.ly * LY);
+    const R = n.r * LY;
+    const pal = palettes[n.type === 'pn' ? 2 : n.type === 'snr' ? 2 : Math.floor(r() * 2)];
+    const count = n.type === 'nebula' ? 40 : 60;
     for (let i = 0; i < count; i++) {
-      const t = r();
-      const col = t < 0.6 ? c1 : c2;
+      let x: number, y: number, z: number, size: number;
+      if (n.type === 'nebula') {
+        x = gauss(r) * R * 0.45; y = gauss(r) * R * 0.45; z = gauss(r) * R * 0.45; size = R * (0.6 + r() * 0.9);
+      } else {
+        // anelli (planetarie) e gusci filamentosi (resti di supernova)
+        const u = r() * 2 - 1, ph = r() * Math.PI * 2, rr = Math.sqrt(1 - u * u);
+        const shell = R * (0.8 + r() * 0.25);
+        x = rr * Math.cos(ph) * shell; y = rr * Math.sin(ph) * shell; z = u * shell * (n.type === 'pn' ? 0.55 : 1);
+        size = R * (n.type === 'pn' ? 0.45 : 0.35) * (0.6 + r() * 0.7);
+      }
+      const col = pal[Math.floor(r() * pal.length)];
       const k = 0.4 + r() * 0.5;
-      p.pos.push(c[0] + gauss(r) * R * 0.45, c[1] + gauss(r) * R * 0.45, c[2] + gauss(r) * R * 0.45);
+      p.pos.push(c[0] + x, c[1] + y, c[2] + z);
       p.col.push(col[0] * k, col[1] * k, col[2] * k);
-      p.size.push(R * (0.6 + r() * 0.9));
+      p.size.push(size);
       p.kind.push(0);
       p.seed.push(r());
+      p.gal.push(0);
     }
   }
+}
+
+/** Stelle degli ammassi (globulari e aperti), aggiunte al campo stellare vero. */
+function clusterStars() {
+  const r = rng(303);
+  const LY = 1 / 3.26156;
+  const out: { pos: number[]; mag: number[]; temp: number[] } = { pos: [], mag: [], temp: [] };
+  const list: { ra: number; dec: number; ly: number; r: number; gc: boolean }[] = [];
+  const linked = new Set<string>();
+  for (const o of deepObjects()) if (o.type === 'gc' || o.type === 'oc') { list.push({ ra: o.ra, dec: o.dec, ly: o.ly, r: o.radiusLy, gc: o.type === 'gc' }); if (o.messier) linked.add(o.messier); }
+  for (const m of messier) {
+    const ex = MESSIER_EXTRA[m.id];
+    if (!ex || linked.has(m.id) || (m.type !== 'gc' && m.type !== 'oc')) continue;
+    list.push({ ra: m.ra, dec: m.dec, ly: ex.ly, r: m.type === 'gc' ? 50 : m.id === 'M45' ? 8 : 12, gc: m.type === 'gc' });
+  }
+  const nGc = quality.tier === 'low' ? 500 : 1400, nOc = quality.tier === 'low' ? 60 : 140;
+  for (const c of list) {
+    const ctr = radecToVec(c.ra, c.dec).map((v) => v * c.ly * LY);
+    const R = c.r * LY;
+    const n = c.gc ? nGc : nOc;
+    for (let i = 0; i < n; i++) {
+      const u = r() * 2 - 1, ph = r() * Math.PI * 2, rr = Math.sqrt(1 - u * u);
+      const d = c.gc ? R * 0.12 * Math.pow(-Math.log(1 - r() * 0.985), 1.3) : R * Math.sqrt(r());
+      out.pos.push(ctr[0] + rr * Math.cos(ph) * d, ctr[1] + rr * Math.sin(ph) * d, ctr[2] + u * d);
+      const t = r();
+      if (c.gc) {
+        // giganti rosse brillanti, qualche "blue straggler", tante stelle deboli
+        if (t < 0.05) { out.mag.push(-2.5 + r() * 2); out.temp.push(3900 + r() * 400); }
+        else if (t < 0.08) { out.mag.push(0 + r()); out.temp.push(9000 + r() * 3000); }
+        else { out.mag.push(1 + r() * 3); out.temp.push(5200 + r() * 1200); }
+      } else {
+        // ammassi giovani: stelle calde e azzurre
+        if (t < 0.12) { out.mag.push(-2.5 + r() * 2); out.temp.push(12000 + r() * 12000); }
+        else { out.mag.push(0.5 + r() * 4); out.temp.push(6500 + r() * 6000); }
+      }
+    }
+  }
+  return out;
 }
 
 function toGeometry(p: Particles) {
@@ -447,6 +507,7 @@ function toGeometry(p: Particles) {
   g.setAttribute('size', new THREE.Float32BufferAttribute(p.size, 1));
   g.setAttribute('aKind', new THREE.Float32BufferAttribute(p.kind, 1));
   g.setAttribute('aSeed', new THREE.Float32BufferAttribute(p.seed, 1));
+  g.setAttribute('aGal', new THREE.Float32BufferAttribute(p.gal.length ? p.gal : new Array(p.seed.length).fill(0), 1));
   return g;
 }
 
@@ -482,6 +543,8 @@ export class Background {
   private nebMat: THREE.ShaderMaterial;
   deep: THREE.Points;
   private deepMat: THREE.ShaderMaterial;
+  private pf = { value: [1, 1, 1, 1, 1] };
+  deepObjects: DeepRenderer;
   /** Per ogni costellazione: indici dei vertici-stella delle sue linee. */
   lineStars: Map<string, number[]> = new Map();
 
@@ -493,15 +556,20 @@ export class Background {
     const dim = { value: 1 };
 
     // --- stelle (+ il Sole in coda) ---
-    const n = stars.count + 1;
+    const cl = clusterStars();
+    const nCl = cl.mag.length;
+    const n = stars.count + 1 + nCl;
     const pos = new Float32Array(n * 3);
     pos.set(stars.pos);
+    pos.set(cl.pos, (stars.count + 1) * 3);
     const absmag = new Float32Array(n);
     absmag.set(stars.absmag);
-    absmag[n - 1] = 4.83;
+    absmag[stars.count] = 4.83;
+    absmag.set(cl.mag, stars.count + 1);
     const temp = new Float32Array(n);
     temp.set(stars.temp);
-    temp[n - 1] = 5772;
+    temp[stars.count] = 5772;
+    temp.set(cl.temp, stars.count + 1);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('absmag', new THREE.BufferAttribute(absmag, 1));
@@ -569,10 +637,10 @@ export class Background {
     const glow = P();
     const dust = P();
     buildMilkyWay(glow, dust, quality.galaxyParticles, quality.dustParticles);
-    buildDiskGalaxy(glow, dust, quality.tier === 'low' ? 9000 : 18000, 10.6847, 41.2687, 765000, 30000, (77 * Math.PI) / 180, (38 * Math.PI) / 180, 1.6, 7);
-    buildDiskGalaxy(glow, dust, quality.tier === 'low' ? 2500 : 5000, 23.4621, 30.6599, 840000, 9000, (55 * Math.PI) / 180, (23 * Math.PI) / 180, 1.2, 9);
-    buildBlob(glow, 3500, 80.894, -69.756, 50000, 1600, 1.2, 11);
-    buildBlob(glow, 1800, 13.187, -72.829, 62000, 1000, 1.1, 13);
+    buildDiskGalaxy(glow, dust, quality.tier === 'low' ? 9000 : 18000, 10.6847, 41.2687, 2537000 / 3.26156, 30000, (77 * Math.PI) / 180, (38 * Math.PI) / 180, 1.6, 7, 1);
+    buildDiskGalaxy(glow, dust, quality.tier === 'low' ? 2500 : 5000, 23.4621, 30.6599, 2730000 / 3.26156, 9000, (55 * Math.PI) / 180, (23 * Math.PI) / 180, 1.2, 9, 2);
+    buildBlob(glow, 3500, 80.894, -69.756, 163000 / 3.26156, 1600, 1.2, 11, 3);
+    buildBlob(glow, 1800, 13.187, -72.829, 200000 / 3.26156, 1000, 1.1, 13, 4);
     const galToEqM = new THREE.Matrix3().set(
       R_EQ_GAL[0][0], R_EQ_GAL[1][0], R_EQ_GAL[2][0],
       R_EQ_GAL[0][1], R_EQ_GAL[1][1], R_EQ_GAL[2][1],
@@ -581,6 +649,7 @@ export class Background {
     const shared = {
       uObs: obs, uBeta: beta, uPixPerRad: pixPerRad, uTime: time, uDim: dim,
       uGalToEq: { value: galToEqM }, uSunGal: { value: new THREE.Vector3(...SUN_GAL) }, uSpin: { value: 0 },
+      uPF: this.pf,
     };
     const mobile = quality.tier !== 'high';
     this.galMat = new THREE.ShaderMaterial({
@@ -642,7 +711,10 @@ export class Background {
     this.deep.renderOrder = -1;
     this.deep.visible = false;
 
-    this.group.add(this.deep, this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
+    const mwPlane = { a: new THREE.Vector3(...galToEq(1, 0, 0)), b: new THREE.Vector3(...galToEq(0, 1, 0)) };
+    this.deepObjects = new DeepRenderer(GALACTIC_CENTER_PC, mwPlane);
+
+    this.group.add(this.deep, this.deepObjects.group, this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
   }
 
   update(u: BackgroundUpdate) {
@@ -679,5 +751,10 @@ export class Background {
     gu.uSpin.value = u.galSpin ?? 0;
     this.dustMat.uniforms.uSpin.value = u.galSpin ?? 0;
     this.galaxy.visible = this.dust.visible = this.nebulae.visible = u.galaxyDim > 0.001;
+    // render "fotografici" delle galassie e oggetti esotici; dissolvenza delle particelle
+    this.deepObjects.update(u.obsPc, u.time, u.galaxyDim, u.galSpin ?? 0, u.pixPerRad);
+    const pf = this.deepObjects.particleFactor;
+    this.pf.value[0] = pf.milkyway ?? 1; this.pf.value[1] = pf.m31g ?? 1; this.pf.value[2] = pf.m33g ?? 1;
+    this.pf.value[3] = pf.lmc ?? 1; this.pf.value[4] = pf.smc ?? 1;
   }
 }

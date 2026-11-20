@@ -5,13 +5,16 @@ import {
 } from '../data/catalog';
 import { BODIES, SkyFrame, V3, bodyById, v3 } from '../astro/astro';
 import { num, tx } from '../i18n';
+import { DEEP_TYPE_NAME, deepById, deepForMessier, deepObjects } from '../data/deep';
+import { GALACTIC_CENTER_PC } from '../render/background';
 
 export type ObjRef =
   | { kind: 'body'; id: string }
   | { kind: 'star'; index: number }
   | { kind: 'messier'; id: string }
   | { kind: 'constellation'; id: string }
-  | { kind: 'iss' };
+  | { kind: 'iss' }
+  | { kind: 'deep'; id: string };
 
 export const sameRef = (a: ObjRef | null, b: ObjRef | null) => !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
 
@@ -22,6 +25,7 @@ export function refName(r: ObjRef): string {
     case 'messier': { const m = messier.find((x) => x.id === r.id); return m ? messierName(m) : r.id; }
     case 'constellation': return constellationById(r.id)?.name ?? r.id;
     case 'iss': return tx('Stazione Spaziale', 'Space Station', 'Station spatiale');
+    case 'deep': return deepById(r.id)?.name ?? r.id;
   }
 }
 
@@ -32,6 +36,12 @@ export function refPosPc(r: ObjRef): V3 | null {
     const m = messier.find((x) => x.id === r.id)!;
     const ly = MESSIER_EXTRA[m.id]?.ly ?? 5000;
     return v3.scale(radecToVec(m.ra, m.dec), ly / PC_IN_LY);
+  }
+  if (r.kind === 'deep') {
+    const o = deepById(r.id);
+    if (!o) return null;
+    if (o.id === 'milkyway') return [...GALACTIC_CENTER_PC] as V3;
+    return v3.scale(radecToVec(o.ra, o.dec), o.ly / PC_IN_LY);
   }
   return null;
 }
@@ -61,9 +71,10 @@ export function searchIndex(): SearchItem[] {
     if (b.id === 'earth') continue;
     items.push({ ref: { kind: 'body', id: b.id }, name: b.name, sub: kindName(b.kind, false), key: norm(b.name + ' ' + b.id), rank: 0 });
   }
+  for (const o of deepObjects()) items.push({ ref: { kind: 'deep', id: o.id }, name: o.name, sub: DEEP_TYPE_NAME(o.type, o.galaxy), key: norm(o.name + ' ' + o.id + ' ' + DEEP_TYPE_NAME(o.type, o.galaxy) + (o.id === 'milkyway' ? ' milky way voie lactee via lattea' : '')), rank: o.id === 'milkyway' ? 0.2 : 1.2 });
   items.push({ ref: { kind: 'iss' }, name: tx('Stazione Spaziale (ISS)', 'Space Station (ISS)', 'Station spatiale (ISS)'), sub: tx('Satellite', 'Satellite', 'Satellite'), key: 'iss stazione spaziale internazionale space station station spatiale', rank: 0 });
   for (const c of constellations) items.push({ ref: { kind: 'constellation', id: c.id }, name: c.name, sub: `${tx('Costellazione', 'Constellation', 'Constellation')} · ${c.la}`, key: norm(c.name + ' ' + c.la + ' ' + c.id), rank: 1 + c.rank * 0.1 });
-  for (const m of messier) items.push({ ref: { kind: 'messier', id: m.id }, name: messierName(m), sub: `${m.id} · ${MESSIER_TYPES[m.type] ?? tx('Oggetto', 'Object', 'Objet')}`, key: norm(messierName(m) + ' ' + m.id + ' ' + m.alt), rank: 2 + m.mag * 0.01 });
+  for (const m of messier) if (!deepForMessier(m.id)) items.push({ ref: { kind: 'messier', id: m.id }, name: messierName(m), sub: `${m.id} · ${MESSIER_TYPES[m.type] ?? tx('Oggetto', 'Object', 'Objet')}`, key: norm(messierName(m) + ' ' + m.id + ' ' + m.alt), rank: 2 + m.mag * 0.01 });
   for (let i = 0; i < stars.count; i++) {
     const ni = stars.name[i];
     if (ni < 0) continue;
@@ -123,6 +134,14 @@ export function formatDistanceKm(km: number): string {
 }
 
 export function info(r: ObjRef, frame: SkyFrame): InfoData {
+  if (r.kind === 'deep') {
+    const o = deepById(r.id)!;
+    const facts: [string, string][] = [[tx('Distanza', 'Distance', 'Distance'), o.ly >= 1e6 ? `${fmt(o.ly / 1e6, 2)} ${MLY()}` : `${fmt(o.ly)} ${LY()}`]];
+    if (o.id === 'milkyway') facts[0] = [tx('Distanza dal centro', 'Distance to centre', 'Distance au centre'), `${fmt(o.ly)} ${LY()}`];
+    facts.push([o.type === 'blackhole' || o.type === 'quasar' || o.type === 'pulsar' ? tx('Dimensione mostrata', 'Size shown', 'Taille affichée') : tx('Diametro', 'Diameter', 'Diamètre'), `${fmt(o.radiusLy * 2, o.radiusLy < 1 ? 3 : 0)} ${LY()}`]);
+    if (o.mass) facts.push([tx('Massa', 'Mass', 'Masse'), o.mass]);
+    return { title: o.name, subtitle: DEEP_TYPE_NAME(o.type, o.galaxy), facts, desc: o.desc, lightYears: o.id === 'milkyway' ? undefined : o.ly, canFly: true };
+  }
   if (r.kind === 'body') {
     const b = bodyById(r.id)!;
     const sb = frame.bodies.find((x) => x.id === r.id);

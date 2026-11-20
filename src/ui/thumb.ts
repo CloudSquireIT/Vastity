@@ -3,6 +3,7 @@
 import { ObjRef } from '../features/objects';
 import { constellationById, messier, radecToVec, starPhysical } from '../data/catalog';
 import { rng } from '../render/background';
+import { deepById } from '../data/deep';
 import { tempColor } from '../render/planet';
 
 const PHOTOS = new Set([
@@ -11,6 +12,7 @@ const PHOTOS = new Set([
 ]);
 
 function photoId(r: ObjRef): string | null {
+  if (r.kind === 'deep') return deepById(r.id)?.messier ?? null;
   if (r.kind === 'body') return r.id;
   if (r.kind === 'iss') return 'iss';
   if (r.kind === 'messier') return r.id;
@@ -166,6 +168,42 @@ function drawConstellation(id: string) {
   return c;
 }
 
+/** Buchi neri (ombra, anello di fotoni, disco), quasar con getti, pulsar con fasci. */
+function drawExotic(type: string, seed: number) {
+  const { c, g } = canvas();
+  const r = rng(seed);
+  starfield(g, r, 60);
+  const cx = SIZE / 2, cy = SIZE / 2;
+  if (type === 'pulsar') {
+    glow(g, cx, cy, 90, [0.35, 0.5, 1], 0.35);
+    g.save(); g.translate(cx, cy); g.rotate(-0.5);
+    for (const s of [-1, 1]) {
+      const gr = g.createLinearGradient(0, 0, 0, s * 115);
+      gr.addColorStop(0, 'rgba(200,225,255,0.9)'); gr.addColorStop(1, 'rgba(120,170,255,0)');
+      g.fillStyle = gr; g.beginPath(); g.moveTo(-3, 0); g.lineTo(-22, s * 115); g.lineTo(22, s * 115); g.lineTo(3, 0); g.fill();
+    }
+    g.restore();
+    glow(g, cx, cy, 16, [1, 1, 1], 1);
+    return c;
+  }
+  g.save(); g.translate(cx, cy); g.scale(1, 0.32);
+  for (let i = 0; i < 3; i++) glow(g, 0, 0, 105 - i * 25, i ? [1, 0.75, 0.4] : [1, 0.5, 0.2], 0.55);
+  g.restore();
+  // anello di luce piegato sopra l'ombra
+  g.strokeStyle = 'rgba(255,200,140,0.75)'; g.lineWidth = 6;
+  g.beginPath(); g.ellipse(cx, cy - 6, 44, 38, 0, Math.PI, 0); g.stroke();
+  g.fillStyle = '#000'; g.beginPath(); g.arc(cx, cy, 34, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(255,235,200,0.95)'; g.lineWidth = 2.5; g.beginPath(); g.arc(cx, cy, 36, 0, Math.PI * 2); g.stroke();
+  if (type === 'quasar') {
+    for (const s of [-1, 1]) {
+      const gr = g.createLinearGradient(cx, cy, cx, cy + s * 120);
+      gr.addColorStop(0, 'rgba(170,200,255,0.9)'); gr.addColorStop(1, 'rgba(120,160,255,0)');
+      g.fillStyle = gr; g.fillRect(cx - 4, s > 0 ? cy : cy - 120, 8, 120);
+    }
+  }
+  return c;
+}
+
 const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const cross = (a: number[], b: number[]): [number, number, number] => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const norm = (a: number[]): [number, number, number] => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
@@ -187,6 +225,13 @@ export function objectThumb(ref: ObjRef): HTMLElement {
   if (ref.kind === 'star') cv = drawStar(ref.index);
   else if (ref.kind === 'messier') { const m = messier.find((x) => x.id === ref.id); cv = drawMessier(m?.type ?? 'oc', ref.id.length * 13 + +ref.id.slice(1)); }
   else if (ref.kind === 'constellation') cv = drawConstellation(ref.id);
+  else if (ref.kind === 'deep') {
+    const o = deepById(ref.id)!;
+    const seed = ref.id.length * 17 + ref.id.charCodeAt(0);
+    if (o.type === 'blackhole' || o.type === 'quasar' || o.type === 'pulsar') cv = drawExotic(o.type, seed);
+    else if (o.type === 'galaxy') cv = drawMessier(o.galaxy?.shape === 'elliptical' ? 'e' : o.galaxy?.shape === 'irregular' ? 'i' : 's', seed);
+    else cv = drawMessier(o.type === 'nebula' ? 'en' : o.type, seed);
+  }
   else cv = drawMessier('oc', 1);
   wrap.appendChild(cv);
   wrap.classList.add('render');

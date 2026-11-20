@@ -4,6 +4,7 @@ import { Background } from '../render/background';
 import { BodySprite } from '../render/bodies';
 import { Place, SkyFrame, V3, bodyAxes, bodyById, horToEqj, placeById, skyFrame, v3 } from '../astro/astro';
 import { planetTexture } from '../core/textures';
+import { deepForMessier, deepObjects } from '../data/deep';
 import { LOOKS, bodySphere, planetMaterial, ringMaterial } from '../render/planet';
 import { damp } from '../core/motion';
 
@@ -351,6 +352,7 @@ export class SkyView {
       consider({ kind: 'star', index: i }, [dx / d, dy / d, dz / d], Math.max(0, 4 - m) * 1.5);
     }
     if (this.fov < 50) for (const m of messier) consider({ kind: 'messier', id: m.id }, radecToVec(m.ra, m.dec), 0);
+    if (this.fov < 50) for (const o of deepObjects()) { const r: ObjRef = { kind: 'deep', id: o.id }; const d = refDirection(r, this.frame); if (d) consider(r, d, 0); }
     if (!best && state.settings.constellations) {
       bs = 140;
       for (const c of this.consCenters) consider({ kind: 'constellation', id: c.id }, c.dir, 0);
@@ -657,7 +659,8 @@ export class SkyView {
           put(this.starDir(i), starName(i), 'star', false, { kind: 'star', index: i });
         }
         if (st.constellations) for (const c of this.consCenters) put(c.dir, c.name.toUpperCase(), 'cons', false, { kind: 'constellation', id: c.id });
-        if (this.fov < 35) for (const m of messier) if (m.mag < 7.5) put(radecToVec(m.ra, m.dec), messierName(m), 'dso', false, { kind: 'messier', id: m.id });
+        if (this.fov < 35) for (const m of messier) if (m.mag < 7.5 && !deepForMessier(m.id)) put(radecToVec(m.ra, m.dec), messierName(m), 'dso', false, { kind: 'messier', id: m.id });
+        if (this.fov < 35) for (const o of deepObjects()) { if (o.id === 'milkyway') continue; const r: ObjRef = { kind: 'deep', id: o.id }; const d = refDirection(r, this.frame); if (d) put(d, o.name, 'dso', false, r); }
       }
     }
     L.end();

@@ -1,5 +1,6 @@
 // Caricamento dei cataloghi (stelle HYG, costellazioni, Messier) e utilità.
 import { lang, tx } from '../i18n';
+import { EXTRA_STARS } from './deep';
 
 export const PC_IN_LY = 3.26156;
 export const PC_IN_KM = 3.0856775814913673e13;
@@ -77,7 +78,16 @@ export async function loadCatalogs() {
     fetch('data/constellations.json').then((r) => r.json()),
     fetch('data/messier.json').then((r) => r.json()),
   ]);
-  const rows: any[] = s.rows;
+  const rows: any[] = [...s.rows];
+  const names = [...s.names];
+  // stelle estreme non presenti in HYG (supergiganti, Wolf-Rayet, LBV)
+  for (const x of EXTRA_STARS) {
+    const d = x.ly / PC_IN_LY;
+    const v = radecToVec(x.ra, x.dec);
+    names.push([x.name, x.desig, '', x.spect]);
+    rows.push([v[0] * d, v[1] * d, v[2] * d, x.absmag, 1.5, names.length - 1, '', 0, x.temp]);
+  }
+  s.names = names;
   const n = rows.length;
   const cat: StarCatalog = {
     count: n,
@@ -96,7 +106,7 @@ export async function loadCatalogs() {
     cat.pos[i * 3 + 2] = r[2];
     cat.absmag[i] = r[3];
     cat.ci[i] = r[4];
-    cat.temp[i] = bvToTemp(r[4]);
+    cat.temp[i] = r[8] ?? bvToTemp(r[4]);
     cat.name[i] = r[5];
     cat.con[i] = r[6];
     cat.distUnknown[i] = r[7];

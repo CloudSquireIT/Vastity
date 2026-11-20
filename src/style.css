@@ -462,3 +462,35 @@ body[data-mode="ship"] .zoom-pill { display: none; }
 .sel-arrow span { left: -40px; top: 18px; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 520px) { body[data-mode="ship"] .brand { display: none; } }
 .top-r { margin-left: auto; }
+
+/* pillola della telemetria più compatta (-25%) */
+.telemetry { padding: 6px 14px 7px; border-radius: 20px; max-width: min(70vw, 420px); }
+.tm-speed { font-size: 14.5px; line-height: 1.2; }
+.tm-target { font-size: 11px; margin-top: 1px; }
+.tm-sub { font-size: 9.5px; margin-top: 1px; }
+/* i messaggi in navicella compaiono sotto la pillola, mai sopra */
+body[data-mode="ship"] .toasts { top: calc(84px + var(--safe-t)); }
+
+/* orizzontale: tutto più basso e compatto */
+@media (orientation: landscape) and (max-height: 520px) {
+  .top { padding-top: calc(8px + var(--safe-t)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .top-r { flex-direction: row; gap: 8px; }
+  .ibtn, .ibtn.lens { width: 40px; height: 40px; }
+  .bottom { padding-bottom: calc(8px + var(--safe-b)); gap: 8px; flex-direction: row; justify-content: center; align-items: flex-end; }
+  .dbtn { height: 44px; width: 56px; }
+  .throttle-wrap { height: min(58vh, 260px); right: max(18px, env(safe-area-inset-right, 0px)); }
+  .throttle { width: min(58vh, 260px); }
+  .telemetry { top: calc(8px + var(--safe-t)); }
+  body[data-mode="ship"] .toasts { top: calc(66px + var(--safe-t)); }
+  .sheet:not(.compact), .sheet.compact { max-height: 86vh; left: auto; right: 12px; width: min(440px, 60vw); border-radius: 22px; bottom: 8px; }
+  .zoom-pill { bottom: calc(66px + var(--safe-b)); }
+  .mission-chip { top: calc(10px + var(--safe-t)); }
+}
+
+/* invito a ruotare il telefono */
+.rotate-hint { position: fixed; inset: 0; z-index: 40; display: none; place-content: center; text-align: center; gap: 14px; padding: 24px; background: rgba(5, 9, 22, 0.86); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.rotate-hint .ico { width: 56px; height: 56px; margin: 0 auto; color: #cfe0ff; animation: rot 2.4s ease-in-out infinite; }
+.rotate-hint p { font-family: var(--f-text); color: var(--t-body); max-width: 300px; margin: 0 auto; }
+.rotate-hint b { font-family: var(--f-display); font-size: 20px; color: #fff; display: block; }
+@keyframes rot { 40%, 60% { transform: rotate(-90deg); } }
+@media (orientation: portrait) and (pointer: coarse) { body:not(.portrait-ok) .rotate-hint { display: grid; } }

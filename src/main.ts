@@ -53,6 +53,16 @@ async function main() {
   const night = h('div', { class: 'night-filter' });
   const flash = h('div', { class: 'warp-flash' });
   app.append(overlay, ui, flash, fade, night);
+  // Vastity è pensata in orizzontale: invito a ruotare il telefono (si può continuare in verticale)
+  const rotate = h('div', { class: 'rotate-hint', role: 'dialog' },
+    h('span', { class: 'ico', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>' }),
+    h('b', {}, tx('Ruota il telefono', 'Rotate your phone', 'Tournez votre téléphone')),
+    h('p', {}, tx('Vastity dà il meglio in orizzontale.', 'Vastity looks its best in landscape.', 'Vastity est plus belle à l\'horizontale.')),
+    h('button', { class: 'btn', onclick: () => { document.body.classList.add('portrait-ok'); try { sessionStorage.setItem('vastity.portrait', '1'); } catch { /* */ } } }, tx('Continua in verticale', 'Continue in portrait', 'Continuer en vertical')));
+  try { if (sessionStorage.getItem('vastity.portrait')) document.body.classList.add('portrait-ok'); } catch { /* */ }
+  app.append(rotate);
+  const lockLandscape = () => { (screen.orientation as any)?.lock?.('landscape').catch(() => {}); };
+  document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) lockLandscape(); });
   initSheet(ui);
   initToasts(ui);
 
@@ -207,8 +217,14 @@ async function main() {
       [tx('Betelgeuse', 'Betelgeuse', 'Bételgeuse'), tx('Supergigante rossa', 'Red supergiant', 'Supergéante rouge'), () => byHip('27989')],
       [tx('Pleiadi', 'Pleiades', 'Pléiades'), `444 ${LYS}`, () => ship.placeNear({ kind: 'messier', id: 'M45' })],
       [tx('Nebulosa di Orione', 'Orion Nebula', 'Nébuleuse d\'Orion'), `${num(1344)} ${LYS}`, () => ship.placeNear({ kind: 'messier', id: 'M42' })],
-      [tx('Sopra la Via Lattea', 'Above the Milky Way', 'Au-dessus de la Voie lactée'), tx('Vista dall\'esterno', 'Seen from outside', 'Vue de l\'extérieur'), () => ship.aboveGalaxy()],
-      [tx('Andromeda', 'Andromeda', 'Andromède'), tx(`${num(2.5, 1, 1)} milioni di anni luce`, `${num(2.5, 1, 1)} million light years`, `${num(2.5, 1, 1)} millions d'années-lumière`), () => ship.placeNear({ kind: 'messier', id: 'M31' })],
+      [tx('Via Lattea', 'Milky Way', 'Voie lactée'), tx('Vista dall\'esterno', 'Seen from outside', 'Vue de l\'extérieur'), () => ship.placeNear({ kind: 'deep', id: 'milkyway' })],
+      ['Sagittarius A*', tx('Buco nero al centro galattico', 'Black hole at the galactic centre', 'Trou noir au centre galactique'), () => ship.placeNear({ kind: 'deep', id: 'sgra' })],
+      ['Omega Centauri', tx('Ammasso globulare', 'Globular cluster', 'Amas globulaire'), () => ship.placeNear({ kind: 'deep', id: 'omegacen' })],
+      [tx('Pulsar del Granchio', 'Crab Pulsar', 'Pulsar du Crabe'), tx('Stella di neutroni', 'Neutron star', 'Étoile à neutrons'), () => ship.placeNear({ kind: 'deep', id: 'crabpsr' })],
+      [tx('Andromeda', 'Andromeda', 'Andromède'), tx(`${num(2.5, 1, 1)} milioni di anni luce`, `${num(2.5, 1, 1)} million light years`, `${num(2.5, 1, 1)} millions d'années-lumière`), () => ship.placeNear({ kind: 'deep', id: 'm31g' })],
+      [tx('Galassia Sombrero', 'Sombrero Galaxy', 'Galaxie du Sombrero'), tx('31 milioni di anni luce', '31 million light years', '31 millions d\'années-lumière'), () => ship.placeNear({ kind: 'deep', id: 'm104g' })],
+      ['M87*', tx('Il primo buco nero fotografato', 'The first black hole imaged', 'Le premier trou noir photographié'), () => ship.placeNear({ kind: 'deep', id: 'm87bh' })],
+      ['TON 618', tx('Quasar a 10 miliardi di anni luce', 'Quasar 10 billion light years away', 'Quasar à 10 milliards d\'années-lumière'), () => ship.placeNear({ kind: 'deep', id: 'ton618' })],
     ];
     const grid = h('div', { class: 'worlds' }, ...presets.map(([n, s, f]) => h('button', { class: 'world', onclick: () => { closeSheet(); fade.classList.add('on'); setTimeout(() => { f(); fade.classList.remove('on'); }, 300); } }, h('div', { class: 'world-n' }, n), h('div', { class: 'world-s' }, s))));
     openSheet('place', tx('Posiziona la navicella', 'Place the spaceship', 'Placer le vaisseau'), h('div', {}, h('p', { class: 'muted' }, tx('Teletrasportati ovunque, poi pilota liberamente: trascina per girare, usa la manetta a destra per accelerare (fino a e oltre la velocità della luce).', 'Teleport anywhere, then fly freely: drag to turn and use the throttle on the right to accelerate (up to and beyond the speed of light).', 'Téléportez-vous n\'importe où, puis pilotez librement : glissez pour tourner, utilisez la manette à droite pour accélérer (jusqu\'à la vitesse de la lumière et au-delà).')), grid), { wide: true });
