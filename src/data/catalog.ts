@@ -2,6 +2,7 @@
 import { lang, tx } from '../i18n';
 import { EXTRA_STARS, GalaxyShape, deepObjects } from './deep';
 import { localName } from './names';
+import { loadExoplanets } from './exoplanets';
 
 export const PC_IN_LY = 3.26156;
 export const PC_IN_KM = 3.0856775814913673e13;
@@ -114,6 +115,7 @@ export async function loadCatalogs() {
     json('data/messier.json', 0.02),
     json('data/deepsky.json', 0.02).catch(() => ({ messier: {}, caldwell: [] })),
     json('data/galaxy-photos.json', 0.02).then((g) => { galaxyPhotos = g; }).catch(() => {}),
+    loadExoplanets(),
   ]);
   // catalogo binario: Float32 x,y,z,absmag,ci · Int32 nome · Uint8 costellazione · Uint8 distanza ignota
   const N0: number = meta.count;

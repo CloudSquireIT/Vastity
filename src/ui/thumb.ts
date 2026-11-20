@@ -1,6 +1,7 @@
 // Immagine dell'oggetto nella scheda: foto reale (NASA/ESA/ESO via Wikimedia Commons)
 // oppure un render generico disegnato al volo in base al tipo di oggetto.
 import { ObjRef } from '../features/objects';
+import { exoTexture, exoplanets } from '../data/exoplanets';
 import { constellationById, messier, radecToVec, starPhysical } from '../data/catalog';
 import { rng } from '../render/background';
 import { deepById } from '../data/deep';
@@ -232,10 +233,39 @@ export function objectThumb(ref: ObjRef): HTMLElement {
     else if (o.type === 'galaxy') cv = drawMessier(o.galaxy?.shape === 'elliptical' ? 'e' : o.galaxy?.shape === 'irregular' ? 'i' : 's', seed);
     else cv = drawMessier(o.type === 'nebula' ? 'en' : o.type, seed);
   }
+  else if (ref.kind === 'exo') cv = drawExoplanet(ref.index);
   else cv = drawMessier('oc', 1);
   wrap.appendChild(cv);
   wrap.classList.add('render');
   return wrap;
+}
+
+/** Esopianeta: sfera ombreggiata con la sua texture generata (proiezione ortografica). */
+function drawExoplanet(index: number) {
+  const { c, g } = canvas();
+  const r = rng(index + 7);
+  starfield(g, r, 60);
+  const src = exoTexture(index).image as HTMLCanvasElement;
+  const sd = src.getContext('2d')!.getImageData(0, 0, src.width, src.height).data;
+  const R = SIZE * 0.36, cx = SIZE / 2, cy = SIZE / 2;
+  const img = g.getImageData(0, 0, SIZE, SIZE);
+  const L = norm([-0.55, -0.35, 0.75]);
+  const emit = ['lava', 'hotjupiter'].includes(exoplanets[index].cls);
+  for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
+    const nx = (x - cx) / R, ny = (y - cy) / R, d2 = nx * nx + ny * ny;
+    if (d2 > 1) continue;
+    const nz = Math.sqrt(1 - d2);
+    const lon = Math.atan2(nx, nz) + 0.6, lat = Math.asin(-ny);
+    const u = Math.floor(((lon / (2 * Math.PI)) % 1 + 1) % 1 * src.width), v = Math.floor((0.5 - lat / Math.PI) * (src.height - 1));
+    const o = (v * src.width + u) * 4;
+    const lit = Math.max(0, dot([nx, -ny, nz], L)) * 0.95 + 0.05;
+    const edge = Math.min(1, (1 - Math.sqrt(d2)) * R * 0.8);
+    const k = (emit ? Math.max(lit, 0.45) : lit) * edge;
+    const t = (y * SIZE + x) * 4;
+    img.data[t] = sd[o] * k; img.data[t + 1] = sd[o + 1] * k; img.data[t + 2] = sd[o + 2] * k; img.data[t + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  return c;
 }
 
 export const hasPhoto = (ref: ObjRef) => { const p = photoId(ref); return !!p && PHOTOS.has(p); };

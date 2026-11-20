@@ -6,6 +6,8 @@ import { Background, GALACTIC_CENTER_PC } from '../render/background';
 import { BodySprite } from '../render/bodies';
 import { LOOKS, PT, atmosphereMaterial, bodySphere, planetMaterial, ringMaterial, tempColor } from '../render/planet';
 import { Streaks } from '../render/streaks';
+import { ExoSystemView } from './exoSystem';
+import { exoHosts, exoplanets, hostPosPc } from '../data/exoplanets';
 import { BODIES, BodyInfo, V3, bodyAxes, v3 } from '../astro/astro';
 import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, galaxyPhotos, messier, radecToVec, starName, starPhysical, stars } from '../data/catalog';
 import { ObjRef, formatDistanceKm, refName, refPosPc, sameRef } from '../features/objects';
@@ -100,6 +102,8 @@ export class ShipView {
   private root = new THREE.Group();
   private planets: PlanetObj[] = [];
   private near: NearStar[] = [];
+  /** Sistema di esopianeti vicino alla navicella. */
+  exo = new ExoSystemView();
   private nearScanT = 0;
   private labels: LabelLayer<ObjRef>;
   private w = 1;
@@ -197,6 +201,7 @@ export class ShipView {
     }
     this.sunGlow = new BodySprite(1);
     this.root.add(this.sunGlow.mesh);
+    this.root.add(this.exo.group);
     this.root.add(this.streaks.lines);
     this.buildOrbits();
 
@@ -272,6 +277,12 @@ export class ShipView {
 
   /** Posizione (km) e raggio di "arrivo" per un oggetto. */
   targetInfo(ref: ObjRef): { pos: V3; standoff: number; radius: number; look?: V3 } | null {
+    if (ref.kind === 'exo') {
+      const e = exoplanets[ref.index];
+      if (!e) return null;
+      const R = e.radiusEarth * 6371;
+      return { pos: v3.scale(refPosPc(ref)!, PC_IN_KM), standoff: R * (e.radiusEarth > 6 ? 3.2 : 4), radius: R };
+    }
     if (ref.kind === 'body') {
       const b = BODIES.find((x) => x.id === ref.id)!;
       return { pos: this.bodyPosKm(ref.id), standoff: b.radiusKm * (b.id === 'sun' ? 10 : b.rings ? 6.5 : 3.6), radius: b.radiusKm };
@@ -316,7 +327,9 @@ export class ShipView {
       this.arrived = refName(ref);
       return;
     }
-    let away: V3 = v3.norm(v3.sub([0, 0, 0], t.pos));
+    // dal lato illuminato: verso il Sole, o verso la stella ospite per un esopianeta
+    const lightSrc: V3 = ref.kind === 'exo' ? v3.scale(hostPosPc(exoHosts[exoplanets[ref.index].host]), PC_IN_KM) : [0, 0, 0];
+    let away: V3 = v3.norm(v3.sub(lightSrc, t.pos));
     if (v3.len(t.pos) < 1) away = [1, 0, 0];
     const side = v3.norm(v3.cross(away, [0, 0, 1]));
     // galassie con foto reale: si arriva lungo la linea di vista della foto (da Terra), così il render coincide
@@ -328,6 +341,7 @@ export class ShipView {
     this.stop(true);
     this.target = ref;
     this.arrived = refName(ref);
+    this.exo.forceScan();
   }
 
   placeAt(pos: V3, look: V3, up: V3 = [0, 0, 1]) {
@@ -568,6 +582,8 @@ export class ShipView {
     this.streaks.update(this.obsV, this.fwdV, warp);
     this.updateSolarSystem(date, pixPerRad, dpr, dt);
     this.updateNearStars(dt, pixPerRad, dpr);
+    this.exo.update(this.pos, state.time, this.time, dt, pixPerRad, dpr, this.camera.matrixWorldInverse,
+      (sp, rel, disc, glowPx, glow, color, star, ppr) => this.setSprite(sp, rel, disc, glowPx, glow, color, star, ppr));
     this.updateDust(dt, warp);
   }
 
@@ -783,6 +799,7 @@ export class ShipView {
       const rel = v3.sub(refPosPc(ref)!, obs);
       c(ref, rel, this.discPxCss(o.radiusLy / 3.26156, v3.len(rel)), o.type === 'galaxy' || o.type === 'blackhole' ? 6 : 0);
     }
+    for (const v of this.exo.visible) c({ kind: 'exo', index: v.index }, v.rel, this.discPxCss(v.radiusKm, v3.len(v.rel)), 10);
     return best;
   }
 
@@ -887,6 +904,12 @@ export class ShipView {
         if (hidden(rel, d * PC_IN_KM)) continue;
         if (px > 5 || (outside && o.type === 'galaxy') || d < 60) put(rel, o.name, o.type === 'galaxy' && (outside || px > 30) ? 'pill' : 'dso', px > 30, ref, o.type === 'galaxy' || o.type === 'nebula' || o.type === 'gc' ? px * 0.55 : px);
       }
+    }
+    // pianeti del sistema esoplanetario attivo
+    if (state.settings.labels) for (const v of this.exo.visible) {
+      if (this.target?.kind === 'exo' && this.target.index === v.index) continue;
+      if (hidden(v.rel, v3.len(v.rel))) continue;
+      put(v.rel, exoplanets[v.index].name, 'pill', true, { kind: 'exo', index: v.index }, v.discPx);
     }
     L.end();
     this.updateTargetMarker();

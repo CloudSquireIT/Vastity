@@ -112,6 +112,7 @@ si copia un rapporto anonimo (dispositivo, GPU, qualità, errori) da allegare a 
 - Foto nelle schede: NASA, ESA, ESO, Hubble via Wikimedia Commons (fonte di ogni immagine in `public/photos/credits.json`)
 - Font: Inter, Space Grotesk, JetBrains Mono (SIL Open Font License) tramite Fontsource
 - Texture di pianeti, Luna e Sole e panorama della Via Lattea: [Solar System Scope](https://www.solarsystemscope.com/textures/), CC BY 4.0, basate su dati NASA/ESO (convertite in WebP in 3 risoluzioni in `public/textures`)
+- Esopianeti confermati (6.438): [NASA Exoplanet Archive](https://exoplanetarchive.ipac.caltech.edu/) (dati pubblici), `node scripts/build-exoplanets.mjs`; render 3D generati dai dati reali (raggio, temperatura)
 - Foto reali delle galassie (66): solo immagini in pubblico dominio, CC0 o CC BY da Wikimedia Commons (NASA/ESA Hubble, Webb, ESO, NOIRLab…), elaborate con `python3 scripts/galaxy_photos.py`; elenco con autori e licenze in `public/data/galaxy-photos.json` e in Impostazioni
 - Render delle galassie viste da fuori: foto di M101 (NASA/ESA Hubble), M83 (NOIRLab/CTIO), NGC 1300 (NASA/ESA Hubble) via Wikimedia Commons e illustrazione della Via Lattea di NASA/JPL-Caltech/R. Hurt, con stelle in primo piano rimosse (`public/textures/*/gal_*.webp`)
 - Distanze del catalogo di Messier e catalogo Caldwell completo: [Wikipedia](https://en.wikipedia.org/wiki/Caldwell_catalogue), CC BY-SA 4.0 (`public/data/deepsky.json`, rigenerabile con `node scripts/wiki-catalog.mjs`)

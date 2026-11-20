@@ -7,6 +7,8 @@ import { BODIES, SkyFrame, V3, bodyById, v3 } from '../astro/astro';
 import { num, tx } from '../i18n';
 import { DEEP_TYPE_NAME, deepById, deepForMessier, deepObjects } from '../data/deep';
 import { GALACTIC_CENTER_PC } from '../render/background';
+import { EXO_CLASS_DESC, EXO_CLASS_NAME, exoHosts, exoPosPc, exoplanets } from '../data/exoplanets';
+import { state } from '../state';
 
 export type ObjRef =
   | { kind: 'body'; id: string }
@@ -14,7 +16,8 @@ export type ObjRef =
   | { kind: 'messier'; id: string }
   | { kind: 'constellation'; id: string }
   | { kind: 'iss' }
-  | { kind: 'deep'; id: string };
+  | { kind: 'deep'; id: string }
+  | { kind: 'exo'; index: number };
 
 export const sameRef = (a: ObjRef | null, b: ObjRef | null) => !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
 
@@ -26,6 +29,7 @@ export function refName(r: ObjRef): string {
     case 'constellation': return constellationById(r.id)?.name ?? r.id;
     case 'iss': return tx('Stazione Spaziale', 'Space Station', 'Station spatiale');
     case 'deep': return deepById(r.id)?.name ?? r.id;
+    case 'exo': return exoplanets[r.index]?.name ?? '';
   }
 }
 
@@ -37,6 +41,7 @@ export function refPosPc(r: ObjRef): V3 | null {
     const ly = MESSIER_EXTRA[m.id]?.ly ?? 5000;
     return v3.scale(radecToVec(m.ra, m.dec), ly / PC_IN_LY);
   }
+  if (r.kind === 'exo') return exoplanets[r.index] ? exoPosPc(r.index, state.time) : null;
   if (r.kind === 'deep') {
     const o = deepById(r.id);
     if (!o) return null;
@@ -91,6 +96,12 @@ export function searchIndex(): SearchItem[] {
     items.push({ ref: { kind: 'star', index: i }, name: proper || desig, sub: `${tx('Stella', 'Star', 'Étoile')}${proper && desig ? ' · ' + desig : ''} · mag ${num(starAppMag(i), 1, 1)}`, key: norm(`${proper} ${desig} hip${hip}`), rank: (proper ? 1.5 : 4) + starAppMag(i) * 0.05,
       dist: stars.distUnknown[i] ? undefined : starDistPc(i) * 3.26156, mag: starAppMag(i), size: starPhysical(i).R * 696340 * KM_LY });
   }
+  for (let i = 0; i < exoplanets.length; i++) {
+    const p = exoplanets[i], hst = exoHosts[p.host];
+    items.push({ ref: { kind: 'exo', index: i }, name: p.name, sub: `${tx('Esopianeta', 'Exoplanet', 'Exoplanète')} · ${EXO_CLASS_NAME(p.cls)} · ${hst.name}`,
+      key: norm(`${p.name} ${p.name.replace(/\s+/g, '')} ${hst.name} ${EXO_CLASS_NAME(p.cls)} exoplanet esopianeta exoplanete`), rank: 3 + (p.name.length > 14 ? 0.2 : 0),
+      dist: hst.distPc * 3.26156, size: p.radiusEarth * 6371 / 9.4607e12 });
+  }
   index = items;
   return items;
 }
@@ -122,6 +133,7 @@ export function categories(): Category[] {
     C('nebulae', tx('Nebulose', 'Nebulae', 'Nébuleuses'), '☁'),
     C('clusters', tx('Ammassi stellari', 'Star clusters', 'Amas d\'étoiles'), '⁂'),
     C('exotic', tx('Buchi neri, quasar e pulsar', 'Black holes, quasars & pulsars', 'Trous noirs, quasars et pulsars'), '●'),
+    C('exoplanets', tx('Esopianeti', 'Exoplanets', 'Exoplanètes'), '◐'),
     C('messier', tx('Catalogo di Messier', 'Messier catalogue', 'Catalogue de Messier'), 'M'),
     C('caldwell', tx('Catalogo Caldwell', 'Caldwell catalogue', 'Catalogue de Caldwell'), 'C'),
   ];
@@ -133,6 +145,7 @@ export function categories(): Category[] {
     else if (r.kind === 'star') g = 'stars';
     else if (r.kind === 'constellation') g = 'constellations';
     else if (r.kind === 'deep') g = deepById(r.id)?.id === 'milkyway' ? 'galaxies' : DEEP_GROUP[deepById(r.id)?.type ?? ''] ?? 'nebulae';
+    else if (r.kind === 'exo') g = 'exoplanets';
     else if (r.kind === 'messier') g = MESSIER_GROUP[messier.find((m) => m.id === r.id)?.type ?? ''] ?? 'nebulae';
     by[g]?.items.push(it);
   }
@@ -221,6 +234,22 @@ export function formatDistanceKm(km: number): string {
 }
 
 export function info(r: ObjRef, frame: SkyFrame): InfoData {
+  if (r.kind === 'exo') {
+    const p = exoplanets[r.index], hst = exoHosts[p.host];
+    const ly = hst.distPc * PC_IN_LY;
+    const facts: [string, string][] = [
+      [tx('Stella', 'Star', 'Étoile'), hst.name],
+      [tx('Distanza', 'Distance', 'Distance'), `${fmt(ly, ly < 20 ? 1 : 0)} ${LY()}`],
+      [tx('Raggio', 'Radius', 'Rayon'), `${num(p.radiusEarth, p.radiusEarth < 3 ? 2 : 1)} × ${tx('Terra', 'Earth', 'Terre')}`],
+    ];
+    if (p.massEarth > 0) facts.push([tx('Massa', 'Mass', 'Masse'), p.massEarth > 300 ? `${num(p.massEarth / 317.8, 2)} × ${tx('Giove', 'Jupiter', 'Jupiter')}` : `${num(p.massEarth, 1)} × ${tx('Terra', 'Earth', 'Terre')}`]);
+    facts.push([tx('Anno (orbita)', 'Year (orbit)', 'Année (orbite)'), p.periodD < 2 ? `${num(p.periodD * 24, 1)} ${tx('ore', 'hours', 'heures')}` : p.periodD < 730 ? `${num(p.periodD, 1)} ${tx('giorni', 'days', 'jours')}` : `${num(p.periodD / 365.25, 1)} ${tx('anni', 'years', 'ans')}`]);
+    facts.push([tx('Distanza dalla stella', 'Distance from star', 'Distance à l\'étoile'), `${num(p.aAU, p.aAU < 1 ? 3 : 2)} ${tx('UA', 'AU', 'UA')}`]);
+    facts.push([tx('Temperatura', 'Temperature', 'Température'), `≈ ${fmt(p.eqTempK - 273)} °C`]);
+    if (p.year) facts.push([tx('Scoperto', 'Discovered', 'Découverte'), `${p.year} · ${p.method}`]);
+    return { title: p.name, subtitle: `${tx('Esopianeta', 'Exoplanet', 'Exoplanète')} · ${EXO_CLASS_NAME(p.cls)}`, facts,
+      desc: EXO_CLASS_DESC(p.cls) + ' ' + tx('Render generato dai dati reali (raggio e temperatura).', 'Render generated from real data (radius and temperature).', 'Rendu généré à partir des données réelles (rayon et température).'), lightYears: ly, canFly: true };
+  }
   if (r.kind === 'deep') {
     const o = deepById(r.id)!;
     const facts: [string, string][] = [[tx('Distanza', 'Distance', 'Distance'), o.ly >= 1e6 ? `${fmt(o.ly / 1e6, 2)} ${MLY()}` : `${fmt(o.ly)} ${LY()}`]];

@@ -38,6 +38,7 @@ uniform vec3 uAtm;
 uniform float uAtmK;
 uniform float uCloudOffset;
 uniform float uBright;
+uniform vec3 uEmit;
 varying vec2 vUv;
 varying vec3 vNormalV;
 varying vec3 vPosV;
@@ -146,6 +147,8 @@ void main() {
     col += uAtm * fres * litRim * uAtmK;
   }
   col += base * 0.006; // luce cinerea minima
+  // incandescenza propria (mondi di lava, gioviani caldi): visibile anche sul lato notturno
+  col += uEmit * base * (0.6 + 0.4 * sin(uTime * 0.7 + vObj.x * 0.0001));
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }
@@ -177,7 +180,7 @@ export function planetMaterial(look: PlanetLook) {
       uColor: { value: new THREE.Color(look.color ?? 0xffffff) }, uLight: { value: new THREE.Vector3(1, 0, 0) },
       uType: { value: look.type }, uTime: { value: 0 }, uBump: { value: look.bump ?? 0 },
       uAtm: { value: new THREE.Color(look.atm ?? 0x000000) }, uAtmK: { value: look.atmK ?? 0 },
-      uCloudOffset: { value: 0 }, uBright: { value: look.bright ?? 1.25 },
+      uCloudOffset: { value: 0 }, uBright: { value: look.bright ?? 1.25 }, uEmit: { value: new THREE.Color(0, 0, 0) },
     },
   });
 }
