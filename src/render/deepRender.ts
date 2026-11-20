@@ -93,6 +93,58 @@ void main() {
 }
 `;
 
+// strato "di taglio": spessore del disco, banda di polvere e rigonfiamento quando la galassia è vista di profilo
+const edgeVert = /* glsl */ `
+uniform vec3 uObs;
+uniform vec3 uCenter;
+uniform vec3 uN;
+uniform float uR;
+varying vec2 vP;
+varying float vCos;
+void main() {
+  vP = (uv - 0.5) * 2.0;
+  vec3 f = normalize(uCenter - uObs);
+  vec3 m = cross(uN, f);
+  float lm = length(m);
+  m = lm > 1e-4 ? m / lm : normalize(cross(f, vec3(0.0, 0.0, 1.0)));
+  vec3 u = normalize(cross(f, m));
+  vCos = dot(uN, f);
+  vec3 p = uCenter + (m * vP.x * 1.2 + u * vP.y * 0.42) * uR;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(normalize(p - uObs) * 1000.0, 1.0);
+}
+`;
+const edgeFrag = /* glsl */ `
+uniform float uK;
+uniform float uShape;
+uniform float uSeed;
+uniform vec3 uTint;
+varying vec2 vP;
+varying float vCos;
+${NOISE}
+void main() {
+  float X = vP.x * 1.2, Y = vP.y * 0.42;
+  float ax = abs(X);
+  if (ax > 1.2) discard;
+  float lent = uShape > 2.5 ? 1.0 : 0.0;
+  // spessore apparente: il disco sottile più la sua proiezione per l'inclinazione residua
+  float h = mix(0.06, 0.1, lent) + abs(vCos) * 0.25 * (1.0 - smoothstep(0.0, 1.0, ax));
+  float mott = 0.7 + 0.6 * fbm(vec2(X * 9.0, Y * 30.0) + uSeed);
+  float disk = exp(-ax / mix(0.45, 0.38, lent)) * exp(-pow(Y / h, 2.0)) * mott;
+  float bulgeR = mix(0.16, 0.24, lent);
+  float bulge = exp(-(X * X + Y * Y * 2.2) / (bulgeR * bulgeR)) * 1.1 + exp(-(X * X + Y * Y) / 0.0025) * 0.9;
+  vec3 warm = vec3(1.0, 0.84, 0.62);
+  vec3 blue = vec3(0.62, 0.74, 1.0) * uTint;
+  vec3 col = mix(warm, blue, smoothstep(0.08, 0.6, ax)) * disk * 2.4 + warm * bulge;
+  // banda di polvere: scura, sottile, un po' spostata verso il lato più vicino e frastagliata
+  float laneY = sign(vCos + 1e-4) * h * 0.25;
+  float laneW = h * mix(0.38, 0.28, lent) * (0.8 + 0.4 * fbm(vec2(X * 14.0, 3.0) + uSeed));
+  float lane = exp(-pow((Y - laneY) / laneW, 2.0)) * smoothstep(0.03, 0.14, ax) * (1.0 - smoothstep(0.85, 1.15, ax));
+  col *= 1.0 - 0.88 * lane;
+  float edge = 1.0 - smoothstep(0.95, 1.2, ax);
+  gl_FragColor = vec4(col * edge * uK, 1.0);
+}
+`;
+
 // alone del nucleo sempre rivolto verso l'osservatore (dà volume anche di taglio)
 const coreVert = /* glsl */ `
 uniform vec3 uObs;
@@ -179,7 +231,7 @@ void main() {
 }
 `;
 
-interface GalaxyMesh { obj: DeepObject; center: THREE.Vector3; R: number; disk: THREE.Mesh; core: THREE.Mesh; hasParticles: boolean }
+interface GalaxyMesh { obj: DeepObject; center: THREE.Vector3; R: number; disk: THREE.Mesh; core: THREE.Mesh; hasParticles: boolean; edge: THREE.Mesh | null; normal: THREE.Vector3 }
 interface ExoticMesh { obj: DeepObject; center: THREE.Vector3; R: number; mesh: THREE.Mesh }
 
 const SHAPES: Record<string, number> = { spiral: 0, barred: 1, elliptical: 2, lenticular: 3, irregular: 4, ring: 5 };
@@ -248,7 +300,19 @@ export class DeepRenderer {
         core.frustumCulled = false;
         core.renderOrder = 0.25;
         this.group.add(disk, core);
-        this.galaxies.push({ obj: o, center, R, disk, core, hasParticles: PARTICLE_GALAXIES.includes(o.id) });
+        const normal = new THREE.Vector3().crossVectors(a, b).normalize();
+        let edge: THREE.Mesh | null = null;
+        if (['spiral', 'barred', 'lenticular'].includes(g.shape)) {
+          edge = new THREE.Mesh(quad, new THREE.ShaderMaterial({
+            vertexShader: edgeVert, fragmentShader: edgeFrag,
+            uniforms: { uObs: this.obs, uCenter: { value: center }, uN: { value: normal }, uR: { value: R }, uK: { value: 0 }, uShape: { value: SHAPES[g.shape] }, uSeed: { value: seed * 1.7 }, uTint: { value: tint } },
+            blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true, side: THREE.DoubleSide,
+          }));
+          edge.frustumCulled = false;
+          edge.renderOrder = 0.22;
+          this.group.add(edge);
+        }
+        this.galaxies.push({ obj: o, center, R, disk, core, hasParticles: PARTICLE_GALAXIES.includes(o.id), edge, normal });
       } else if (o.type === 'gc' || o.type === 'oc') {
         // bagliore d'insieme dell'ammasso: si dissolve quando le singole stelle si risolvono
         const center = deepCenterPc(o);
@@ -292,9 +356,16 @@ export class DeepRenderer {
       const px = (g.R / d) * pixPerRad;
       const visible = smooth(1.5, 6, px);
       const k = far * visible * dim;
-      (g.disk.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.95;
+      // quanto è "di taglio": il disco piatto lascia il posto allo strato con spessore e polveri
+      const cosv = Math.abs(this.tmp.normalize().dot(g.normal));
+      const edgeK = g.edge ? smooth(0.5, 0.12, cosv) : 0;
+      if (g.edge) {
+        (g.edge.material as THREE.ShaderMaterial).uniforms.uK.value = k * edgeK * 0.9;
+        g.edge.visible = k * edgeK > 0.005;
+      }
+      (g.disk.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.95 * (1 - 0.75 * edgeK);
       (g.disk.material as THREE.ShaderMaterial).uniforms.uSpin.value = g.obj.id === 'milkyway' ? -spin : 0;
-      (g.core.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.8;
+      (g.core.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.8 * (1 - 0.45 * edgeK);
       g.disk.visible = g.core.visible = k > 0.005;
       if (g.hasParticles) this.particleFactor[g.obj.id] = 1 - 0.85 * far;
     }

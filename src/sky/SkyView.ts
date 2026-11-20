@@ -39,6 +39,8 @@ void main() {
   float tw = exp(-pow((h + 3.0) / 7.0, 2.0));
   float up = max(v.y, 0.0);
   float hor = pow(1.0 - up, 4.0);
+  // sotto l'orizzonte è notte: sfumatura dal colore dell'orizzonte al blu notte
+  float under = smoothstep(0.03, -0.22, v.y);
   float cosS = dot(v, uSun);
   vec3 night = vec3(0.026, 0.04, 0.095);
   vec3 zen = mix(night, uDay * 0.55, day);
@@ -49,6 +51,8 @@ void main() {
   c += vec3(0.25, 0.15, 0.35) * tw * 0.12 * (1.0 - hor);
   c += vec3(1.0, 0.9, 0.75) * pow(max(cosS, 0.0), 64.0) * (day * 0.6 + tw * 0.4);
   c += vec3(0.09, 0.07, 0.05) * uPollution * hor * (1.0 - day);
+  vec3 nightBelow = night * 0.85 + vec3(0.02, 0.025, 0.05) * exp(v.y * 14.0);
+  c = mix(c, nightBelow, under);
   gl_FragColor = vec4(c * uHasAtm, 1.0);
 }
 `;
@@ -60,10 +64,12 @@ varying vec3 vDir;
 void main() {
   vec3 v = normalize(vDir);
   float d = -v.y;
-  vec3 c = uColor * (0.12 + 0.88 * uLight) * (1.0 - 0.5 * smoothstep(0.0, 0.6, d));
-  float rim = exp(-d * 120.0) * 0.6;
-  c += vec3(0.25, 0.32, 0.45) * rim * (0.3 + uLight * 0.7);
-  gl_FragColor = vec4(c * uAlpha, uAlpha);
+  // velo trasparente: si intuisce il suolo, ma sotto continua il cielo
+  vec3 tint = mix(vec3(0.01, 0.016, 0.04), uColor * 0.35, 0.35);
+  float a = uAlpha * (0.25 + 0.55 * smoothstep(0.0, 0.9, d));
+  float rim = exp(-d * 90.0);
+  vec3 c = tint * a + vec3(0.35, 0.5, 0.8) * rim * (0.3 - uLight * 0.15);
+  gl_FragColor = vec4(c, a);
 }
 `;
 
@@ -327,19 +333,23 @@ export class SkyView {
   private groundOn() { return state.settings.ground && !this.ar; }
 
   pick(x: number, y: number): ObjRef | null {
+    // gerarchia dei tocchi: con il campo largo i pianeti, la Luna e le stelle brillanti hanno
+    // un'area di tocco più ampia; gli oggetti deboli diventano facili da toccare zoomando
     let best: ObjRef | null = null;
-    let bs = 34;
-    const consider = (ref: ObjRef, dir: V3, bonus: number) => {
+    let bs = 30;
+    const wide = Math.max(0, Math.min(1, (this.fov - 20) / 60));
+    const consider = (ref: ObjRef, dir: V3, bonus: number, discPx = 0) => {
       const p = this.project(dir);
       if (!p.front || !this.visibleAlt(p.alt)) return;
-      const d = Math.hypot(p.x - x, p.y - y) - bonus;
+      const dist = Math.hypot(p.x - x, p.y - y);
+      const d = dist - Math.min(discPx, dist + discPx * 0.25) - bonus;
       if (d < bs) { bs = d; best = ref; }
     };
     const pxPerRad = this.h / (2 * Math.tan((this.fov * D2R) / 2));
     for (const b of this.frame.bodies) {
       if (b.id.startsWith('exo') || b.id === 'host') continue;
       // il disco intero è toccabile, non solo il centro
-      consider({ kind: 'body', id: b.id }, b.dir, 14 + b.angRadius * pxPerRad);
+      consider({ kind: 'body', id: b.id }, b.dir, 12 + 14 * wide, b.angRadius * pxPerRad);
     }
     if (this.issDir) consider({ kind: 'iss' }, this.issDir, 8);
     const lim = this.magLimit();
@@ -349,10 +359,16 @@ export class SkyView {
       const d = Math.hypot(dx, dy, dz);
       const m = stars.absmag[i] + 5 * Math.log10(d) - 5;
       if (m > lim || d < 0.001) continue;
-      consider({ kind: 'star', index: i }, [dx / d, dy / d, dz / d], Math.max(0, 4 - m) * 1.5);
+      consider({ kind: 'star', index: i }, [dx / d, dy / d, dz / d], (3 - m) * (1.5 + 3.5 * wide));
     }
-    if (this.fov < 50) for (const m of messier) consider({ kind: 'messier', id: m.id }, radecToVec(m.ra, m.dec), 0);
-    if (this.fov < 50) for (const o of deepObjects()) { const r: ObjRef = { kind: 'deep', id: o.id }; const d = refDirection(r, this.frame); if (d) consider(r, d, 0); }
+    if (this.fov < 50) {
+      for (const m of messier) if (!deepForMessier(m.id)) consider({ kind: 'messier', id: m.id }, radecToVec(m.ra, m.dec), -6 * wide);
+      for (const ob of deepObjects()) {
+        const r: ObjRef = { kind: 'deep', id: ob.id };
+        const d = refDirection(r, this.frame);
+        if (d) consider(r, d, ob.type === 'galaxy' ? 4 : 0, ob.id === 'milkyway' ? 0 : Math.min(200, (ob.radiusLy / ob.ly) * pxPerRad));
+      }
+    }
     if (!best && state.settings.constellations) {
       bs = 140;
       for (const c of this.consCenters) consider({ kind: 'constellation', id: c.id }, c.dir, 0);
@@ -389,12 +405,12 @@ export class SkyView {
     return state.settings.atmosphere && !this.ar && s[0] + s[1] + s[2] > 0;
   }
 
-  magLimit() {
+  magLimit(dayOverride?: number) {
     const st = state.settings;
     const B = [7.6, 7.1, 6.6, 6.1, 5.6, 5.1, 4.6, 4.1, 3.6];
     let lim = this.place.id === 'earth' && st.realisticSky ? B[Math.max(0, Math.min(8, st.bortle - 1))] : 6.9;
     lim += Math.max(0, Math.min(3, 2.2 * Math.log10(60 / this.fov)));
-    const day = this.dayFactor();
+    const day = dayOverride ?? this.dayFactor();
     return lim * (1 - day) + -4 * day;
   }
 
@@ -460,18 +476,23 @@ export class SkyView {
     // terreno semitrasparente quando guardi un oggetto sotto l'orizzonte
     const selDir = this.selected ? refDirection(this.selected, this.frame, this.issDir) : null;
     const selBelow = !!selDir && this.tmp.set(...selDir).applyMatrix4(this.celestial.matrix).y < 0 && this.pitch < 0.05;
-    this.groundAlpha = damp(this.groundAlpha, selBelow ? 0.28 : (this.pitch < -0.05 ? 0.55 : 0.78), 5, dt);
+    this.groundAlpha = damp(this.groundAlpha, selBelow ? 0.35 : (this.pitch < -0.05 ? 0.6 : 0.8), 5, dt);
     this.groundMat.uniforms.uAlpha.value = this.groundAlpha;
 
     // stelle e Via Lattea
-    let galDim = st.milkyWay ? 1 - day : 0;
-    if (this.place.id === 'earth' && st.realisticSky) galDim *= Math.max(0, Math.min(1, (8 - st.bortle) / 4));
-    if (this.ar) galDim *= 0.6;
+    let galNight = st.milkyWay ? 1 : 0;
+    if (this.place.id === 'earth' && st.realisticSky) galNight *= Math.max(0, Math.min(1, (8 - st.bortle) / 4));
+    if (this.ar) galNight *= 0.6;
+    const galDim = galNight * (1 - day);
+    // sotto l'orizzonte: il cielo notturno dell'altra parte del pianeta (un po' attenuato)
+    const below = this.groundOn() && !this.ar
+      ? { mag: this.magLimit(0) - 0.6, galaxyDim: galNight * 0.7, lines: st.constellations ? 0.2 : 0 }
+      : undefined;
     this.bg.update({
       obsPc: this.obsV.set(...this.frame.observerPc), beta: this.zeroV, magLimit: this.magLimit(), spikes: this.hasAtmosphere() ? 0.45 : 0.9,
       pixelScale: dpr * Math.pow(Math.max(1, 60 / this.fov), 0.12), pixPerRad, dim: 1, galaxyDim: galDim,
       linesOpacity: st.constellations ? 0.28 * (1 - day) * (1 - day) : 0,
-      twinkle: this.hasAtmosphere() ? 1 : 0, time: this.time, nearCutPc: 0.002,
+      twinkle: this.hasAtmosphere() ? 1 : 0, time: this.time, nearCutPc: 0.002, below,
     });
 
     // corpi del Sistema Solare

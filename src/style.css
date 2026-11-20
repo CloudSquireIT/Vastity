@@ -494,3 +494,54 @@ body[data-mode="ship"] .toasts { top: calc(84px + var(--safe-t)); }
 .rotate-hint b { font-family: var(--f-display); font-size: 20px; color: #fff; display: block; }
 @keyframes rot { 40%, 60% { transform: rotate(-90deg); } }
 @media (orientation: portrait) and (pointer: coarse) { body:not(.portrait-ok) .rotate-hint { display: grid; } }
+
+/* ---- Round 4: dock senza stato "sempre selezionato", pulsante nascondi UI ---- */
+.dbtn.main, .dbtn.accent { background: transparent; box-shadow: none; }
+.dbtn.accent .ico { color: #a9c6ff; filter: drop-shadow(0 0 6px rgba(140, 180, 255, .55)); }
+.dbtn.on { background: rgba(170, 200, 255, 0.2); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25); color: #fff; }
+.dbtn:active { transform: scale(.94); }
+.hide-ui { position: absolute; right: calc(14px + var(--safe-r, 0px)); bottom: calc(14px + var(--safe-b, 0px)); z-index: 6; width: 40px; height: 40px; }
+.hide-ui .ibtn-label { display: none; }
+body.ui-hidden .top, body.ui-hidden .bottom, body.ui-hidden .telemetry, body.ui-hidden .throttle-wrap,
+body.ui-hidden .zoom-pill, body.ui-hidden .mission-chip, body.ui-hidden .toasts, body.ui-hidden .sel-arrow,
+body.ui-hidden .reticle, body.ui-hidden .ship-target { opacity: 0 !important; pointer-events: none !important; transition: opacity .35s; }
+.top, .bottom, .telemetry, .throttle-wrap, .mission-chip { transition: opacity .35s; }
+body.ui-hidden .hide-ui { opacity: .55; }
+
+/* ---- Round 4: un solo stile per tutti i controlli dei menu (vetro chiaro, stesso bordo, stesso stato attivo) ---- */
+:root {
+  --ctl-fill: rgba(255, 255, 255, 0.07);
+  --ctl-fill-hover: rgba(255, 255, 255, 0.12);
+  --ctl-on: rgba(170, 200, 255, 0.26);
+  --ctl-border: rgba(255, 255, 255, 0.13);
+  --ctl-hi: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+.sheet .chip, .sheet .btn, .sheet .world, .sheet .badge, .sheet .num, .sheet .txt, .sheet .search-input, .sheet select, .sheet .row-ico {
+  background: var(--ctl-fill);
+  border: 1px solid var(--ctl-border);
+  box-shadow: var(--ctl-hi);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: #e8eefc;
+}
+.sheet .chip::before, .sheet .btn::before { display: none; }
+.sheet .chip, .sheet .btn { border-radius: 999px; }
+.sheet .btn { padding: 10px 16px; }
+.sheet .world { border-radius: 18px; }
+.sheet .chip:hover, .sheet .btn:hover, .sheet .world:hover { background: var(--ctl-fill-hover); }
+.sheet .chip.on, .sheet .world.active, .sheet .btn.primary, .sheet .badge.got {
+  background: var(--ctl-on);
+  border-color: rgba(200, 220, 255, 0.45);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 0 18px rgba(140, 180, 255, 0.18);
+}
+.sheet .btn.primary:hover { background: rgba(170, 200, 255, 0.34); }
+.sheet .btn.ghost { background: transparent; }
+.sheet .row-ico { color: #b9cffd; }
+.sheet .search-input, .sheet .num, .sheet .txt { border-radius: 14px; }
+.sheet .search-input:focus, .sheet .num:focus, .sheet .txt:focus { border-color: rgba(200, 220, 255, 0.5); background: var(--ctl-fill-hover); }
+.sheet .journey { background: var(--ctl-fill); border: 1px solid var(--ctl-border); }
+.sheet .bar { background: rgba(170, 200, 255, 0.35); }
+.sheet .bar:hover, .sheet .bar.best { background: rgba(210, 228, 255, 0.9); }
+.sheet .toggle input:checked + .switch { background: rgba(140, 180, 255, 0.85); }
+.sheet .score { box-shadow: var(--ctl-hi); }

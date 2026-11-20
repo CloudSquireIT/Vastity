@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { quality } from './quality';
 
-const HI_RES = new Set(['earth', 'moon', 'mars', 'jupiter']);
+const HI_RES = new Set(['earth', 'moon', 'mars', 'jupiter', 'milkyway']);
 const cache = new Map<string, THREE.Texture>();
 const loader = new THREE.TextureLoader();
 let maxAniso = 4;

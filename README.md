@@ -80,4 +80,5 @@ Con `@capacitor/local-notifications` gli avvisi diventano notifiche di sistema a
 - Meteo: [Open-Meteo](https://open-meteo.com); orbite ISS: [CelesTrak](https://celestrak.org)
 - Foto nelle schede: NASA, ESA, ESO, Hubble via Wikimedia Commons (fonte di ogni immagine in `public/photos/credits.json`)
 - Font: Inter, Space Grotesk, JetBrains Mono (SIL Open Font License) tramite Fontsource
-- Texture di pianeti, Luna e Sole: [Solar System Scope](https://www.solarsystemscope.com/textures/), CC BY 4.0, basate su dati NASA (convertite in WebP in 3 risoluzioni in `public/textures`)
+- Texture di pianeti, Luna e Sole e panorama della Via Lattea: [Solar System Scope](https://www.solarsystemscope.com/textures/), CC BY 4.0, basate su dati NASA/ESO (convertite in WebP in 3 risoluzioni in `public/textures`)
+- Distanze del catalogo di Messier e catalogo Caldwell completo: [Wikipedia](https://en.wikipedia.org/wiki/Caldwell_catalogue), CC BY-SA 4.0 (`public/data/deepsky.json`, rigenerabile con `node scripts/wiki-catalog.mjs`)

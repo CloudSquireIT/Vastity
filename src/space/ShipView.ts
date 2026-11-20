@@ -272,7 +272,7 @@ export class ShipView {
         const ngp = radecToVec(192.85948, 27.12825);
         return { pos: v3.add(c, v3.scale(ngp, 95000 * LY_IN_KM)), standoff: 0, radius: 0, look: c };
       }
-      const k = o.type === 'galaxy' ? 2.4 : o.type === 'blackhole' || o.type === 'quasar' ? 3.2 : o.type === 'pulsar' ? 6 : 2.2;
+      const k = o.type === 'galaxy' ? 1.7 : o.type === 'blackhole' || o.type === 'quasar' ? 3.2 : o.type === 'pulsar' ? 6 : 2.2;
       return { pos: v3.scale(refPosPc(ref)!, PC_IN_KM), standoff: R * k, radius: R };
     }
     if (ref.kind === 'messier') {
@@ -695,35 +695,41 @@ export class ShipView {
   }
 
   private pick(x: number, y: number): ObjRef | null {
+    // gerarchia: dentro il disco di un oggetto grande vince l'oggetto grande; gli oggetti
+    // piccoli e deboli vicino al dito vincono solo se si tocca proprio loro
     let best: ObjRef | null = null;
     let bs = Infinity;
-    const c = (ref: ObjRef, rel: V3, radiusPx: number) => {
+    const c = (ref: ObjRef, rel: V3, radiusPx: number, weight = 0) => {
       const p = this.project(rel);
       if (!p.front) return;
       const d = Math.hypot(p.x - x, p.y - y);
-      const lim = Math.max(30, radiusPx + 12);
-      if (d < lim && d - radiusPx * 0.5 < bs) { bs = d - radiusPx * 0.5; best = ref; }
+      const lim = Math.max(26 + weight, radiusPx + 12);
+      if (d > lim) return;
+      const score = d - Math.min(radiusPx, d + radiusPx * 0.25) - weight;
+      if (score < bs) { bs = score; best = ref; }
     };
     for (const p of this.planets) {
       const rel = v3.sub(p.pos, this.pos);
-      c({ kind: 'body', id: p.info.id }, rel, this.discPxCss(p.info.radiusKm * (p.info.rings ? 2.3 : 1), v3.len(rel)));
+      c({ kind: 'body', id: p.info.id }, rel, this.discPxCss(p.info.radiusKm * (p.info.rings ? 2.3 : 1), v3.len(rel)), 10);
     }
     const obs = v3.scale(this.pos, 1 / PC_IN_KM);
     for (let i = 0; i < stars.count; i++) {
       const dx = stars.pos[i * 3] - obs[0], dy = stars.pos[i * 3 + 1] - obs[1], dz = stars.pos[i * 3 + 2] - obs[2];
       const d = Math.hypot(dx, dy, dz);
-      if (stars.absmag[i] + 5 * Math.log10(d) - 5 > 5.5) continue;
+      const m = stars.absmag[i] + 5 * Math.log10(d) - 5;
+      if (m > 5.5) continue;
       const R = Math.min(1500, starPhysical(i).R) * 696340;
-      c({ kind: 'star', index: i }, [dx, dy, dz], this.discPxCss(R, d * PC_IN_KM));
+      c({ kind: 'star', index: i }, [dx, dy, dz], this.discPxCss(R, d * PC_IN_KM), (2.5 - m) * 3);
     }
     for (const m of messier) {
+      if (deepForMessier(m.id)) continue;
       const p = refPosPc({ kind: 'messier', id: m.id })!;
-      c({ kind: 'messier', id: m.id }, v3.sub(p, obs), 0);
+      c({ kind: 'messier', id: m.id }, v3.sub(p, obs), 0, -4);
     }
     for (const o of deepObjects()) {
       const ref: ObjRef = { kind: 'deep', id: o.id };
       const rel = v3.sub(refPosPc(ref)!, obs);
-      c(ref, rel, this.discPxCss(o.radiusLy / 3.26156, v3.len(rel)));
+      c(ref, rel, this.discPxCss(o.radiusLy / 3.26156, v3.len(rel)), o.type === 'galaxy' || o.type === 'blackhole' ? 6 : 0);
     }
     return best;
   }

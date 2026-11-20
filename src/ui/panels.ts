@@ -337,9 +337,9 @@ export function openSettings() {
       h('button', { class: 'btn', onclick: () => api.tutorial() }, icon('eye'), tx('Rivedi il tutorial', 'Replay the tutorial', 'Revoir le tutoriel'))),
     h('h3', {}, tx('Informazioni', 'About', 'À propos')),
     h('p', { class: 'muted small' }, tx(
-      'Vastity · catalogo stellare HYG v4.1 (CC BY-SA 4.0, astronexus), costellazioni e Messier da d3-celestial (BSD-3), calcoli con Astronomy Engine (MIT), meteo da Open-Meteo, orbita della ISS da CelesTrak. Texture planetarie: Solar System Scope (CC BY 4.0), basate su dati NASA.',
-      'Vastity · HYG v4.1 star catalogue (CC BY-SA 4.0, astronexus), constellations and Messier from d3-celestial (BSD-3), calculations by Astronomy Engine (MIT), weather from Open-Meteo, ISS orbit from CelesTrak. Planet textures: Solar System Scope (CC BY 4.0), based on NASA data.',
-      'Vastity · catalogue d\'étoiles HYG v4.1 (CC BY-SA 4.0, astronexus), constellations et Messier de d3-celestial (BSD-3), calculs avec Astronomy Engine (MIT), météo Open-Meteo, orbite de l\'ISS par CelesTrak. Textures planétaires : Solar System Scope (CC BY 4.0), d\'après des données NASA.')),
+      'Vastity · catalogo stellare HYG v4.1 (CC BY-SA 4.0, astronexus), costellazioni e Messier da d3-celestial (BSD-3), calcoli con Astronomy Engine (MIT), meteo da Open-Meteo, orbita della ISS da CelesTrak. Texture planetarie e panorama della Via Lattea: Solar System Scope (CC BY 4.0), basate su dati NASA/ESO. Distanze Messier e catalogo Caldwell: Wikipedia (CC BY-SA 4.0).',
+      'Vastity · HYG v4.1 star catalogue (CC BY-SA 4.0, astronexus), constellations and Messier from d3-celestial (BSD-3), calculations by Astronomy Engine (MIT), weather from Open-Meteo, ISS orbit from CelesTrak. Planet textures and Milky Way panorama: Solar System Scope (CC BY 4.0), based on NASA/ESO data. Messier distances and Caldwell catalogue: Wikipedia (CC BY-SA 4.0).',
+      'Vastity · catalogue d\'étoiles HYG v4.1 (CC BY-SA 4.0, astronexus), constellations et Messier de d3-celestial (BSD-3), calculs avec Astronomy Engine (MIT), météo Open-Meteo, orbite de l\'ISS par CelesTrak. Textures planétaires et panorama de la Voie lactée : Solar System Scope (CC BY 4.0), d\'après des données NASA/ESO. Distances Messier et catalogue Caldwell : Wikipédia (CC BY-SA 4.0).')),
   );
   openSheet('settings', tx('Impostazioni', 'Settings', 'Réglages'), body, { wide: true });
 }

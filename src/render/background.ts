@@ -8,6 +8,7 @@ import { MESSIER_EXTRA, constellations, messier, radecToVec, stars } from '../da
 import { deepObjects } from '../data/deep';
 import { DeepRenderer } from './deepRender';
 import { quality } from '../core/quality';
+import { planetTexture } from '../core/textures';
 
 const BLACKBODY = /* glsl */ `
 vec3 blackbody(float T) {
@@ -33,6 +34,16 @@ vec3 aberrate(vec3 n, out float D) {
 }
 `;
 
+// Nel cielo dalla Terra, di giorno, sotto l'orizzonte si vede la notte dell'altro emisfero.
+const HORIZON = /* glsl */ `
+uniform float uHz;
+float belowF(vec3 dir) {
+  if (uHz < 0.5) return 0.0;
+  float wy = (modelMatrix * vec4(dir, 0.0)).y;
+  return smoothstep(0.0, -0.05, wy);
+}
+`;
+
 // ---------------------------------------------------------------------------- stelle
 const starVert = /* glsl */ `
 attribute float absmag;
@@ -44,12 +55,14 @@ uniform float uNearCut;
 uniform float uTime;
 uniform float uTwinkle;
 uniform float uSpikes;
+uniform float uMagBelow;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vSpike;
 varying float vCore;
 ${BLACKBODY}
 ${RELATIVITY}
+${HORIZON}
 float hash(float n) { return fract(sin(n) * 43758.5453); }
 void main() {
   vec3 rel = position - uObs;
@@ -58,7 +71,7 @@ void main() {
   vec3 dir = aberrate(rel / d, D);
   float m = absmag + 5.0 * log(d) / log(10.0) - 5.0 - 2.5 * 1.2 * log(D) / log(10.0);
   float Tobs = temp * D;
-  float s = uMagLimit - m;
+  float s = mix(uMagLimit, uMagBelow, belowF(dir)) - m;
   if (d < uNearCut || s < 0.0 || Tobs < 600.0) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
@@ -105,18 +118,23 @@ void main() {
 
 const lineVert = /* glsl */ `
 uniform vec3 uObs;
+uniform float uOpacity;
+uniform float uLineBelow;
+varying float vOp;
 ${RELATIVITY}
+${HORIZON}
 void main() {
   vec3 rel = position - uObs;
   float D;
   vec3 dir = aberrate(normalize(rel), D);
+  vOp = mix(uOpacity, uLineBelow, belowF(dir));
   gl_Position = projectionMatrix * modelViewMatrix * vec4(dir * 990.0, 1.0);
 }
 `;
 const lineFrag = /* glsl */ `
 uniform vec3 uColor;
-uniform float uOpacity;
-void main() { gl_FragColor = vec4(uColor * uOpacity, 1.0); }
+varying float vOp;
+void main() { gl_FragColor = vec4(uColor * vOp, 1.0); }
 `;
 
 // ---------------------------------------------------------------------------- galassia
@@ -138,10 +156,14 @@ uniform float uBoost;
 uniform float uOther;
 uniform float uPF[5];
 attribute float aGal;
+uniform float uDim;
+uniform float uDimBelow;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vSoft;
+varying float vDimK;
 ${RELATIVITY}
+${HORIZON}
 void main() {
   vec3 p = position;
   if (aKind < 0.5) {
@@ -155,47 +177,49 @@ void main() {
   float d = length(rel);
   float D;
   vec3 dir = aberrate(rel / d, D);
+  vDimK = mix(uDim, uDimBelow, belowF(dir));
   gl_Position = projectionMatrix * modelViewMatrix * vec4(dir * 1000.0, 1.0);
-  float px = size / d * uPixPerRad;
+  // a velocità relativistiche il cielo si comprime in avanti: le nubi si rimpiccioliscono invece di accumularsi
+  float px = size / d * uPixPerRad / max(1.0, D);
   float alpha = smoothstep(size * 0.6, size * 3.0, d);
   if (px < 1.5) { alpha *= (px * px) / 2.25; px = 1.5; }
   if (px > uMaxPx) { alpha *= uMaxPx / px; px = uMaxPx; }
   gl_PointSize = px;
   float shimmer = 0.92 + 0.08 * sin(uTime * (0.3 + aSeed * 0.6) + aSeed * 40.0);
   // la Via Lattea vista da fuori viene schiarita; le altre galassie restano naturali
-  vAlpha = alpha * shimmer / max(1.0, D * D) * (aKind < 0.5 ? uBoost : uOther) * uPF[int(aGal + 0.5)];
+  vAlpha = alpha * shimmer / max(1.0, D) * (aKind < 0.5 ? uBoost : uOther) * uPF[int(aGal + 0.5)];
   vColor = color * clamp(sqrt(D), 0.4, 1.4);
   vSoft = aKind > 1.5 ? 1.0 : 0.0;
 }
 `;
 const galFrag = /* glsl */ `
-uniform float uDim;
 uniform float uGain;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vSoft;
+varying float vDimK;
 void main() {
   vec2 p = gl_PointCoord - 0.5;
   float r2 = dot(p, p) * 4.0;
   if (r2 > 1.0) discard;
   float f = vSoft > 0.5 ? exp(-r2 * 6.0) * 1.4 : exp(-r2 * 3.0) - 0.05;
-  gl_FragColor = vec4(vColor * f * vAlpha * uDim * uGain, 1.0);
+  gl_FragColor = vec4(vColor * f * vAlpha * vDimK * uGain, 1.0);
 }
 `;
 
 // le polveri sottraggono luce: bande scure e "Grande Fenditura"
 const dustFrag = /* glsl */ `
-uniform float uDim;
 uniform float uGain;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vSoft;
+varying float vDimK;
 void main() {
   vec2 p = gl_PointCoord - 0.5;
   float r2 = dot(p, p) * 4.0;
   if (r2 > 1.0) discard;
   float f = exp(-r2 * 2.5) - 0.08;
-  gl_FragColor = vec4(vColor * max(f, 0.0) * vAlpha * uDim * uGain, 1.0);
+  gl_FragColor = vec4(vColor * max(f, 0.0) * vAlpha * vDimK * uGain, 1.0);
 }
 `;
 
@@ -210,12 +234,17 @@ uniform float uMaxPx;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vSeed;
+uniform float uDim;
+uniform float uDimBelow;
+varying float vDimK;
 ${RELATIVITY}
+${HORIZON}
 void main() {
   vec3 rel = position - uObs;
   float d = length(rel);
   float D;
   vec3 dir = aberrate(rel / d, D);
+  vDimK = mix(uDim, uDimBelow, belowF(dir));
   gl_Position = projectionMatrix * modelViewMatrix * vec4(dir * 1000.0, 1.0);
   float px = size / d * uPixPerRad;
   float alpha = smoothstep(size * 0.3, size * 1.6, d);
@@ -228,11 +257,11 @@ void main() {
 }
 `;
 const nebFrag = /* glsl */ `
-uniform float uDim;
 uniform float uTime;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vSeed;
+varying float vDimK;
 float h(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
 float n2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
@@ -244,7 +273,7 @@ void main() {
   vec2 q = p * 3.0 + vSeed * 17.0;
   float w = fbm(q + fbm(q * 1.7 + uTime * 0.01));
   float shape = smoothstep(1.0, 0.15, r) * smoothstep(0.25, 0.85, w);
-  gl_FragColor = vec4(vColor * shape * vAlpha * uDim, 1.0);
+  gl_FragColor = vec4(vColor * shape * vAlpha * vDimK, 1.0);
 }
 `;
 
@@ -276,6 +305,52 @@ void main() {
   if (r2 > 1.0) discard;
   float f = exp(-r2 * 4.0) + exp(-r2 * 30.0) * 0.6;
   gl_FragColor = vec4(vColor * f * uK * 0.55, 1.0);
+}
+`;
+
+// Via Lattea fotografica (panorama in coordinate galattiche, Solar System Scope CC BY 4.0)
+const panoVert = /* glsl */ `
+uniform mat3 uEqToGal;
+varying vec3 vGal;
+varying float vD;
+uniform float uDim;
+uniform float uDimBelow;
+varying float vDimK;
+${RELATIVITY}
+${HORIZON}
+void main() {
+  float D;
+  vec3 n = normalize(position);
+  vec3 dir = aberrate(n, D);
+  vDimK = mix(uDim, uDimBelow, belowF(dir));
+  vGal = uEqToGal * n;
+  vD = D;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(dir * 900.0, 1.0);
+}
+`;
+const panoFrag = /* glsl */ `
+uniform sampler2D uMap;
+uniform float uK;
+varying vec3 vGal;
+varying float vD;
+varying float vDimK;
+const float PI = 3.14159265;
+void main() {
+  vec3 g = normalize(vGal);
+  float l = atan(g.y, g.x);
+  float b = asin(clamp(g.z, -1.0, 1.0));
+  vec2 uv = vec2(0.5 - l / (2.0 * PI), 0.5 - b / PI);
+  // derivate continue anche sulla cucitura (l = ±180°)
+  vec2 uv2 = vec2(fract(uv.x + 0.5), uv.y);
+  vec2 dx = dFdx(uv), dx2 = dFdx(uv2), dy = dFdy(uv), dy2 = dFdy(uv2);
+  if (abs(dx2.x) < abs(dx.x)) dx.x = dx2.x;
+  if (abs(dy2.x) < abs(dy.x)) dy.x = dy2.x;
+  vec3 c = textureGrad(uMap, uv, dx, dy).rgb;
+  // un velo di colore più caldo verso il centro galattico, come nelle foto a lunga posa
+  float warm = smoothstep(0.9, 0.0, length(vec2(l, b * 2.2)));
+  float lum = dot(c, vec3(0.3, 0.5, 0.2));
+  c = mix(vec3(lum), c, 0.35) * mix(vec3(0.95, 0.97, 1.04), vec3(1.3, 1.05, 0.8), warm);
+  gl_FragColor = vec4(c * uK * vDimK * clamp(vD, 0.25, 1.6), 1.0);
 }
 `;
 
@@ -324,12 +399,12 @@ function buildMilkyWay(p: Particles, dust: Particles, n: number, nd: number) {
   };
   for (let i = 0; i < n; i++) {
     const u = r();
-    if (u < 0.13) {
-      // bulge + barra: luce dorata di stelle vecchie
-      const bx = gauss(r) * 1400, by = gauss(r) * 520, bz = gauss(r) * 380;
+    if (u < 0.08) {
+      // bulge + barra: stelle vecchie, color crema (non un blocco giallo)
+      const bx = gauss(r) * 1500, by = gauss(r) * 560, bz = gauss(r) * 420;
       const a = (27 * Math.PI) / 180;
-      const k = 0.55 + r() * 0.45;
-      push(p, bx * Math.cos(a) - by * Math.sin(a), bx * Math.sin(a) + by * Math.cos(a), bz, [1.0 * k, 0.8 * k, 0.55 * k], 220 + r() * 220, 0);
+      const k = 0.35 + r() * 0.35;
+      push(p, bx * Math.cos(a) - by * Math.sin(a), bx * Math.sin(a) + by * Math.cos(a), bz, [1.0 * k, 0.9 * k, 0.76 * k], 110 + r() * 150, 0);
     } else if (u < 0.17) {
       // regioni di formazione stellare (HII): nodi rosati lungo i bracci
       const rad = 3000 + r() * 12000;
@@ -354,7 +429,7 @@ function buildMilkyWay(p: Particles, dust: Particles, n: number, nd: number) {
     }
   }
   // nucleo: un bagliore caldo e ampio
-  for (let i = 0; i < 40; i++) push(p, gauss(r) * 500, gauss(r) * 300, gauss(r) * 250, [1.0, 0.82, 0.55], 900 + r() * 700, 0);
+  for (let i = 0; i < 18; i++) push(p, gauss(r) * 450, gauss(r) * 280, gauss(r) * 220, [0.42, 0.38, 0.32], 520 + r() * 380, 0);
   // polveri: sul bordo interno dei bracci, molto sottili in altezza
   for (let i = 0; i < nd; i++) {
     let rad = -Math.log(1 - r() * 0.98) * 3800 + 1800;
@@ -527,6 +602,10 @@ export interface BackgroundUpdate {
   spikes?: number;
   /** Mostra il fondale di galassie lontane (solo in navicella). */
   deepField?: boolean;
+  /** Cielo notturno sotto l'orizzonte (solo vista dalla Terra). */
+  below?: { mag: number; galaxyDim: number; lines: number };
+  /** Intensità della Via Lattea fotografica. */
+  panoGain?: number;
 }
 
 export class Background {
@@ -536,6 +615,8 @@ export class Background {
   galaxy: THREE.Points;
   dust: THREE.Points;
   nebulae: THREE.Points;
+  panorama: THREE.Mesh;
+  private panoMat: THREE.ShaderMaterial;
   private starMat: THREE.ShaderMaterial;
   private lineMat: THREE.ShaderMaterial;
   private galMat: THREE.ShaderMaterial;
@@ -544,6 +625,7 @@ export class Background {
   deep: THREE.Points;
   private deepMat: THREE.ShaderMaterial;
   private pf = { value: [1, 1, 1, 1, 1] };
+  private hz = { uHz: { value: 0 }, uDimBelow: { value: 0 }, uMagBelow: { value: 6 }, uLineBelow: { value: 0 } };
   deepObjects: DeepRenderer;
   /** Per ogni costellazione: indici dei vertici-stella delle sue linee. */
   lineStars: Map<string, number[]> = new Map();
@@ -554,6 +636,7 @@ export class Background {
     const time = { value: 0 };
     const pixPerRad = { value: 800 };
     const dim = { value: 1 };
+    const hz = this.hz;
 
     // --- stelle (+ il Sole in coda) ---
     const cl = clusterStars();
@@ -578,7 +661,7 @@ export class Background {
       vertexShader: starVert, fragmentShader: starFrag,
       uniforms: {
         uObs: obs, uBeta: beta, uMagLimit: { value: 6.5 }, uScale: { value: 1 }, uNearCut: { value: 1e-4 },
-        uDim: { value: 1 }, uTime: time, uTwinkle: { value: 0 }, uSpikes: { value: 1 },
+        uDim: { value: 1 }, uTime: time, uTwinkle: { value: 0 }, uSpikes: { value: 1 }, uHz: hz.uHz, uMagBelow: hz.uMagBelow,
       },
       blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
     });
@@ -626,7 +709,7 @@ export class Background {
     lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
     this.lineMat = new THREE.ShaderMaterial({
       vertexShader: lineVert, fragmentShader: lineFrag,
-      uniforms: { uObs: obs, uBeta: beta, uColor: { value: new THREE.Color(0.45, 0.62, 0.95) }, uOpacity: { value: 0.5 } },
+      uniforms: { uObs: obs, uBeta: beta, uColor: { value: new THREE.Color(0.45, 0.62, 0.95) }, uOpacity: { value: 0.5 }, uHz: hz.uHz, uLineBelow: hz.uLineBelow },
       blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
     });
     this.lines = new THREE.LineSegments(lg, this.lineMat);
@@ -647,7 +730,7 @@ export class Background {
       R_EQ_GAL[0][2], R_EQ_GAL[1][2], R_EQ_GAL[2][2],
     );
     const shared = {
-      uObs: obs, uBeta: beta, uPixPerRad: pixPerRad, uTime: time, uDim: dim,
+      uObs: obs, uBeta: beta, uPixPerRad: pixPerRad, uTime: time, uDim: dim, uHz: hz.uHz, uDimBelow: hz.uDimBelow,
       uGalToEq: { value: galToEqM }, uSunGal: { value: new THREE.Vector3(...SUN_GAL) }, uSpin: { value: 0 },
       uPF: this.pf,
     };
@@ -672,11 +755,28 @@ export class Background {
     this.dust.frustumCulled = false;
     this.dust.renderOrder = 0.5;
 
+    // --- panorama fotografico della Via Lattea, visibile vicino al Sole ---
+    const eqToGal = new THREE.Matrix3().set(
+      R_EQ_GAL[0][0], R_EQ_GAL[0][1], R_EQ_GAL[0][2],
+      R_EQ_GAL[1][0], R_EQ_GAL[1][1], R_EQ_GAL[1][2],
+      R_EQ_GAL[2][0], R_EQ_GAL[2][1], R_EQ_GAL[2][2],
+    );
+    const mwTex = planetTexture('milkyway', false);
+    mwTex.wrapS = THREE.RepeatWrapping;
+    this.panoMat = new THREE.ShaderMaterial({
+      vertexShader: panoVert, fragmentShader: panoFrag,
+      uniforms: { uMap: { value: mwTex }, uEqToGal: { value: eqToGal }, uBeta: beta, uK: { value: 1 }, uDim: dim, uHz: hz.uHz, uDimBelow: hz.uDimBelow },
+      blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true, side: THREE.BackSide,
+    });
+    this.panorama = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 48), this.panoMat);
+    this.panorama.frustumCulled = false;
+    this.panorama.renderOrder = -0.5;
+
     const neb = P();
     buildNebulae(neb);
     this.nebMat = new THREE.ShaderMaterial({
       vertexShader: nebVert, fragmentShader: nebFrag,
-      uniforms: { uObs: obs, uBeta: beta, uPixPerRad: pixPerRad, uTime: time, uDim: dim, uMaxPx: { value: 420 } },
+      uniforms: { uObs: obs, uBeta: beta, uPixPerRad: pixPerRad, uTime: time, uDim: dim, uMaxPx: { value: 420 }, uHz: hz.uHz, uDimBelow: hz.uDimBelow },
       blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
     });
     this.nebulae = new THREE.Points(toGeometry(neb), this.nebMat);
@@ -714,7 +814,7 @@ export class Background {
     const mwPlane = { a: new THREE.Vector3(...galToEq(1, 0, 0)), b: new THREE.Vector3(...galToEq(0, 1, 0)) };
     this.deepObjects = new DeepRenderer(GALACTIC_CENTER_PC, mwPlane);
 
-    this.group.add(this.deep, this.deepObjects.group, this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
+    this.group.add(this.deep, this.panorama, this.deepObjects.group, this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
   }
 
   update(u: BackgroundUpdate) {
@@ -729,8 +829,14 @@ export class Background {
     su.uNearCut.value = u.nearCutPc;
     su.uSpikes.value = u.spikes ?? 1;
     this.deepMat.uniforms.uScale.value = u.pixelScale;
+    const bl = u.below;
+    this.hz.uHz.value = bl ? 1 : 0;
+    this.hz.uMagBelow.value = bl ? bl.mag : u.magLimit;
+    this.hz.uDimBelow.value = bl ? bl.galaxyDim : u.galaxyDim;
+    this.hz.uLineBelow.value = bl ? bl.lines : u.linesOpacity;
+    const galVis = Math.max(u.galaxyDim, bl ? bl.galaxyDim : 0);
     this.lineMat.uniforms.uOpacity.value = u.linesOpacity;
-    this.lines.visible = u.linesOpacity > 0.001;
+    this.lines.visible = Math.max(u.linesOpacity, bl ? bl.lines : 0) > 0.001;
     const gu = this.galMat.uniforms;
     // vista da fuori: più luce e polveri più marcate per far risaltare bracci e bande scure
     const dgc = Math.hypot(u.obsPc.x - GALACTIC_CENTER_PC[0], u.obsPc.y - GALACTIC_CENTER_PC[1], u.obsPc.z - GALACTIC_CENTER_PC[2]);
@@ -750,11 +856,15 @@ export class Background {
     gu.uDim.value = u.galaxyDim;
     gu.uSpin.value = u.galSpin ?? 0;
     this.dustMat.uniforms.uSpin.value = u.galSpin ?? 0;
-    this.galaxy.visible = this.dust.visible = this.nebulae.visible = u.galaxyDim > 0.001;
+    this.galaxy.visible = this.dust.visible = this.nebulae.visible = galVis > 0.001;
     // render "fotografici" delle galassie e oggetti esotici; dissolvenza delle particelle
     this.deepObjects.update(u.obsPc, u.time, u.galaxyDim, u.galSpin ?? 0, u.pixPerRad);
     const pf = this.deepObjects.particleFactor;
-    this.pf.value[0] = pf.milkyway ?? 1; this.pf.value[1] = pf.m31g ?? 1; this.pf.value[2] = pf.m33g ?? 1;
+    // vicino al Sole la Via Lattea è la foto vera; allontanandosi subentra il modello 3D
+    const pano = 1 - Math.max(0, Math.min(1, (Math.log10(Math.max(fromSun, 1)) - 2.4) / 1.0));
+    this.panoMat.uniforms.uK.value = pano * (u.panoGain ?? 1.6);
+    this.panorama.visible = pano > 0.002 && galVis > 0.001;
+    this.pf.value[0] = (pf.milkyway ?? 1) * (1 - 0.92 * pano); this.pf.value[1] = pf.m31g ?? 1; this.pf.value[2] = pf.m33g ?? 1;
     this.pf.value[3] = pf.lmc ?? 1; this.pf.value[4] = pf.smc ?? 1;
   }
 }

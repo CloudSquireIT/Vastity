@@ -11,7 +11,7 @@ import { ShipView, formatDuration, formatSpeed, speedToThrottle } from './space/
 import { V3, v3 } from './astro/astro';
 import { bus, setTime, simDate, state, tick } from './state';
 import { attachPointer } from './ui/pointer';
-import { closeSheet, h, iconButton, initSheet, initToasts, openSheet, sheetOpen, toast } from './ui/dom';
+import { closeSheet, h, icon, iconButton, initSheet, initToasts, openSheet, sheetOpen, toast } from './ui/dom';
 import { AppApi, initPanels, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
 import { ObjRef, refName, sameRef, search } from './features/objects';
 import { activeMissions, ensureDailyMissions, flag, tryComplete } from './features/missions';
@@ -124,17 +124,32 @@ async function main() {
   const dockSky = h('nav', { class: 'dock' },
     iconButton('tonight', tx('Stasera', 'Tonight', 'Ce soir'), () => openTonight(), 'dbtn'),
     iconButton('missions', tx('Missioni', 'Missions', 'Missions'), () => openMissions(), 'dbtn'),
-    iconButton('ship', tx('Navicella', 'Spaceship', 'Vaisseau'), () => setMode('ship'), 'dbtn main'),
+    iconButton('ship', tx('Navicella', 'Spaceship', 'Vaisseau'), () => setMode('ship'), 'dbtn accent'),
     iconButton('worlds', tx('Mondi', 'Worlds', 'Mondes'), () => openWorlds(), 'dbtn'),
     iconButton('bell', tx('Avvisi', 'Alerts', 'Alertes'), () => openAlerts(), 'dbtn'),
   );
   const dockShip = h('nav', { class: 'dock ship' },
-    iconButton('search', tx('Vai a', 'Go to', 'Aller à'), () => openSearch((r) => { ship.goTo(r); toast(routeTo(r)); }), 'dbtn main'),
+    iconButton('search', tx('Vai a', 'Go to', 'Aller à'), () => openSearch((r) => { ship.goTo(r); toast(routeTo(r)); }), 'dbtn accent'),
     iconButton('place', tx('Posiziona', 'Place', 'Placer'), () => openPlacePanel(), 'dbtn'),
     iconButton('stop', tx('Ferma', 'Stop', 'Stop'), () => ship.stop(), 'dbtn'),
     iconButton('sky', tx('Atterra', 'Land', 'Atterrir'), () => setMode('sky'), 'dbtn'),
   );
   const bottom = h('div', { class: 'bottom' }, timePill, dockSky, dockShip);
+  // il pulsante del pannello aperto appare "attivo"; nessuno è evidenziato di default
+  const dockIds: [HTMLElement, string][] = [
+    [dockSky.children[0] as HTMLElement, 'tonight'], [dockSky.children[1] as HTMLElement, 'missions'],
+    [dockSky.children[3] as HTMLElement, 'worlds'], [dockSky.children[4] as HTMLElement, 'alerts'],
+    [dockShip.children[0] as HTMLElement, 'search'], [dockShip.children[1] as HTMLElement, 'place'],
+  ];
+  bus.on('sheet', (id: string | null) => { for (const [el, s] of dockIds) el.classList.toggle('on', id === s); });
+
+  // nascondi/mostra l'interfaccia (in entrambe le modalità)
+  const hideBtn = iconButton('eyeOff', tx('Nascondi interfaccia', 'Hide interface', 'Masquer l\'interface'), () => {
+    const hidden = document.body.classList.toggle('ui-hidden');
+    hideBtn.replaceChildren(icon(hidden ? 'eye' : 'eyeOff'));
+    hideBtn.setAttribute('aria-label', hidden ? tx('Mostra interfaccia', 'Show interface', 'Afficher l\'interface') : tx('Nascondi interfaccia', 'Hide interface', 'Masquer l\'interface'));
+    if (hidden) closeSheet();
+  }, 'ibtn hide-ui');
 
   const reticle = h('div', { class: 'reticle' }, h('div', { class: 'ret-ring' }), h('div', { class: 'ret-name' }));
   const missionChip = h('button', { class: 'mission-chip', onclick: () => openMissions() });
@@ -153,7 +168,7 @@ async function main() {
   throttle.addEventListener('pointerup', () => { throttleActive = false; });
   throttle.addEventListener('input', () => ship.setThrottle(+throttle.value));
 
-  ui.append(top, reticle, missionChip, zoomPill, telemetry, throttleWrap, bottom);
+  ui.append(top, reticle, missionChip, zoomPill, telemetry, throttleWrap, bottom, hideBtn);
 
   // ------------------------------------------------------------------ modalità
   function setMode(m: 'sky' | 'ship', instant = false) {
@@ -424,7 +439,7 @@ async function main() {
   });
 
   if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});
-  (window as any).vastity = { sky, ship, state, setMode };
+  (window as any).vastity = { sky, ship, state, setMode, setTime };
 }
 
 main().catch((e) => {
