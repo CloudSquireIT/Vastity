@@ -8,7 +8,7 @@ import { LOOKS, PT, atmosphereMaterial, bodySphere, planetMaterial, ringMaterial
 import { Streaks } from '../render/streaks';
 import { BODIES, BodyInfo, V3, bodyAxes, v3 } from '../astro/astro';
 import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, galaxyPhotos, messier, radecToVec, starName, starPhysical, stars } from '../data/catalog';
-import { ObjRef, formatDistanceKm, refName, refPosPc } from '../features/objects';
+import { ObjRef, formatDistanceKm, refName, refPosPc, sameRef } from '../features/objects';
 import { deepById, deepForMessier, deepObjects } from '../data/deep';
 import { bus, simDate, state } from '../state';
 import { LabelLayer } from '../ui/labels';
@@ -803,12 +803,13 @@ export class ShipView {
       const r = this.discPxCss(p.info.radiusKm * (p.info.rings ? 2.2 : 1), v3.len(rel));
       if (r < 8) continue;
       const q = this.project(rel);
-      if (q.front) discs.push(q.x, q.y, r);
+      if (q.front) discs.push(q.x, q.y, r, v3.len(rel));
     }
-    const hidden = (rel: V3) => {
+    // un'etichetta è nascosta se il suo oggetto sta dietro il disco di un pianeta più vicino
+    const hidden = (rel: V3, dist = Infinity) => {
       if (!discs.length) return false;
       const q = this.project(rel);
-      for (let k = 0; k < discs.length; k += 3) if (Math.hypot(q.x - discs[k], q.y - discs[k + 1]) < discs[k + 2]) return true;
+      for (let k = 0; k < discs.length; k += 4) if (discs[k + 3] < dist * 0.999 && Math.hypot(q.x - discs[k], q.y - discs[k + 1]) < discs[k + 2]) return true;
       return false;
     };
     if (state.settings.labels) {
@@ -818,7 +819,7 @@ export class ShipView {
         const d = v3.len(rel);
         const show = p.info.id === 'sun' ? sunDist < 2000 * AU_IN_KM : (p.info.id === 'moon' ? d < 3e7 : sunDist < 200 * AU_IN_KM);
         const isTarget = this.target?.kind === 'body' && this.target.id === p.info.id;
-        if (show && !isTarget) put(rel, p.info.name, 'pill' + (p.info.id === 'sun' ? ' star' : ''), true, { kind: 'body', id: p.info.id }, this.discPxCss(p.info.radiusKm, d));
+        if (show && !isTarget && !hidden(rel, d)) put(rel, p.info.name, 'pill' + (p.info.id === 'sun' ? ' star' : ''), true, { kind: 'body', id: p.info.id }, this.discPxCss(p.info.radiusKm, d));
       }
       this.labelScanT -= 1;
       const obs = v3.scale(this.pos, 1 / PC_IN_KM);
@@ -857,6 +858,7 @@ export class ShipView {
       for (const o of deepObjects()) {
         if (o.id === 'milkyway') continue;
         const ref: ObjRef = { kind: 'deep', id: o.id };
+        if (this.target && sameRef(this.target, ref)) continue; // il nome del bersaglio è già nel mirino
         const rel = v3.sub(refPosPc(ref)!, obs);
         const d = v3.len(rel);
         const px = ((o.radiusLy / 3.26156) / d) * pxr;
@@ -881,6 +883,11 @@ export class ShipView {
       this.marker.style.display = '';
       this.marker.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
       this.marker.style.setProperty('--s', `${size}px`);
+      // il nome sta sotto il mirino, o sopra se finirebbe dietro la barra dei comandi
+      const below = p.y + size / 2 + 44 > this.h - 86, above = p.y - size / 2 - 44 < 78;
+      this.marker.classList.toggle('top', below && !above);
+      // se non c'è spazio né sopra né sotto, il nome resta solo nella pillola in alto
+      this.marker.classList.toggle('nolabel', below && above);
       this.marker.classList.toggle('locked', this.autopilot);
       (this.marker.lastElementChild as HTMLElement).textContent = label;
       this.markerArrow.style.display = 'none';

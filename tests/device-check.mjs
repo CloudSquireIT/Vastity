@@ -15,14 +15,16 @@ const URL = process.argv[2] ?? 'http://localhost:4173/';
 const OUT = process.argv[3] ?? 'test-results/devices';
 fs.mkdirSync(OUT, { recursive: true });
 
-const PROFILES = [
+const ONLY = (process.env.PROFILES ?? '').split(',').filter(Boolean);
+const PROFILES_ALL = [
   ['iphone-13', devices['iPhone 13 landscape']],
   ['pixel-7', devices['Pixel 7 landscape']],
   ['ipad-pro-11', devices['iPad Pro 11 landscape']],
   ['desktop-1440', { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 }],
   ['desktop-1280', { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }],
 ];
-const QUALITIES = ['auto', 'high', 'ultra'];
+const PROFILES = ONLY.length ? PROFILES_ALL.filter(([n]) => ONLY.includes(n)) : PROFILES_ALL;
+const QUALITIES = (process.env.QUALITIES ?? 'auto,high,ultra').split(',');
 const SCENES = [
   ['sky-night', `v.setTime(Date.parse('2026-07-20T22:30:00Z'))`],
   ['sky-day', `v.setTime(Date.parse('2026-07-20T10:30:00Z'))`],
@@ -51,19 +53,25 @@ for (const [bn, bt] of browsers) {
         page.on('pageerror', (e) => errs.push(e.message));
         page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text().slice(0, 200)); });
         await page.addInitScript(() => { localStorage.setItem('vastity.settings.v1', JSON.stringify({ tutorialDone: true })); });
-        const t0 = Date.now();
-        await page.goto(URL + (q === 'auto' ? '' : `?q=${q}`));
-        await page.waitForFunction(() => window.vastity, null, { timeout: 120000 });
-        const loadMs = Date.now() - t0;
-        await page.evaluate(`(async()=>{const v=window.vastity; const w=(ms)=>new Promise(r=>setTimeout(r,ms)); ${script};})()`);
-        await page.waitForTimeout(3000);
-        const alpha = await page.evaluate(() => window.vastity.debugAlpha());
-        const file = `${OUT}/${bn}-${pn}-${q}-${sn}.png`;
-        await page.screenshot({ path: file });
-        const ok = alpha === 255 && errs.length === 0;
-        if (!ok) failures++;
-        rows.push(`${ok ? 'OK  ' : 'FAIL'} ${bn.padEnd(8)} ${pn.padEnd(13)} ${q.padEnd(5)} ${sn.padEnd(10)} load ${String(loadMs).padStart(5)} ms · alpha ${alpha}${errs.length ? ' · ' + errs.join(' | ') : ''}`);
-        console.log(rows[rows.length - 1]);
+        let row;
+        try {
+          const t0 = Date.now();
+          await page.goto(URL + (q === 'auto' ? '' : `?q=${q}`));
+          await page.waitForFunction(() => window.vastity, null, { timeout: 120000 });
+          const loadMs = Date.now() - t0;
+          await page.evaluate(`(async()=>{const v=window.vastity; const w=(ms)=>new Promise(r=>setTimeout(r,ms)); ${script};})()`);
+          await page.waitForTimeout(3000);
+          const alpha = await page.evaluate(() => window.vastity.debugAlpha());
+          await page.screenshot({ path: `${OUT}/${bn}-${pn}-${q}-${sn}.png`, timeout: 90000 });
+          const ok = alpha === 255 && errs.length === 0;
+          if (!ok) failures++;
+          row = `${ok ? 'OK  ' : 'FAIL'} ${bn.padEnd(8)} ${pn.padEnd(13)} ${q.padEnd(5)} ${sn.padEnd(10)} load ${String(loadMs).padStart(5)} ms · alpha ${alpha}${errs.length ? ' · ' + errs.join(' | ') : ''}`;
+        } catch (e) {
+          failures++;
+          row = `FAIL ${bn.padEnd(8)} ${pn.padEnd(13)} ${q.padEnd(5)} ${sn.padEnd(10)} ${String(e.message).split('\n')[0]}`;
+        }
+        rows.push(row);
+        console.log(row);
         await ctx.close();
       }
     }

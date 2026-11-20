@@ -643,3 +643,5 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
 body.reduce-motion .warp-flash { display: none; }
 :focus-visible { outline: 2px solid #9cc2ff; outline-offset: 2px; }
 .credits-page .row { text-decoration: none; color: inherit; }
+.ship-target.top span { top: calc(var(--s) / -2 - 38px); }
+.ship-target.nolabel span { display: none; }
