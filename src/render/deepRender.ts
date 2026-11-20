@@ -4,7 +4,7 @@
 // - buchi neri (ombra, anello di fotoni, disco di accrescimento), quasar con getti, pulsar con fasci.
 import * as THREE from 'three';
 import { DeepObject, deepObjects } from '../data/deep';
-import { radecToVec } from '../data/catalog';
+import { galaxyPhotos, radecToVec } from '../data/catalog';
 import { blankTexture, planetTexture } from '../core/textures';
 
 const LY_PC = 1 / 3.26156;
@@ -44,6 +44,7 @@ uniform float uUseMap;  // 1 = render fotografico (texture reale di una galassia
 uniform float uMirror;
 uniform float uRot;
 uniform float uBright;
+uniform float uPhoto;
 varying vec2 vP;
 ${NOISE}
 void main() {
@@ -54,14 +55,14 @@ void main() {
     float a = uRot + uSpin;
     vec2 q = mat2(cos(a), sin(a), -sin(a), cos(a)) * vec2(vP.x * uMirror, vP.y);
     vec2 uv = 0.5 + q * (0.5 / 1.12);
-    float lent = (uShape > 2.5 && uShape < 3.5) ? 1.0 : 0.0;
+    float lent = (uShape > 2.5 && uShape < 3.5 && uPhoto < 0.5) ? 1.0 : 0.0;
     vec3 c = texture2D(uMap, uv, lent * 3.0).rgb;
     // lenticolari: disco liscio e caldo, senza bracci evidenti
     float l = dot(c, vec3(0.33, 0.5, 0.17));
     c = mix(c, vec3(l) * vec3(1.05, 0.95, 0.82), lent * 0.75);
-    c *= mix(vec3(1.0), uTint, 0.5);
+    c *= mix(vec3(1.0), uTint, 0.5 * (1.0 - uPhoto));
     // esposizione morbida: colori della foto senza bruciare il nucleo
-    c = 1.0 - exp(-c * 1.35);
+    c = 1.0 - exp(-c * mix(1.35, 1.75, uPhoto));
     float edge = 1.0 - smoothstep(1.0, 1.2, r);
     gl_FragColor = vec4(c * edge * uK * uBright, 1.0);
     return;
@@ -141,6 +142,8 @@ uniform float uK;
 uniform float uShape;
 uniform float uSeed;
 uniform vec3 uTint;
+uniform sampler2D uMap;
+uniform float uUseMap;
 varying vec2 vP;
 varying float vCos;
 ${NOISE}
@@ -148,6 +151,13 @@ void main() {
   float X = vP.x * 1.2, Y = vP.y * 0.42;
   float ax = abs(X);
   if (ax > 1.2) discard;
+  if (uUseMap > 0.5) {
+    // foto reale del profilo della galassia
+    vec3 c = texture2D(uMap, vec2(vP.x * 0.5 + 0.5, vP.y * 0.5 + 0.5)).rgb;
+    c = 1.0 - exp(-c * 1.35);
+    gl_FragColor = vec4(c * uK, 1.0);
+    return;
+  }
   float lent = uShape > 2.5 ? 1.0 : 0.0;
   // spessore apparente: il disco sottile più la sua proiezione per l'inclinazione residua
   float h = mix(0.06, 0.1, lent) + abs(vCos) * 0.25 * (1.0 - smoothstep(0.0, 1.0, ax));
@@ -271,9 +281,9 @@ function galaxyMap(id: string, shape: string, seed: number): THREE.Texture | nul
 /** Galassie che hanno anche una versione a particelle (si dissolvono quando ci si entra). */
 export const PARTICLE_GALAXIES = ['milkyway', 'm31g', 'm33g', 'lmc', 'smc'];
 
-function diskBasis(o: DeepObject, galPlane?: { a: THREE.Vector3; b: THREE.Vector3 }) {
+function diskBasis(o: DeepObject, galPlane?: { a: THREE.Vector3; b: THREE.Vector3 }, inclOverride?: number) {
   if (galPlane) return galPlane;
-  const g = o.galaxy!;
+  const g = { ...o.galaxy!, incl: inclOverride ?? o.galaxy!.incl };
   const L = new THREE.Vector3(...radecToVec(o.ra, o.dec));
   const n0 = new THREE.Vector3(0, 0, 1).sub(L.clone().multiplyScalar(L.z)).normalize();
   const e0 = new THREE.Vector3().crossVectors(n0, L).normalize().negate();
@@ -310,18 +320,22 @@ export class DeepRenderer {
       if (o.type === 'galaxy' && o.galaxy) {
         const center = deepCenterPc(o, gc);
         const R = o.radiusLy * LY_PC;
-        const { a, b } = diskBasis(o, o.id === 'milkyway' ? mwPlane : undefined);
+        // foto reale: l'inclinazione è quella misurata sulla foto, così da Terra il render coincide con la foto
+        const photo = o.id === 'milkyway' ? undefined : galaxyPhotos[o.id];
+        const inclPhoto = photo?.kind === 'face' ? Math.min(74, (Math.acos(Math.max(0.28, Math.min(1, photo.q))) * 180) / Math.PI) : undefined;
+        const { a, b } = diskBasis(o, o.id === 'milkyway' ? mwPlane : undefined, inclPhoto);
         const g = o.galaxy;
         const tint = new THREE.Color(...(g.tint ?? [1, 1, 1]));
-        const map = galaxyMap(o.id, g.shape, seed);
+        const map = photo?.kind === 'face' ? planetTexture('gal_' + o.id, false) : galaxyMap(o.id, g.shape, seed);
+        const ownPhoto = photo?.kind === 'face' || ['milkyway', 'm101g', 'm83g', 'ngc1300'].includes(o.id);
         const disk = new THREE.Mesh(plane, new THREE.ShaderMaterial({
           vertexShader: galVert, fragmentShader: galFrag,
           uniforms: {
             uObs: this.obs, uCenter: { value: center }, uA: { value: a }, uB: { value: b }, uR: { value: R },
             uShape: { value: SHAPES[g.shape] }, uArms: { value: g.arms ?? 2 }, uSeed: { value: seed++ * 3.7 },
             uK: { value: 0 }, uSpin: { value: 0 }, uTint: { value: tint },
-            uMap: { value: map ?? blankTexture }, uUseMap: { value: map ? 1 : 0 }, uMirror: { value: seed % 2 ? -1 : 1 },
-            uRot: { value: (seed * 2.399) % 6.283 }, uBright: { value: 1 },
+            uMap: { value: map ?? blankTexture }, uUseMap: { value: map ? 1 : 0 }, uMirror: { value: ownPhoto ? 1 : seed % 2 ? -1 : 1 },
+            uRot: { value: ownPhoto ? 0 : (seed * 2.399) % 6.283 }, uBright: { value: 1 }, uPhoto: { value: photo?.kind === 'face' ? 1 : 0 },
           },
           blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true, side: THREE.DoubleSide,
         }));
@@ -338,10 +352,14 @@ export class DeepRenderer {
         this.group.add(disk, core);
         const normal = new THREE.Vector3().crossVectors(a, b).normalize();
         let edge: THREE.Mesh | null = null;
-        if (['spiral', 'barred', 'lenticular'].includes(g.shape)) {
+        // strato di taglio: procedurale, o la foto del profilo per le galassie di taglio
+        if (photo?.kind !== 'face' && (['spiral', 'barred', 'lenticular'].includes(g.shape) || photo?.kind === 'edge')) {
           edge = new THREE.Mesh(quad, new THREE.ShaderMaterial({
             vertexShader: edgeVert, fragmentShader: edgeFrag,
-            uniforms: { uObs: this.obs, uCenter: { value: center }, uN: { value: normal }, uR: { value: R }, uK: { value: 0 }, uShape: { value: SHAPES[g.shape] }, uSeed: { value: seed * 1.7 }, uTint: { value: tint } },
+            uniforms: {
+              uObs: this.obs, uCenter: { value: center }, uN: { value: normal }, uR: { value: R }, uK: { value: 0 }, uShape: { value: SHAPES[g.shape] }, uSeed: { value: seed * 1.7 }, uTint: { value: tint },
+              uMap: { value: photo?.kind === 'edge' ? planetTexture('gal_' + o.id, false) : blankTexture }, uUseMap: { value: photo?.kind === 'edge' ? 1 : 0 },
+            },
             blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true, side: THREE.DoubleSide,
           }));
           edge.frustumCulled = false;

@@ -581,3 +581,7 @@ body[data-mode="sky"] .bottom { flex-direction: row; justify-content: flex-end; 
 .btn.more { margin: 10px auto 4px; display: flex; }
 /* il nome nel mirino sta sopra l'anello, l'etichetta dell'oggetto sotto: niente doppioni sovrapposti */
 .ret-name { top: -54px; }
+.credits { margin-top: 10px; }
+.credits summary { cursor: pointer; color: #cbd5e1; font-size: 13px; }
+.credits ul { padding-left: 18px; margin: 8px 0; line-height: 1.5; }
+.credits a { color: #9cc2ff; word-break: break-all; }

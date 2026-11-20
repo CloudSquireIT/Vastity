@@ -73,6 +73,9 @@ const STAR_NAMES: Record<string, Partial<Record<'it' | 'en' | 'fr', string>>> = 
 export let stars: StarCatalog;
 export let constellations: Constellation[] = [];
 export let messier: Messier[] = [];
+/** Foto reali delle galassie (texture gal_<id>): tipo, rapporto assiale misurato e crediti. */
+export interface GalaxyPhoto { kind: 'face' | 'edge'; q: number; file: string; license: string; credit: string; source: string }
+export let galaxyPhotos: Record<string, GalaxyPhoto> = {};
 
 export async function loadCatalogs() {
   const [s, c, m, wiki] = await Promise.all([
@@ -80,6 +83,7 @@ export async function loadCatalogs() {
     fetch('data/constellations.json').then((r) => r.json()),
     fetch('data/messier.json').then((r) => r.json()),
     fetch('data/deepsky.json').then((r) => r.json()).catch(() => ({ messier: {}, caldwell: [] })),
+    fetch('data/galaxy-photos.json').then((r) => r.json()).then((g) => { galaxyPhotos = g; }).catch(() => {}),
   ]);
   const rows: any[] = [...s.rows];
   const names = [...s.names];

@@ -1,5 +1,6 @@
 // Pannelli dell'interfaccia: scheda oggetto, ricerca, Stasera, Missioni, Avvisi, Mondi, Impostazioni, Macchina del tempo.
 import { closeSheet, fmtDate, fmtTime, h, icon, iconButton, openSheet, sheetOpen, toast } from './dom';
+import { galaxyPhotos } from '../data/catalog';
 import { Category, ObjRef, SearchItem, categories, filterItems, info, refName, search } from '../features/objects';
 import { formatLightTime, formatYear, lightJourney } from '../features/history';
 import { computeTonight } from '../features/tonight';
@@ -363,6 +364,10 @@ export function openSettings() {
       'Vastity · catalogo stellare HYG v4.1 (CC BY-SA 4.0, astronexus), costellazioni e Messier da d3-celestial (BSD-3), calcoli con Astronomy Engine (MIT), meteo da Open-Meteo, orbita della ISS da CelesTrak. Texture planetarie e panorama della Via Lattea: Solar System Scope (CC BY 4.0), basate su dati NASA/ESO. Distanze Messier e catalogo Caldwell: Wikipedia (CC BY-SA 4.0). Render delle galassie da foto di M101, M83 e NGC 1300 (NASA/ESA Hubble, ESO, NOIRLab) e dall\'illustrazione della Via Lattea di NASA/JPL-Caltech/R. Hurt.',
       'Vastity · HYG v4.1 star catalogue (CC BY-SA 4.0, astronexus), constellations and Messier from d3-celestial (BSD-3), calculations by Astronomy Engine (MIT), weather from Open-Meteo, ISS orbit from CelesTrak. Planet textures and Milky Way panorama: Solar System Scope (CC BY 4.0), based on NASA/ESO data. Messier distances and Caldwell catalogue: Wikipedia (CC BY-SA 4.0). Galaxy renders from photos of M101, M83 and NGC 1300 (NASA/ESA Hubble, ESO, NOIRLab) and the Milky Way illustration by NASA/JPL-Caltech/R. Hurt.',
       'Vastity · catalogue d\'étoiles HYG v4.1 (CC BY-SA 4.0, astronexus), constellations et Messier de d3-celestial (BSD-3), calculs avec Astronomy Engine (MIT), météo Open-Meteo, orbite de l\'ISS par CelesTrak. Textures planétaires et panorama de la Voie lactée : Solar System Scope (CC BY 4.0), d\'après des données NASA/ESO. Distances Messier et catalogue Caldwell : Wikipédia (CC BY-SA 4.0). Rendus des galaxies d\'après des photos de M101, M83 et NGC 1300 (NASA/ESA Hubble, ESO, NOIRLab) et l\'illustration de la Voie lactée de NASA/JPL-Caltech/R. Hurt.')),
+    h('details', { class: 'credits' },
+      h('summary', {}, tx('Crediti delle foto delle galassie', 'Galaxy photo credits', 'Crédits des photos de galaxies')),
+      h('ul', { class: 'muted small' }, ...Object.entries(galaxyPhotos).map(([id, p]) => h('li', {},
+        `${refName({ kind: 'deep', id })}: `, h('a', { href: p.source, target: '_blank', rel: 'noopener' }, p.file), ` · ${p.credit || 'Wikimedia Commons'} · ${p.license}`)))),
   );
   openSheet('settings', tx('Impostazioni', 'Settings', 'Réglages'), body, { wide: true });
 }

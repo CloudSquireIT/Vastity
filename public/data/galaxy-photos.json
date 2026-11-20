@@ -1,0 +1,98 @@
+{
+ "m33g": {
+  "kind": "face",
+  "q": 0.602,
+  "file": "VST snaps a very detailed view of the Triangulum Galaxy.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:VST_snaps_a_very_detailed_view_of_the_Triangulum_Galaxy.jpg"
+ },
+ "m31g": {
+  "kind": "face",
+  "q": 0.378,
+  "file": "Andromeda Galaxy (with h-alpha).jpg",
+  "license": "CC BY 2.0",
+  "credit": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Andromeda_Galaxy_(with_h-alpha).jpg"
+ },
+ "m87g": {
+  "kind": "face",
+  "q": 0.949,
+  "file": "Messier 87 Hubble WikiSky.jpg",
+  "license": "Public domain",
+  "credit": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier_87_Hubble_WikiSky.jpg"
+ },
+ "c38g": {
+  "kind": "edge",
+  "q": 0.264,
+  "file": "Needle Wide.png",
+  "license": "CC0",
+  "credit": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Needle_Wide.png"
+ },
+ "m51g": {
+  "kind": "face",
+  "q": 0.535,
+  "file": "Messier51 sRGB.jpg",
+  "license": "Public domain",
+  "credit": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier51_sRGB.jpg"
+ },
+ "m104g": {
+  "kind": "face",
+  "q": 0.629,
+  "file": "M104 ngc4594 sombrero galaxy hi-res.jpg",
+  "license": "Public domain",
+  "credit": "",
+  "source": "https://commons.wikimedia.org/wiki/File:M104_ngc4594_sombrero_galaxy_hi-res.jpg"
+ },
+ "lmc": {
+  "kind": "face",
+  "q": 0.893,
+  "file": "Eso1021d.jpg",
+  "license": "CC BY 4.0",
+  "credit": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Eso1021d.jpg"
+ },
+ "smc": {
+  "kind": "face",
+  "q": 0.795,
+  "file": "Small Magellanic Cloud (Digitized Sky Survey 2).jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble and Digitized Sky Survey 2",
+  "source": "https://commons.wikimedia.org/wiki/File:Small_Magellanic_Cloud_(Digitized_Sky_Survey_2).jpg"
+ },
+ "m81g": {
+  "kind": "face",
+  "q": 0.583,
+  "file": "Messier 81 HST.jpg",
+  "license": "Public domain",
+  "credit": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Messier_81_HST.jpg"
+ },
+ "m82g": {
+  "kind": "face",
+  "q": 0.477,
+  "file": "M82 HST ACS 2006-14-a-large web.jpg",
+  "license": "Public domain",
+  "credit": "",
+  "source": "https://commons.wikimedia.org/wiki/File:M82_HST_ACS_2006-14-a-large_web.jpg"
+ },
+ "m101g": {
+  "kind": "face",
+  "q": 0.901,
+  "file": "M101 hires STScI-PRC2006-10a.jpg",
+  "license": "CC BY 4.0",
+  "credit": "ESA/Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:M101_hires_STScI-PRC2006-10a.jpg"
+ },
+ "m64g": {
+  "kind": "face",
+  "q": 0.585,
+  "file": "NGC 4826 - HST.png",
+  "license": "CC BY 2.0",
+  "credit": "",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_4826_-_HST.png"
+ }
+}

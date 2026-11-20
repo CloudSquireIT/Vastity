@@ -445,14 +445,16 @@ export class ShipView {
         this.tq.setFromRotationMatrix(this.tm);
         this.quat.slerp(this.tq, 1 - Math.exp(-2.6 * dt));
         const angle = this.quat.angleTo(this.tq);
-        if (remaining <= Math.max(1, t.standoff * 0.015)) {
+        // soglia d'arrivo proporzionale alla scala del bersaglio (anche per i punti di vista con standoff 0)
+        const scale = t.look ? v3.len(v3.sub(t.pos, t.look)) : t.standoff;
+        if (remaining <= Math.max(1, scale * 0.015)) {
           this.stop(true);
           if (t.look) this.settleLook = t.look;
           this.arrived = refName(this.target);
           bus.emit('arrived', this.target);
           bus.emit('flash');
         } else {
-          const aligned = smoothstep(0.6, 0.12, angle);
+          const aligned = smoothstep(1.1, 0.3, angle);
           this.targetSpeed = Math.max(1, remaining / 0.55) * aligned;
         }
       }
@@ -479,11 +481,17 @@ export class ShipView {
 
     const f = this.forward();
     let step = this.speed * dt;
+    let dir: V3 = f;
     if (this.autopilot && this.target) {
       const t = this.targetInfo(this.target);
-      if (t) step = Math.min(step, Math.max(0, v3.len(v3.sub(t.pos, this.pos)) - t.standoff));
+      if (t) {
+        const to = v3.sub(t.pos, this.pos);
+        step = Math.min(step, Math.max(0, v3.len(to) - t.standoff));
+        // il pilota automatico va dritto verso la meta (niente archi mentre la vista si allinea)
+        if (v3.len(to) > 0) dir = v3.norm(to);
+      }
     }
-    this.pos = v3.add(this.pos, v3.scale(f, step));
+    this.pos = v3.add(this.pos, v3.scale(dir, step));
     const beta = this.speed < C_KMS * 0.99995 ? this.speed / C_KMS : 0;
     const gamma = 1 / Math.sqrt(1 - beta * beta);
     this.shipTime += dt;
