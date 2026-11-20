@@ -62,15 +62,46 @@ src/
 scripts/build-data.mjs  conversione dei cataloghi in JSON compatto
 ```
 
-## Trasformarla in app
+## Qualità grafica
+
+In **Impostazioni → Grafica** uno slider sceglie la qualità: *Automatica* (in base al dispositivo), Bassa, Media, Alta, **Massima** (tutto al massimo, senza riduzioni automatiche).
+In automatico un regolatore abbassa la risoluzione e, se serve, spegne gli effetti più costosi quando il dispositivo fatica.
+Per test e assistenza: `?q=low|mid|high|ultra` nell'indirizzo.
+
+## Test su più dispositivi
 
 ```bash
-npm i @capacitor/core @capacitor/cli @capacitor/ios @capacitor/android
-npx cap init Vastity it.vastity.app --web-dir dist
-npm run build && npx cap add ios && npx cap add android && npx cap sync
+npm run build && npx vite preview --port 4173 &
+npm run test:devices        # = node tests/device-check.mjs http://localhost:4173/ test-results/devices
 ```
 
-Con `@capacitor/local-notifications` gli avvisi diventano notifiche di sistema anche ad app chiusa.
+Apre l'app con profili iPhone, Pixel, iPad e desktop × qualità (auto, alta, massima), visita cielo di notte e di giorno,
+Via Lattea, Andromeda e Saturno, salva gli screenshot e fallisce se ci sono errori o zone trasparenti nel canvas.
+WebKit e Firefox vengono usati se installati (`npx playwright install webkit firefox`).
+
+## Offline
+
+Il service worker (`public/sw.js`) salva all'installazione il "guscio" elencato in `dist/precache.json` (generato dalla build)
+e conserva texture e foto alla prima visualizzazione: dopo il primo utilizzo l'app funziona senza rete (meteo e orbita ISS a parte).
+
+## App nativa (iOS / Android)
+
+Capacitor è già configurato (`capacitor.config.ts`, plugin haptics, notifiche locali, sensori di movimento):
+
+```bash
+npm i -D @capacitor/ios @capacitor/android
+npm run build && npx cap add ios && npx cap add android
+npm run cap:sync            # dopo ogni modifica
+npx cap open ios            # Xcode (serve un Mac) · npx cap open android
+```
+
+Nell'app nativa: vibrazioni del Taptic Engine, notifiche di sistema degli avvisi per 7 giorni (anche ad app chiusa),
+bussola/giroscopio dai sensori nativi. Su iOS aggiungere in `Info.plist` la descrizione per l'uso dei sensori di movimento.
+
+## Diagnostica
+
+Gli errori (JavaScript, perdita del contesto WebGL) restano solo sul dispositivo; da **Impostazioni → Diagnostica**
+si copia un rapporto anonimo (dispositivo, GPU, qualità, errori) da allegare a una segnalazione.
 
 ## Crediti e licenze dei dati
 

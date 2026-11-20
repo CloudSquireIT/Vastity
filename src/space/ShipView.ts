@@ -14,6 +14,7 @@ import { bus, simDate, state } from '../state';
 import { LabelLayer } from '../ui/labels';
 import { num, tx } from '../i18n';
 import { PointerHandlers } from '../ui/pointer';
+import { reducedMotion } from '../core/feel';
 import { quality } from '../core/quality';
 import { SmoothValue, damp, easeInOutCubic, smoothstep } from '../core/motion';
 
@@ -128,8 +129,23 @@ export class ShipView {
   private cloudOffset = 0;
   /** Dopo l'arrivo, punto verso cui girarsi dolcemente. */
   private settleLook: V3 | null = null;
+  /** Punto di vista sulla Via Lattea, fissato alla partenza (vista 3/4 dall'alto, dal lato da cui arrivi). */
+  private mwView: V3 | null = null;
+  /** Orientamento e distanza alla partenza del pilota automatico (per una rotazione distribuita su tutto il viaggio). */
+  private apStart: { quat: THREE.Quaternion; rem0: number; t: number } | null = null;
+
+  private milkyWayViewpoint(): V3 {
+    const c = v3.scale(GALACTIC_CENTER_PC as V3, PC_IN_KM);
+    const ngp = radecToVec(192.85948, 27.12825);
+    let side = v3.sub(this.pos, c);
+    side = v3.sub(side, v3.scale(ngp, v3.dot(side, ngp)));
+    const u = v3.len(side) > 1 ? v3.norm(side) : v3.norm(v3.scale(c, -1));
+    const dir = v3.norm(v3.add(v3.scale(ngp, 0.86), v3.scale(u, 0.5)));
+    return v3.add(c, v3.scale(dir, 95000 * LY_IN_KM));
+  }
   // oggetti riutilizzati per non allocare a ogni fotogramma
   private tq = new THREE.Quaternion();
+  private tq2 = new THREE.Quaternion();
   private te = new THREE.Euler();
   private tv = new THREE.Vector3();
   private tv2 = new THREE.Vector3();
@@ -271,8 +287,8 @@ export class ShipView {
       if (o.id === 'milkyway') {
         // la Via Lattea si guarda dall'alto: punto di vista sopra il polo galattico
         const c = v3.scale(GALACTIC_CENTER_PC as V3, PC_IN_KM);
-        const ngp = radecToVec(192.85948, 27.12825);
-        return { pos: v3.add(c, v3.scale(ngp, 95000 * LY_IN_KM)), standoff: 0, radius: 0, look: c };
+        if (!this.mwView) this.mwView = this.milkyWayViewpoint();
+        return { pos: this.mwView, standoff: 0, radius: 0, look: c };
       }
       const k = o.type === 'galaxy' ? 1.7 : o.type === 'blackhole' || o.type === 'quasar' ? 3.2 : o.type === 'pulsar' ? 6 : 2.2;
       return { pos: v3.scale(refPosPc(ref)!, PC_IN_KM), standoff: R * k, radius: R };
@@ -291,6 +307,7 @@ export class ShipView {
 
   /** Teletrasporto vicino a un oggetto, guardandolo. */
   placeNear(ref: ObjRef) {
+    if (ref.kind === 'deep' && ref.id === 'milkyway') this.mwView = this.milkyWayViewpoint();
     const t = this.targetInfo(ref);
     if (!t) return;
     if (t.look) {
@@ -351,6 +368,9 @@ export class ShipView {
 
   goTo(ref: ObjRef) {
     this.target = ref;
+    if (ref.kind === 'deep' && ref.id === 'milkyway') this.mwView = this.milkyWayViewpoint();
+    const t0 = this.targetInfo(ref);
+    this.apStart = t0 ? { quat: this.quat.clone(), rem0: Math.max(1, v3.len(v3.sub(t0.pos, this.pos)) - t0.standoff), t: 0 } : null;
     this.autopilot = true;
     this.arrived = null;
     this.launch = null;
@@ -442,11 +462,28 @@ export class ShipView {
         const to = v3.sub(t.pos, this.pos);
         const dist = v3.len(to);
         const remaining = dist - t.standoff;
-        const n = v3.norm(to);
-        this.tm.lookAt(this.tv.set(0, 0, 0), this.tv2.set(n[0], n[1], n[2]), this.upV.set(0, 1, 0).applyQuaternion(this.quat));
-        this.tq.setFromRotationMatrix(this.tm);
-        this.quat.slerp(this.tq, 1 - Math.exp(-2.6 * dt));
-        const angle = this.quat.angleTo(this.tq);
+        // con un punto di vista (es. Via Lattea dall'alto) la camera guarda già il soggetto durante il viaggio:
+        // si sale vedendo la galassia aprirsi, senza la virata finale
+        let angle: number;
+        if (t.look && this.apStart) {
+          // orientamento finale (dal punto d'arrivo verso il soggetto), raggiunto gradualmente lungo tutto il viaggio
+          const fin = v3.norm(v3.sub(t.look, t.pos));
+          this.tm.lookAt(this.tv.set(0, 0, 0), this.tv2.set(fin[0], fin[1], fin[2]), this.upV.set(0, 1, 0).applyQuaternion(this.apStart.quat));
+          this.tq.setFromRotationMatrix(this.tm);
+          // virata calma nei primi secondi (a velocità ancora bassa), poi volo dritto verso la meta
+          this.apStart.t += dt;
+          const p = Math.max(Math.min(1, this.apStart.t / 2.6), Math.sqrt(Math.max(0, 1 - Math.max(0, remaining) / this.apStart.rem0)));
+          const e = p * p * (3 - 2 * p);
+          this.tq2.copy(this.apStart.quat).slerp(this.tq, Math.min(1, Math.max(0, e)));
+          this.quat.slerp(this.tq2, 1 - Math.exp(-4 * dt));
+          angle = 0;
+        } else {
+          const n = v3.norm(to);
+          this.tm.lookAt(this.tv.set(0, 0, 0), this.tv2.set(n[0], n[1], n[2]), this.upV.set(0, 1, 0).applyQuaternion(this.quat));
+          this.tq.setFromRotationMatrix(this.tm);
+          this.quat.slerp(this.tq, 1 - Math.exp(-2.6 * dt));
+          angle = this.quat.angleTo(this.tq);
+        }
         // soglia d'arrivo proporzionale alla scala del bersaglio (anche per i punti di vista con standoff 0)
         const scale = t.look ? v3.len(v3.sub(t.pos, t.look)) : t.standoff;
         if (remaining <= Math.max(1, scale * 0.015)) {
@@ -500,10 +537,11 @@ export class ShipView {
     this.earthTime += dt * gamma;
 
     // camera: campo visivo che si allarga con la velocità, leggero tremolio nelle accelerazioni
-    const warp = smoothstep(4.0, 10.0, Math.log10(Math.max(1, this.speed)));
+    const calm = reducedMotion();
+    const warp = calm ? 0 : smoothstep(4.0, 10.0, Math.log10(Math.max(1, this.speed)));
     const fov = this.fov.to(this.baseFov + 26 * warp, dt);
     this.camera.quaternion.copy(this.quat);
-    if (this.shake > 0.002) {
+    if (this.shake > 0.002 && !calm) {
       const s = this.shake * 0.0035;
       this.tq.setFromEuler(this.te.set(Math.sin(this.time * 37) * s, Math.sin(this.time * 29 + 1) * s, 0));
       this.camera.quaternion.multiply(this.tq);
@@ -574,6 +612,7 @@ export class ShipView {
             p.ring.quaternion.copy(p.mesh.quaternion);
             const ru = (p.ring.material as THREE.ShaderMaterial).uniforms;
             ru.uLit.value = 0.25 + 0.75 * Math.abs(toSun.dot(this.tv.set(...ax.Z)));
+            ru.uTime.value = this.time;
             ru.uPlanetV.value.copy(p.mesh.position).applyMatrix4(view);
             ru.uLight.value.copy(toSun).transformDirection(view);
           }

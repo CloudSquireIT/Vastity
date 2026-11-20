@@ -111,10 +111,24 @@ for (const r of rows) {
 names.length = 0;
 names.push(...used);
 for (const r of rows) { r[0] = +r[0].toFixed(3); r[1] = +r[1].toFixed(3); r[2] = +r[2].toFixed(3); }
-fs.writeFileSync(path.join(out, 'stars.json'), JSON.stringify({
-  fields: ['x_pc', 'y_pc', 'z_pc', 'absmag', 'ci', 'name', 'con', 'distUnknown'],
-  names, rows,
-}));
+// formato binario compatto (caricamento e lettura molto più rapidi del JSON):
+// Float32 x,y,z,absmag,ci per stella · Int32 indice del nome · Uint8 costellazione · Uint8 distanza ignota
+const N = rows.length;
+const conList = [...new Set(rows.map((r) => r[6]).filter(Boolean))].sort();
+const conIdx = new Map(conList.map((c, i) => [c, i + 1]));
+const buf = Buffer.alloc(N * 20 + N * 4 + N * 2);
+const f32 = new Float32Array(buf.buffer, buf.byteOffset, N * 5);
+const i32 = new Int32Array(buf.buffer, buf.byteOffset + N * 20, N);
+const u8 = new Uint8Array(buf.buffer, buf.byteOffset + N * 24, N * 2);
+rows.forEach((r, i) => {
+  f32.set([r[0], r[1], r[2], r[3], r[4]], i * 5);
+  i32[i] = r[5];
+  u8[i] = conIdx.get(r[6]) ?? 0;
+  u8[N + i] = r[7];
+});
+fs.writeFileSync(path.join(out, 'stars.bin'), buf);
+fs.writeFileSync(path.join(out, 'stars-meta.json'), JSON.stringify({ count: N, cons: conList, names }));
+if (fs.existsSync(path.join(out, 'stars.json'))) fs.unlinkSync(path.join(out, 'stars.json'));
 console.log('Stelle:', rows.length, 'con nome:', names.length);
 
 // --- Costellazioni ---

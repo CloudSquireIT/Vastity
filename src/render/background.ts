@@ -627,6 +627,8 @@ export class Background {
   private pf = { value: [1, 1, 1, 1, 1] };
   private hz = { uHz: { value: 0 }, uDimBelow: { value: 0 }, uMagBelow: { value: 6 }, uLineBelow: { value: 0 } };
   deepObjects: DeepRenderer;
+  /** Modalità leggera (dispositivo in difficoltà): niente polveri né fondale profondo. */
+  lite = false;
   /** Per ogni costellazione: indici dei vertici-stella delle sue linee. */
   lineStars: Map<string, number[]> = new Map();
 
@@ -734,7 +736,7 @@ export class Background {
       uGalToEq: { value: galToEqM }, uSunGal: { value: new THREE.Vector3(...SUN_GAL) }, uSpin: { value: 0 },
       uPF: this.pf,
     };
-    const mobile = quality.tier !== 'high';
+    const mobile = quality.tier === 'low' || quality.tier === 'mid';
     this.galMat = new THREE.ShaderMaterial({
       vertexShader: galVert, fragmentShader: galFrag,
       uniforms: { ...shared, uGain: { value: mobile ? 0.05 : 0.04 }, uMaxPx: { value: 90 }, uBoost: { value: 1 }, uOther: { value: 1 } },
@@ -851,7 +853,7 @@ export class Background {
     // fondale di galassie lontane: compare quando ci si allontana dal Sole
     const fromSun = u.obsPc.length();
     this.deepMat.uniforms.uK.value = u.deepField ?? 0 ? Math.max(0, Math.min(1, (Math.log10(Math.max(fromSun, 1)) - 2.3) / 2.2)) : 0;
-    this.deep.visible = this.deepMat.uniforms.uK.value > 0.01;
+    this.deep.visible = this.deepMat.uniforms.uK.value > 0.01 && !this.lite;
     // le altre galassie risaltano di più quando si viaggia nello spazio intergalattico
     gu.uOther.value = 1 + 1.6 * this.deepMat.uniforms.uK.value;
     this.dustMat.uniforms.uOther.value = 1 + 1.6 * this.deepMat.uniforms.uK.value;
@@ -860,6 +862,7 @@ export class Background {
     gu.uSpin.value = u.galSpin ?? 0;
     this.dustMat.uniforms.uSpin.value = u.galSpin ?? 0;
     this.galaxy.visible = this.dust.visible = this.nebulae.visible = galVis > 0.001;
+    if (this.lite) this.dust.visible = false;
     // render "fotografici" delle galassie e oggetti esotici; dissolvenza delle particelle
     this.deepObjects.update(u.obsPc, u.time, u.galaxyDim, u.galSpin ?? 0, u.pixPerRad);
     const pf = this.deepObjects.particleFactor;

@@ -5,6 +5,7 @@ import { A, bodyById, observer } from '../astro/astro';
 import { ObjRef } from './objects';
 import { issPasses, loadISS, azName } from './iss';
 import { effectiveCloud, getWeather, weatherAt } from './weather';
+import { native } from '../core/native';
 import { bus, state } from '../state';
 import { LOCALE, lang, num, tx } from '../i18n';
 import { constellationById } from '../data/catalog';
@@ -259,6 +260,14 @@ async function notify(title: string, body: string) {
 
 /** Programma gli avvisi delle prossime 12 ore (30 min prima, 5 min per la ISS). */
 export function scheduleNotifications(events: SkyEvent[]) {
+  // app nativa: notifiche di sistema per i prossimi 7 giorni, anche ad app chiusa
+  if (native.isNative) {
+    const now = Date.now();
+    const list = events.filter((e) => e.quality > 0 && e.date.getTime() > now && e.date.getTime() - now < 7 * 86400e3).slice(0, 48).map((e, i) => ({
+      id: 1000 + i, title: e.title, body: e.desc, at: new Date(e.date.getTime() - (e.type === 'iss' ? 5 * 60e3 : 30 * 60e3)),
+    }));
+    native.schedule(list);
+  }
   timers.splice(0).forEach((t) => clearTimeout(t));
   let done: string[] = [];
   try { done = JSON.parse(localStorage.getItem(NOTIFIED) || '[]'); } catch { /* */ }

@@ -1,6 +1,9 @@
 // Pannelli dell'interfaccia: scheda oggetto, ricerca, Stasera, Missioni, Avvisi, Mondi, Impostazioni, Macchina del tempo.
 import { closeSheet, fmtDate, fmtTime, h, icon, iconButton, openSheet, sheetOpen, toast } from './dom';
 import { galaxyPhotos } from '../data/catalog';
+import { feel, reducedMotion } from '../core/feel';
+import { diagnosticsReport, issueCount } from '../core/diagnostics';
+import { detectedTier } from '../core/quality';
 import { Category, ObjRef, SearchItem, SortKey, categories, filterItems, sortItems, info, refName, search } from '../features/objects';
 import { formatLightTime, formatYear, lightJourney } from '../features/history';
 import { computeTonight } from '../features/tonight';
@@ -24,6 +27,7 @@ export interface AppApi {
   tutorial(): void;
   setAR(on: boolean): Promise<boolean>;
   ar(): boolean;
+  gl(): WebGL2RenderingContext;
 }
 
 let api: AppApi;
@@ -382,6 +386,7 @@ export function openSettings() {
     toggle(tx('Atmosfera e luce del giorno', 'Atmosphere and daylight', 'Atmosphère et lumière du jour'), st.atmosphere, set('atmosphere')),
     toggle(tx('Cielo realistico per la mia zona', 'Realistic sky for my area', 'Ciel réaliste pour ma zone'), st.realisticSky, set('realisticSky')),
     h('label', { class: 'full' }, h('span', {}, tx('Inquinamento luminoso (scala di Bortle) ', 'Light pollution (Bortle scale) ', 'Pollution lumineuse (échelle de Bortle) ')), bortleLbl, bortle),
+    h('h3', {}, tx('Grafica', 'Graphics', 'Graphismes')), qualityControl(),
     h('h3', {}, tx('Immersione', 'Immersion', 'Immersion')),
     toggle(tx('Modalità notte (rossa, protegge la vista al buio)', 'Night mode (red, protects your dark vision)', 'Mode nuit (rouge, préserve la vision nocturne)'), st.nightMode, set('nightMode')),
     toggle(tx('Relatività realistica (le stelle si comprimono davanti a te vicino alla velocità della luce)', 'Realistic relativity (stars bunch up ahead of you near light speed)', 'Relativité réaliste (les étoiles se resserrent devant vous près de la vitesse de la lumière)'), st.realRelativity, set('realRelativity')),
@@ -390,17 +395,101 @@ export function openSettings() {
       h('button', { class: 'btn', onclick: () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}); } }, icon('fullscreen'), tx('Schermo intero', 'Full screen', 'Plein écran')),
       h('button', { class: 'btn', onclick: () => api.share() }, icon('share'), tx('Condividi questa vista', 'Share this view', 'Partager cette vue')),
       h('button', { class: 'btn', onclick: () => api.tutorial() }, icon('eye'), tx('Rivedi il tutorial', 'Replay the tutorial', 'Revoir le tutoriel'))),
+    h('h3', {}, tx('Suoni e vibrazioni', 'Sound and haptics', 'Sons et vibrations')),
+    toggle(tx('Suoni ambientali ed effetti', 'Ambient sound and effects', 'Sons d\'ambiance et effets'), st.sound !== false, (v) => { st.sound = v; saveSettings(); feel.refresh(); }),
+    toggle(tx('Vibrazioni leggere', 'Light haptics', 'Vibrations légères'), st.haptics !== false, (v) => { st.haptics = v; saveSettings(); }),
+    h('h3', {}, tx('Accessibilità', 'Accessibility', 'Accessibilité')),
+    toggle(tx('Riduci movimento (meno scosse, scie e flash)', 'Reduce motion (fewer shakes, streaks and flashes)', 'Réduire les animations (moins de secousses, traînées et flashs)'), reducedMotion(), (v) => { st.reduceMotion = v; saveSettings(); applyAccessibility(); }),
+    textSizeControl(),
     h('h3', {}, tx('Informazioni', 'About', 'À propos')),
-    h('p', { class: 'muted small' }, tx(
-      'Vastity · catalogo stellare HYG v4.1 (CC BY-SA 4.0, astronexus), costellazioni e Messier da d3-celestial (BSD-3), calcoli con Astronomy Engine (MIT), meteo da Open-Meteo, orbita della ISS da CelesTrak. Texture planetarie e panorama della Via Lattea: Solar System Scope (CC BY 4.0), basate su dati NASA/ESO. Distanze Messier e catalogo Caldwell: Wikipedia (CC BY-SA 4.0). Render delle galassie da foto di M101, M83 e NGC 1300 (NASA/ESA Hubble, ESO, NOIRLab) e dall\'illustrazione della Via Lattea di NASA/JPL-Caltech/R. Hurt.',
-      'Vastity · HYG v4.1 star catalogue (CC BY-SA 4.0, astronexus), constellations and Messier from d3-celestial (BSD-3), calculations by Astronomy Engine (MIT), weather from Open-Meteo, ISS orbit from CelesTrak. Planet textures and Milky Way panorama: Solar System Scope (CC BY 4.0), based on NASA/ESO data. Messier distances and Caldwell catalogue: Wikipedia (CC BY-SA 4.0). Galaxy renders from photos of M101, M83 and NGC 1300 (NASA/ESA Hubble, ESO, NOIRLab) and the Milky Way illustration by NASA/JPL-Caltech/R. Hurt.',
-      'Vastity · catalogue d\'étoiles HYG v4.1 (CC BY-SA 4.0, astronexus), constellations et Messier de d3-celestial (BSD-3), calculs avec Astronomy Engine (MIT), météo Open-Meteo, orbite de l\'ISS par CelesTrak. Textures planétaires et panorama de la Voie lactée : Solar System Scope (CC BY 4.0), d\'après des données NASA/ESO. Distances Messier et catalogue Caldwell : Wikipédia (CC BY-SA 4.0). Rendus des galaxies d\'après des photos de M101, M83 et NGC 1300 (NASA/ESA Hubble, ESO, NOIRLab) et l\'illustration de la Voie lactée de NASA/JPL-Caltech/R. Hurt.')),
-    h('details', { class: 'credits' },
-      h('summary', {}, tx('Crediti delle foto delle galassie', 'Galaxy photo credits', 'Crédits des photos de galaxies')),
-      h('ul', { class: 'muted small' }, ...Object.entries(galaxyPhotos).map(([id, p]) => h('li', {},
-        `${refName({ kind: 'deep', id })}: `, h('a', { href: p.source, target: '_blank', rel: 'noopener' }, p.file), ` · ${p.credit || 'Wikimedia Commons'} · ${p.license}`)))),
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn', onclick: () => openCredits() }, icon('journal'), tx('Crediti e licenze', 'Credits and licences', 'Crédits et licences')),
+      diagButton()),
   );
   openSheet('settings', tx('Impostazioni', 'Settings', 'Réglages'), body, { wide: true });
+}
+
+/** Dimensione del testo dell'interfaccia (90–130%). */
+function textSizeControl() {
+  const v = state.settings.textScale ?? 1;
+  const lbl = h('b', {}, `${Math.round(v * 100)}%`);
+  const r = h('input', { type: 'range', min: '0.9', max: '1.3', step: '0.05', value: String(v), class: 'range', 'aria-label': tx('Dimensione del testo', 'Text size', 'Taille du texte') }) as HTMLInputElement;
+  r.addEventListener('input', () => { state.settings.textScale = +r.value; lbl.textContent = `${Math.round(+r.value * 100)}%`; applyAccessibility(); });
+  r.addEventListener('change', () => saveSettings());
+  return h('label', { class: 'full' }, h('span', {}, tx('Dimensione del testo: ', 'Text size: ', 'Taille du texte : '), lbl), r);
+}
+
+/** Applica le preferenze di accessibilità all'interfaccia. */
+export function applyAccessibility() {
+  document.documentElement.style.setProperty('--ts', String(state.settings.textScale ?? 1));
+  document.body.classList.toggle('reduce-motion', reducedMotion());
+}
+
+function diagButton() {
+  const n = issueCount();
+  return h('button', { class: 'btn', onclick: async () => {
+    const rep = diagnosticsReport(api.gl());
+    try { await navigator.clipboard.writeText(rep); toast(tx('Rapporto copiato: incollalo nella mail all\'assistenza', 'Report copied: paste it into your email to support', 'Rapport copié : collez-le dans votre e-mail au support')); }
+    catch { toast(tx('Impossibile copiare il rapporto', 'Could not copy the report', 'Impossible de copier le rapport')); }
+  } }, icon('settings'), tx(`Diagnostica (${n})`, `Diagnostics (${n})`, `Diagnostic (${n})`));
+}
+
+/** Crediti e licenze: fonti dei dati, texture e ogni foto di galassia con autore e licenza. */
+export function openCredits() {
+  const src: [string, string, string][] = [
+    ['HYG Database v4.1', 'astronexus', 'CC BY-SA 4.0'],
+    ['d3-celestial (costellazioni, Messier)', 'Olaf Frohn', 'BSD-3-Clause'],
+    ['Astronomy Engine', 'Don Cross', 'MIT'],
+    ['satellite.js (SGP4)', 'Shashwat Kandadai e altri', 'MIT'],
+    ['Three.js', 'three.js authors', 'MIT'],
+    ['Capacitor', 'Ionic', 'MIT'],
+    ['Open-Meteo', 'open-meteo.com', 'CC BY 4.0'],
+    ['CelesTrak (orbita ISS)', 'CelesTrak', 'uso pubblico'],
+    [tx('Texture planetarie e Via Lattea', 'Planet textures and Milky Way', 'Textures planétaires et Voie lactée'), 'Solar System Scope (NASA/ESO)', 'CC BY 4.0'],
+    [tx('Illustrazione della Via Lattea', 'Milky Way illustration', 'Illustration de la Voie lactée'), 'NASA/JPL-Caltech/R. Hurt', 'NASA/JPL'],
+    [tx('Distanze Messier, catalogo Caldwell', 'Messier distances, Caldwell catalogue', 'Distances Messier, catalogue Caldwell'), 'Wikipedia', 'CC BY-SA 4.0'],
+    ['Inter, Space Grotesk, JetBrains Mono', 'Rasmus Andersson, Florian Karsten, JetBrains', 'SIL OFL 1.1'],
+  ];
+  const body = h('div', { class: 'credits-page' },
+    h('p', { class: 'muted' }, tx('Vastity è costruita con dati, immagini e strumenti aperti. Grazie a chi li rende disponibili.', 'Vastity is built with open data, images and tools. Thanks to everyone who makes them available.', 'Vastity est construite avec des données, images et outils ouverts. Merci à celles et ceux qui les rendent disponibles.')),
+    h('h3', {}, tx('Dati e software', 'Data and software', 'Données et logiciels')),
+    h('div', { class: 'list' }, ...src.map(([a, b, c]) => h('div', { class: 'row static' }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, a), h('div', { class: 'row-s' }, `${b} · ${c}`))))),
+    h('h3', {}, tx('Foto delle galassie', 'Galaxy photos', 'Photos des galaxies')),
+    h('div', { class: 'list' }, ...Object.entries(galaxyPhotos).map(([id, p]) => h('a', { class: 'row', href: p.source, target: '_blank', rel: 'noopener' },
+      h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, refName({ kind: 'deep', id })), h('div', { class: 'row-s' }, `${p.credit || 'Wikimedia Commons'} · ${p.license}`))))),
+  );
+  openSheet('credits', tx('Crediti e licenze', 'Credits and licences', 'Crédits et licences'), body, { wide: true });
+}
+
+/** Slider della qualità grafica: Auto (consigliata per il dispositivo) → Massima. */
+function qualityControl() {
+  const ids = ['auto', 'low', 'mid', 'high', 'ultra'] as const;
+  const names: Record<string, string> = {
+    low: tx('Bassa', 'Low', 'Basse'), mid: tx('Media', 'Medium', 'Moyenne'), high: tx('Alta', 'High', 'Haute'), ultra: tx('Massima', 'Maximum', 'Maximale'),
+  };
+  const cur = state.settings.quality ?? 'auto';
+  const lbl = h('b', {});
+  const hint = h('p', { class: 'muted small' });
+  const paint = (id: string) => {
+    lbl.textContent = id === 'auto' ? `${tx('Automatica', 'Automatic', 'Automatique')} · ${names[detectedTier]}` : names[id];
+    hint.textContent = id === 'ultra'
+      ? tx('Tutto al massimo, senza riduzioni automatiche: più bello, ma può scaldare il telefono e consumare batteria.', 'Everything maxed out with no automatic reductions: prettier, but it may heat up your phone and use more battery.', 'Tout au maximum, sans réduction automatique : plus beau, mais le téléphone peut chauffer et consommer plus.')
+      : id === 'auto' ? tx(`Scelta in base al tuo dispositivo (${names[detectedTier]}). L'app si adatta da sola per restare fluida.`, `Chosen for your device (${names[detectedTier]}). The app adapts itself to stay smooth.`, `Choisie selon votre appareil (${names[detectedTier]}). L'app s'adapte pour rester fluide.`)
+      : tx('Più alta è la qualità, più stelle, polveri e dettagli; meno fluidità sui dispositivi lenti.', 'Higher quality means more stars, dust and detail, and less smoothness on slow devices.', 'Plus la qualité est haute, plus il y a d\'étoiles, de poussières et de détails ; moins de fluidité sur les appareils lents.');
+  };
+  const range = h('input', { type: 'range', min: '0', max: '4', step: '1', value: String(ids.indexOf(cur)), class: 'range', 'aria-label': tx('Qualità grafica', 'Graphics quality', 'Qualité graphique') }) as HTMLInputElement;
+  range.addEventListener('input', () => paint(ids[+range.value]));
+  range.addEventListener('change', () => {
+    const id = ids[+range.value];
+    if (id === (state.settings.quality ?? 'auto')) return;
+    state.settings.quality = id;
+    saveSettings();
+    toast(tx('Applico la nuova qualità…', 'Applying the new quality…', 'Application de la nouvelle qualité…'));
+    setTimeout(() => location.reload(), 700);
+  });
+  paint(cur);
+  return h('label', { class: 'full quality' }, h('span', {}, tx('Qualità grafica: ', 'Graphics quality: ', 'Qualité graphique : '), lbl), range,
+    h('div', { class: 'range-ticks' }, h('span', {}, 'Auto'), h('span', {}, names.low), h('span', {}, names.mid), h('span', {}, names.high), h('span', {}, names.ultra)), hint);
 }
 
 function bortleName(b: number) {

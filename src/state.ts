@@ -26,6 +26,16 @@ export interface Settings {
   realRelativity: boolean;
   tutorialDone: boolean;
   alerts: Record<string, boolean>;
+  /** Qualità grafica: 'auto' (in base al dispositivo) o low/mid/high/ultra. */
+  quality?: 'auto' | 'low' | 'mid' | 'high' | 'ultra';
+  /** Riduci movimento (accessibilità). */
+  reduceMotion?: boolean;
+  /** Dimensione del testo: 1 = normale. */
+  textScale?: number;
+  /** Suoni ambientali ed effetti. */
+  sound?: boolean;
+  /** Vibrazioni leggere sui tocchi importanti. */
+  haptics?: boolean;
 }
 
 type Listener = (...args: any[]) => void;

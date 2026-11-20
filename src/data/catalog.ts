@@ -1,6 +1,7 @@
 // Caricamento dei cataloghi (stelle HYG, costellazioni, Messier) e utilità.
 import { lang, tx } from '../i18n';
 import { EXTRA_STARS, GalaxyShape, deepObjects } from './deep';
+import { localName } from './names';
 
 export const PC_IN_LY = 3.26156;
 export const PC_IN_KM = 3.0856775814913673e13;
@@ -77,25 +78,50 @@ export let messier: Messier[] = [];
 export interface GalaxyPhoto { kind: 'face' | 'edge'; q: number; file: string; license: string; credit: string; source: string }
 export let galaxyPhotos: Record<string, GalaxyPhoto> = {};
 
-export async function loadCatalogs() {
-  const [s, c, m, wiki] = await Promise.all([
-    fetch('data/stars.json').then((r) => r.json()),
-    fetch('data/constellations.json').then((r) => r.json()),
-    fetch('data/messier.json').then((r) => r.json()),
-    fetch('data/deepsky.json').then((r) => r.json()).catch(() => ({ messier: {}, caldwell: [] })),
-    fetch('data/galaxy-photos.json').then((r) => r.json()).then((g) => { galaxyPhotos = g; }).catch(() => {}),
-  ]);
-  const rows: any[] = [...s.rows];
-  const names = [...s.names];
-  // stelle estreme non presenti in HYG (supergiganti, Wolf-Rayet, LBV)
-  for (const x of EXTRA_STARS) {
-    const d = x.ly / PC_IN_LY;
-    const v = radecToVec(x.ra, x.dec);
-    names.push([x.name, x.desig, '', x.spect]);
-    rows.push([v[0] * d, v[1] * d, v[2] * d, x.absmag, 1.5, names.length - 1, '', 0, x.temp]);
+/** Avanzamento del caricamento (0–1), per la schermata iniziale. */
+export let onLoadProgress: ((p: number) => void) | null = null;
+export function setLoadProgress(cb: (p: number) => void) { onLoadProgress = cb; }
+
+/** Scarica un file riportando l'avanzamento (se il server indica la dimensione). */
+async function fetchBuffer(url: string, weight: number, done: { v: number }): Promise<ArrayBuffer> {
+  const r = await fetch(url);
+  const total = +(r.headers.get('content-length') ?? 0);
+  if (!r.body || !total) { const b = await r.arrayBuffer(); done.v += weight; onLoadProgress?.(done.v); return b; }
+  const reader = r.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let got = 0;
+  for (;;) {
+    const { done: end, value } = await reader.read();
+    if (end) break;
+    chunks.push(value);
+    got += value.length;
+    onLoadProgress?.(done.v + weight * Math.min(1, got / total));
   }
-  s.names = names;
-  const n = rows.length;
+  done.v += weight;
+  const out = new Uint8Array(got);
+  let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out.buffer;
+}
+
+export async function loadCatalogs() {
+  const prog = { v: 0 };
+  const json = async (url: string, w: number) => JSON.parse(new TextDecoder().decode(await fetchBuffer(url, w, prog)));
+  const [bin, meta, c, m, wiki] = await Promise.all([
+    fetchBuffer('data/stars.bin', 0.45, prog),
+    json('data/stars-meta.json', 0.3),
+    json('data/constellations.json', 0.05),
+    json('data/messier.json', 0.02),
+    json('data/deepsky.json', 0.02).catch(() => ({ messier: {}, caldwell: [] })),
+    json('data/galaxy-photos.json', 0.02).then((g) => { galaxyPhotos = g; }).catch(() => {}),
+  ]);
+  // catalogo binario: Float32 x,y,z,absmag,ci · Int32 nome · Uint8 costellazione · Uint8 distanza ignota
+  const N0: number = meta.count;
+  const f32 = new Float32Array(bin, 0, N0 * 5);
+  const i32 = new Int32Array(bin, N0 * 20, N0);
+  const u8 = new Uint8Array(bin, N0 * 24, N0 * 2);
+  const names: [string, string, string, string][] = [...meta.names];
+  const n = N0 + EXTRA_STARS.length;
   const cat: StarCatalog = {
     count: n,
     pos: new Float32Array(n * 3),
@@ -105,19 +131,27 @@ export async function loadCatalogs() {
     name: new Int32Array(n),
     con: new Array(n),
     distUnknown: new Uint8Array(n),
-    names: s.names.map((n: [string, string, string, string]) => [STAR_NAMES[n[0]]?.[lang] ?? n[0], n[1], n[2], n[3]]),
+    names: [],
   };
-  rows.forEach((r, i) => {
-    cat.pos[i * 3] = r[0];
-    cat.pos[i * 3 + 1] = r[1];
-    cat.pos[i * 3 + 2] = r[2];
-    cat.absmag[i] = r[3];
-    cat.ci[i] = r[4];
-    cat.temp[i] = r[8] ?? bvToTemp(r[4]);
-    cat.name[i] = r[5];
-    cat.con[i] = r[6];
-    cat.distUnknown[i] = r[7];
+  for (let i = 0; i < N0; i++) {
+    cat.pos[i * 3] = f32[i * 5]; cat.pos[i * 3 + 1] = f32[i * 5 + 1]; cat.pos[i * 3 + 2] = f32[i * 5 + 2];
+    cat.absmag[i] = f32[i * 5 + 3];
+    cat.ci[i] = f32[i * 5 + 4];
+    cat.temp[i] = bvToTemp(f32[i * 5 + 4]);
+    cat.name[i] = i32[i];
+    cat.con[i] = u8[i] ? meta.cons[u8[i] - 1] : '';
+    cat.distUnknown[i] = u8[N0 + i];
+  }
+  // stelle estreme non presenti in HYG (supergiganti, Wolf-Rayet, LBV)
+  EXTRA_STARS.forEach((x, k) => {
+    const i = N0 + k;
+    const d = x.ly / PC_IN_LY;
+    const v = radecToVec(x.ra, x.dec);
+    names.push([x.name, x.desig, '', x.spect]);
+    cat.pos[i * 3] = v[0] * d; cat.pos[i * 3 + 1] = v[1] * d; cat.pos[i * 3 + 2] = v[2] * d;
+    cat.absmag[i] = x.absmag; cat.ci[i] = 1.5; cat.temp[i] = x.temp; cat.name[i] = names.length - 1; cat.con[i] = ''; cat.distUnknown[i] = 0;
   });
+  cat.names = names.map((nm) => [STAR_NAMES[nm[0]]?.[lang] ?? nm[0], nm[1], nm[2], nm[3]]);
   stars = cat;
   constellations = Object.entries(c).map(([id, v]: [string, any]) => ({ id, name: v[lang] || v.la, la: v.la, gen: v.gen, rank: v.rank, c: v.c, lines: v.lines }));
   messier = m;
@@ -319,5 +353,5 @@ export const MESSIER_EXTRA: Record<string, { name?: string; ly: number }> = {
 };
 
 export function messierName(m: Messier) {
-  return MESSIER_EXTRA[m.id]?.name ?? (m.alt || m.id);
+  return MESSIER_EXTRA[m.id]?.name ?? (m.alt ? localName(m.alt) : m.id);
 }

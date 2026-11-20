@@ -267,7 +267,7 @@ void main() {
 }
 `;
 
-interface GalaxyMesh { obj: DeepObject; center: THREE.Vector3; R: number; disk: THREE.Mesh; core: THREE.Mesh; hasParticles: boolean; edge: THREE.Mesh | null; normal: THREE.Vector3 }
+interface GalaxyMesh { obj: DeepObject; center: THREE.Vector3; R: number; disk: THREE.Mesh; core: THREE.Mesh; hasParticles: boolean; edge: THREE.Mesh | null; normal: THREE.Vector3; spin: number; spinDir: number }
 interface ExoticMesh { obj: DeepObject; center: THREE.Vector3; R: number; mesh: THREE.Mesh }
 
 const SHAPES: Record<string, number> = { spiral: 0, barred: 1, elliptical: 2, lenticular: 3, irregular: 4, ring: 5 };
@@ -369,7 +369,7 @@ export class DeepRenderer {
           edge.renderOrder = 0.22;
           this.group.add(edge);
         }
-        this.galaxies.push({ obj: o, center, R, disk, core, hasParticles: PARTICLE_GALAXIES.includes(o.id), edge, normal });
+        this.galaxies.push({ obj: o, center, R, disk, core, hasParticles: PARTICLE_GALAXIES.includes(o.id), edge, normal, spin: 0, spinDir: seed % 3 ? 1 : -1 });
       } else if (o.type === 'gc' || o.type === 'oc') {
         // bagliore d'insieme dell'ammasso: si dissolve quando le singole stelle si risolvono
         const center = deepCenterPc(o);
@@ -403,7 +403,10 @@ export class DeepRenderer {
     }
   }
 
+  private lastTime = 0;
   update(obsPc: THREE.Vector3, time: number, dim: number, spin: number, pixPerRad: number) {
+    const dt = Math.min(0.1, Math.max(0, time - this.lastTime));
+    this.lastTime = time;
     this.obs.value.copy(obsPc);
     this.time.value = time;
     for (const g of this.galaxies) {
@@ -422,7 +425,12 @@ export class DeepRenderer {
       }
       const edgePhoto = !!g.edge && (g.edge.material as THREE.ShaderMaterial).uniforms.uUseMap.value > 0.5;
       (g.disk.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.95 * (1 - (edgePhoto ? 1 : 0.75) * edgeK);
-      (g.disk.material as THREE.ShaderMaterial).uniforms.uSpin.value = g.obj.id === 'milkyway' ? -spin : 0;
+      // ogni galassia ruota lentamente quando la si guarda da vicino (come la Via Lattea)
+      if (g.obj.id !== 'milkyway') {
+        const near = smooth(7 * g.R, 1.6 * g.R, d);
+        g.spin += dt * 0.035 * near * g.spinDir;
+      }
+      (g.disk.material as THREE.ShaderMaterial).uniforms.uSpin.value = g.obj.id === 'milkyway' ? -spin : g.spin;
       (g.core.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.8 * (1 - 0.45 * edgeK) * ((g.disk.material as THREE.ShaderMaterial).uniforms.uUseMap.value ? 0.35 : 1);
       g.disk.visible = g.core.visible = k > 0.005;
       if (g.hasParticles) this.particleFactor[g.obj.id] = 1 - 0.97 * far;

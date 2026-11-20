@@ -69,8 +69,17 @@ void main() {
     vec3 s1 = texture2D(uMap, uv + w * 0.004 + vec2(uTime * 0.0006, 0.0)).rgb;
     vec3 s2 = texture2D(uMap, uv * 1.003 - w * 0.003 - vec2(uTime * 0.0004, 0.0)).rgb;
     float g = mix(lum(s1), lum(s2), 0.5 + 0.5 * sin(uTime * 0.7));
+    // granulazione che ribolle: celle convettive che nascono e muoiono
+    vec2 gp = uv * vec2(260.0, 130.0);
+    float gran = noise(gp + vec2(uTime * 0.35, -uTime * 0.22)) * 0.55 + noise(gp * 2.1 - vec2(uTime * 0.5, uTime * 0.3)) * 0.45;
+    float cells = smoothstep(0.35, 0.75, gran);
+    // macchie e facole che si spostano lentamente con la rotazione
+    float act = noise(uv * vec2(18.0, 9.0) + vec2(uTime * 0.01, 0.0));
     float limb = 0.35 + 0.65 * pow(mu, 0.45);
-    vec3 col = uColor * (0.55 + 1.1 * g) * limb * uBright;
+    vec3 col = uColor * (0.5 + 1.0 * g + 0.28 * cells - 0.35 * smoothstep(0.78, 0.92, act)) * limb * uBright;
+    // fiammelle al bordo (spicole) che tremolano
+    float edge = 1.0 - mu;
+    col += vec3(1.0, 0.55, 0.25) * smoothstep(0.82, 1.0, edge) * noise(vec2(atan(n.y, n.x) * 30.0, uTime * 0.8)) * 0.9 * uBright;
     col += uColor * pow(1.0 - mu, 3.0) * 0.6;
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
@@ -114,6 +123,12 @@ void main() {
     col = base * light * limb;
   } else {
     col = base * light;
+    // riflessi: lucentezza della regolite verso la luce (effetto opposizione) e lieve brillio che cambia con il punto di vista
+    vec3 Hh = normalize(L + V);
+    float sheen = pow(max(dot(n, Hh), 0.0), 18.0) * 0.18 + pow(max(dot(V, L), 0.0), 6.0) * 0.12 * light;
+    col += base * sheen * (0.9 + 0.1 * sin(uTime * 0.6 + vObj.x * 0.02));
+    // luce cinerea: il lato notturno appena illuminato dalla Terra (bluastra)
+    col += base * vec3(0.55, 0.65, 0.9) * 0.035 * (1.0 - smoothstep(-0.1, 0.15, NdL));
   }
 
   // atmosfera vista di taglio (Rayleigh semplificato)
@@ -230,13 +245,27 @@ uniform float uLit;
 uniform vec3 uPlanetV;
 uniform float uPlanetR;
 uniform vec3 uLight;
+uniform float uTime;
 varying vec2 vP;
 varying vec3 vPosV;
+float rh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float rn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(rh(i), rh(i + vec2(1, 0)), f.x), mix(rh(i + vec2(0, 1)), rh(i + vec2(1, 1)), f.x), f.y); }
 void main() {
   #include <logdepthbuf_fragment>
-  float r = (length(vP) - uInner) / (uOuter - uInner);
+  float rad = length(vP);
+  float r = (rad - uInner) / (uOuter - uInner);
   if (r < 0.0 || r > 1.0) discard;
   vec4 t = texture2D(uMap, vec2(r, 0.5));
+  // rotazione kepleriana (accelerata per vederla): l'interno gira più veloce dell'esterno
+  float omega = 0.035 * pow(uInner / rad, 1.5);
+  float th = atan(vP.y, vP.x) - uTime * omega;
+  vec2 ang = vec2(cos(th), sin(th));
+  float clump = rn(ang * 60.0 + vec2(r * 140.0, 0.0)) * 0.6 + rn(ang * 220.0 + vec2(r * 500.0, 3.0)) * 0.4;
+  t.a *= 0.86 + 0.28 * clump;
+  // "spoke": raggi scuri e tenui nell'anello B che ruotano con le particelle
+  float spoke = smoothstep(0.62, 0.9, rn(vec2(th * 9.0, r * 3.0))) * smoothstep(0.25, 0.4, r) * (1.0 - smoothstep(0.55, 0.62, r));
+  t.rgb *= 1.0 - 0.18 * spoke;
   vec3 rel = vPosV - uPlanetV;
   vec3 L = normalize(uLight);
   float along = dot(rel, L);
@@ -255,7 +284,7 @@ export function ringMaterial(inner: number, outer: number) {
     blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
     uniforms: {
       uMap: { value: ringTexture() }, uInner: { value: inner }, uOuter: { value: outer }, uLit: { value: 1 },
-      uPlanetV: { value: new THREE.Vector3() }, uPlanetR: { value: 58232 }, uLight: { value: new THREE.Vector3(1, 0, 0) },
+      uPlanetV: { value: new THREE.Vector3() }, uPlanetR: { value: 58232 }, uLight: { value: new THREE.Vector3(1, 0, 0) }, uTime: { value: 0 },
     },
   });
 }

@@ -12,12 +12,14 @@ import { V3, v3 } from './astro/astro';
 import { bus, setTime, simDate, state, tick } from './state';
 import { attachPointer } from './ui/pointer';
 import { closeSheet, h, icon, iconButton, initSheet, initToasts, openSheet, sheetOpen, toast } from './ui/dom';
-import { AppApi, initPanels, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
+import { AppApi, applyAccessibility, initPanels, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
 import { ObjRef, refName, sameRef, search } from './features/objects';
 import { activeMissions, ensureDailyMissions, flag, tryComplete } from './features/missions';
 import { loadISS } from './features/iss';
-import { AU_IN_KM, C_KMS, stars } from './data/catalog';
+import { AU_IN_KM, C_KMS, setLoadProgress, stars } from './data/catalog';
 import { AdaptiveResolution } from './core/quality';
+import { feel, reducedMotion } from './core/feel';
+import { initDiagnostics } from './core/diagnostics';
 import { initTextures } from './core/textures';
 import { startTutorial } from './ui/tutorial';
 import { LOCALE, num, tx } from './i18n';
@@ -36,12 +38,17 @@ function findHip(hip: string) {
 const routeTo = (r: ObjRef) => tx(`Rotta verso ${refName(r)}`, `Course set for ${refName(r)}`, `Cap sur ${refName(r)}`);
 const LYS = tx('anni luce', 'light years', 'années-lumière');
 const loader = document.getElementById('loader');
+const loaderBar = document.querySelector('.loader-bar b') as HTMLElement | null;
 
 async function main() {
+  // schermata iniziale: barra di avanzamento reale del caricamento dei cataloghi
+  setLoadProgress((p) => { if (loaderBar) loaderBar.style.transform = `scaleX(${Math.min(1, p / 0.86)})`; });
   await loadCatalogs();
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
   const adaptive = new AdaptiveResolution(renderer);
+  initDiagnostics(renderer.domElement);
+  applyAccessibility();
   initTextures(renderer);
   renderer.setClearColor(0x000000, 1);
   renderer.domElement.className = 'gl';
@@ -86,6 +93,7 @@ async function main() {
     share: () => share(),
     tutorial: () => { closeSheet(); setTimeout(() => startTutorial(ui), 350); },
     ar: () => sky.ar,
+    gl: () => renderer.getContext() as WebGL2RenderingContext,
     setAR: async (on) => {
       if (on) {
         try {
@@ -219,6 +227,7 @@ async function main() {
       }
       state.mode = m;
       document.body.dataset.mode = m;
+      feel.setMode(m);
       closeSheet();
       updateHud();
       bus.emit('mode', m);
@@ -272,10 +281,19 @@ async function main() {
 
   // ------------------------------------------------------------------ input
   attachPointer(renderer.domElement, () => (state.mode === 'sky' ? sky.handlers() : ship.handlers()));
-  bus.on('select', (r: ObjRef | null) => { if (r && state.mode === 'sky') showInfo(r); });
-  bus.on('ship-select', (r: ObjRef) => { ship.target = r; showInfo(r); });
-  bus.on('flash', () => { flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on'); });
+  bus.on('select', (r: ObjRef | null) => { if (r && state.mode === 'sky') { feel.select(); showInfo(r); } });
+  bus.on('ship-select', (r: ObjRef) => { ship.target = r; feel.select(); showInfo(r); });
+  bus.on('flash', () => { if (reducedMotion()) return; flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on'); });
+  // suoni e vibrazioni: l'audio si sblocca al primo tocco; un "tic" discreto sui pulsanti
+  window.addEventListener('pointerdown', () => feel.unlock(), { once: true, capture: true });
+  document.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('button')) feel.tick(); }, { capture: true });
+  // regolatore di prestazioni: se il dispositivo fatica, si spengono gli effetti più costosi
+  adaptive.onStruggle = () => {
+    bg.lite = true;
+    toast(tx('Ho alleggerito alcuni effetti per mantenere la fluidità (Impostazioni → Grafica)', 'I lightened some effects to keep things smooth (Settings → Graphics)', 'J\'ai allégé certains effets pour rester fluide (Réglages → Graphismes)'));
+  };
   bus.on('arrived', (r: ObjRef) => {
+    feel.arrive();
     toast(`${tx('Arrivato', 'Arrived', 'Arrivé')}: ${refName(r)}`);
     if (r.kind === 'star') flag('star');
     if (r.kind === 'messier' && r.id === 'M31') flag('andromeda');
@@ -369,6 +387,7 @@ async function main() {
 
   function updateShipHud() {
     const t = ship.telemetry();
+    feel.setWarp(Math.max(0, Math.min(1, (Math.log10(Math.max(1, t.speed)) - 3) / 7)));
     tSpeed.textContent = formatSpeed(t.speed);
     const parts: string[] = [];
     if (t.beta > 0.4 && t.beta < 1) { const g = num(t.gamma, t.gamma < 10 ? 2 : 0), g1 = num(t.gamma, 1, 1); parts.push(`γ ${g} · ` + tx(`a bordo il tempo scorre ${g1}× più lento`, `time on board runs ${g1}× slower`, `à bord, le temps s'écoule ${g1}× plus lentement`)); }
@@ -404,7 +423,7 @@ async function main() {
     reticle.classList.toggle('holding', !!hit);
     if (hit && holdT > 1.5) {
       holdT = 0;
-      if ((state.live || Math.abs(state.time - Date.now()) < 15 * 60e3) && sky.place.id === 'earth') { tryComplete(hit.ref); updateHud(); }
+      if ((state.live || Math.abs(state.time - Date.now()) < 15 * 60e3) && sky.place.id === 'earth') { if (tryComplete(hit.ref)) feel.success(); updateHud(); }
       else if (!warnedLive) { warnedLive = true; toast(tx('Per completare le missioni torna al tempo reale dalla Terra', 'To complete missions, return to real time on Earth', 'Pour accomplir les missions, revenez au temps réel depuis la Terre')); }
     }
   }
@@ -497,7 +516,22 @@ async function main() {
   });
 
   if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});
-  (window as any).vastity = { sky, ship, state, setMode, setTime };
+  (window as any).vastity = {
+    sky, ship, state, setMode, setTime,
+    /** Test: disegna un fotogramma e restituisce l'alfa minimo del canvas (deve essere 255: niente "buchi" trasparenti). */
+    debugAlpha() {
+      if (state.mode === 'sky') { sky.update(0.016); sky.render(renderer); } else { ship.update(0.016); ship.render(renderer); }
+      const gl = renderer.getContext();
+      const w = gl.drawingBufferWidth, hh = gl.drawingBufferHeight;
+      const px = new Uint8Array(4);
+      let min = 255;
+      for (let i = 1; i < 12; i++) for (let j = 1; j < 8; j++) {
+        gl.readPixels(Math.floor((w * i) / 12), Math.floor((hh * j) / 8), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        min = Math.min(min, px[3]);
+      }
+      return min;
+    },
+  };
 }
 
 main().catch((e) => {

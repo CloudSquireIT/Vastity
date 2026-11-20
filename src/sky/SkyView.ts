@@ -18,6 +18,7 @@ import { bus, simDate, state } from '../state';
 import { LabelLayer } from '../ui/labels';
 import { tx } from '../i18n';
 import { PointerHandlers } from '../ui/pointer';
+import { native } from '../core/native';
 
 const D2R = Math.PI / 180;
 
@@ -253,6 +254,7 @@ export class SkyView {
   }
 
   // --- giroscopio -----------------------------------------------------------
+  private stopNative: (() => void) | null = null;
   private onOrient = (e: DeviceOrientationEvent) => {
     if (e.alpha == null || e.beta == null || e.gamma == null) return;
     let alpha = e.alpha;
@@ -273,6 +275,10 @@ export class SkyView {
 
   async setGyro(on: boolean): Promise<boolean> {
     if (on) {
+      // app nativa: sensori del sistema tramite Capacitor (più stabili del browser)
+      this.stopNative?.();
+      this.stopNative = await native.orientation((alpha, beta, gamma) => this.onOrient({ alpha, beta, gamma } as DeviceOrientationEvent));
+      if (this.stopNative) { this.alphaOffset = null; this.gyroHas = false; state.gyro = true; bus.emit('gyro'); return true; }
       const DOE = DeviceOrientationEvent as any;
       if (typeof DOE?.requestPermission === 'function') {
         try { if ((await DOE.requestPermission()) !== 'granted') return false; } catch { return false; }
@@ -285,6 +291,8 @@ export class SkyView {
       else w.addEventListener('deviceorientation', this.onOrient);
       state.gyro = true;
     } else {
+      this.stopNative?.();
+      this.stopNative = null;
       window.removeEventListener('deviceorientationabsolute' as any, this.onOrient);
       window.removeEventListener('deviceorientation', this.onOrient);
       state.gyro = false;
@@ -618,6 +626,7 @@ export class SkyView {
       ru.uPlanetR.value = R;
       ru.uLight.value.copy(L);
       ru.uLit.value = 0.25 + 0.75 * Math.abs(this.vC.dot(this.vB.set(...b.lightDir)));
+      ru.uTime.value = this.time;
     }
   }
 

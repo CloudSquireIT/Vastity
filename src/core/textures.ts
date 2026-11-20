@@ -6,6 +6,15 @@ import { quality } from './quality';
 const HI_RES = new Set(['earth', 'moon', 'mars', 'jupiter', 'milkyway']);
 const cache = new Map<string, THREE.Texture>();
 const loader = new THREE.TextureLoader();
+// decodifica delle immagini fuori dal thread principale (niente scatti mentre arrivano le texture)
+const bitmapOK = typeof createImageBitmap === 'function';
+const bitmapLoader = new THREE.ImageBitmapLoader();
+bitmapLoader.setOptions({ imageOrientation: 'flipY', premultiplyAlpha: 'none' });
+
+function loadImage(url: string, onLoad: (img: any, isBitmap: boolean) => void) {
+  if (bitmapOK) bitmapLoader.load(url, (b) => onLoad(b, true), undefined, () => loader.load(url, (t) => onLoad(t.image, false)));
+  else loader.load(url, (t) => onLoad(t.image, false));
+}
 let maxAniso = 4;
 
 export function initTextures(renderer: THREE.WebGLRenderer) {
@@ -32,15 +41,16 @@ export function planetTexture(name: string, color = true): THREE.Texture {
   tex.userData.ready = false;
   cache.set(key, tex);
   const final = folderFor(name);
-  const apply = (img: THREE.Texture) => {
-    tex.image = img.image;
+  const apply = (img: any, isBitmap: boolean) => {
+    tex.image = img;
+    tex.flipY = !isBitmap; // le ImageBitmap arrivano già capovolte
     tex.needsUpdate = true;
     tex.userData.ready = true;
   };
   if (final !== '1k') {
-    loader.load(`textures/1k/${name}.webp`, (t) => { if (!tex.userData.final) apply(t); });
+    loadImage(`textures/1k/${name}.webp`, (img, b) => { if (!tex.userData.final) apply(img, b); });
   }
-  loader.load(`textures/${final}/${name}.webp`, (t) => { tex.userData.final = true; apply(t); });
+  loadImage(`textures/${final}/${name}.webp`, (img, b) => { tex.userData.final = true; apply(img, b); });
   return tex;
 }
 

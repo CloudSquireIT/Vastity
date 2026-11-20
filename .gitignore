@@ -3,3 +3,4 @@ dist
 .data-src
 *.log
 .DS_Store
+test-results/
