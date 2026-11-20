@@ -20,6 +20,12 @@ Web app (PWA) per esplorare il cielo in tempo reale e viaggiare nello spazio in 
 6. **Viste condivise.** Per ora è un link che riapre lo stesso cielo, alla stessa ora e nella stessa direzione. L'osservazione di gruppo in diretta richiederà un piccolo server.
 9. **Avvisi intelligenti.** Copre passaggi della ISS, sciami di meteore, congiunzioni, opposizioni, elongazioni, eclissi e fasi lunari, tutti incrociati con il meteo. Le notifiche arrivano mentre l'app è aperta, e c'è l'esportazione nel calendario (.ics) per promemoria affidabili.
 
+**Grafica e movimento**
+- Texture reali per pianeti, Luna e Sole (Terra con notte, luci delle città, nuvole che si muovono e oceani che riflettono il Sole), atmosfere luminose, anelli di Saturno con l'ombra del pianeta.
+- Via Lattea volumetrica con polveri scure, regioni di formazione stellare e nucleo luminoso, che ruota lentamente vista da fuori. Nebulose 3D da attraversare.
+- Qualità adattiva: risoluzione e dettaglio si regolano sul dispositivo per restare fluidi anche a 120 Hz.
+- Interfaccia in stile liquid glass, etichette leggibili e toccabili, tutorial iniziale.
+
 **Navicella**
 - Puoi posizionarla ovunque: in orbita terrestre, vicino ai pianeti, su Proxima Centauri, Sirio, Betelgeuse, le Pleiadi, la Nebulosa di Orione, sopra la Via Lattea o su Andromeda.
 - La manetta va da 1 km/s fino a 0,9999 c con effetti relativistici reali: aberrazione, effetto Doppler e dilatazione del tempo. Oltre c'è un "motore a curvatura" fino a 10¹² volte la luce.
@@ -72,3 +78,4 @@ Con `@capacitor/local-notifications` gli avvisi diventano notifiche di sistema a
 - Costellazioni e Messier: [d3-celestial](https://github.com/ofrohn/d3-celestial), BSD-3-Clause
 - Calcoli: [Astronomy Engine](https://github.com/cosinekitty/astronomy), MIT; [satellite.js](https://github.com/shashwatak/satellite-js), MIT
 - Meteo: [Open-Meteo](https://open-meteo.com); orbite ISS: [CelesTrak](https://celestrak.org)
+- Texture di pianeti, Luna e Sole: [Solar System Scope](https://www.solarsystemscope.com/textures/), CC BY 4.0, basate su dati NASA (convertite in WebP in 3 risoluzioni in `public/textures`)

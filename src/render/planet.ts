@@ -1,23 +1,19 @@
-// Materiali procedurali per pianeti, stelle e anelli (nessuna texture esterna).
+// Materiali dei corpi celesti con texture reali (Solar System Scope, CC BY 4.0):
+// rilievo dalle texture, Terra con notte/nuvole/oceani, atmosfere, Sole animato, anelli con ombra.
 import * as THREE from 'three';
+import { blankTexture, planetTexture, ringTexture } from '../core/textures';
 
-const NOISE = /* glsl */ `
-float hash3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-float vnoise(vec3 x) {
-  vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mix(hash3(i), hash3(i + vec3(1,0,0)), f.x), mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x), f.y),
-             mix(mix(hash3(i + vec3(0,0,1)), hash3(i + vec3(1,0,1)), f.x), mix(hash3(i + vec3(0,1,1)), hash3(i + vec3(1,1,1)), f.x), f.y), f.z);
-}
-float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * vnoise(p); p *= 2.03; a *= 0.5; } return s; }
-`;
+export const PT = { rocky: 0, gas: 1, earth: 2, venus: 3, star: 4, mars: 5 } as const;
 
 const vert = /* glsl */ `
 #include <common>
 #include <logdepthbuf_pars_vertex>
-varying vec3 vObj;
+varying vec2 vUv;
 varying vec3 vNormalV;
 varying vec3 vPosV;
+varying vec3 vObj;
 void main() {
+  vUv = uv;
   vObj = position;
   vNormalV = normalize(normalMatrix * normal);
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
@@ -28,86 +24,175 @@ void main() {
 `;
 
 const frag = /* glsl */ `
+#include <common>
 #include <logdepthbuf_pars_fragment>
+uniform sampler2D uMap;
+uniform sampler2D uSCL;
+uniform float uHasMap;
 uniform vec3 uColor;
-uniform vec3 uColor2;
-uniform vec3 uLight;   // direzione verso la stella, spazio vista
-uniform float uType;   // 0 roccioso, 1 gassoso, 2 Terra, 3 Venere, 4 stella, 5 Marte
+uniform vec3 uLight;
+uniform float uType;
 uniform float uTime;
-uniform float uSeed;
+uniform float uBump;
 uniform vec3 uAtm;
-varying vec3 vObj;
+uniform float uAtmK;
+uniform float uCloudOffset;
+uniform float uBright;
+varying vec2 vUv;
 varying vec3 vNormalV;
 varying vec3 vPosV;
-${NOISE}
+varying vec3 vObj;
+
+float lum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+vec3 perturb(vec3 surfPos, vec3 n, vec2 dHdxy) {
+  vec3 sx = dFdx(surfPos), sy = dFdy(surfPos);
+  vec3 r1 = cross(sy, n), r2 = cross(n, sx);
+  float det = dot(sx, r1);
+  vec3 grad = sign(det) * (dHdxy.x * r1 + dHdxy.y * r2);
+  return normalize(abs(det) * n - grad);
+}
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+
 void main() {
   #include <logdepthbuf_fragment>
-  vec3 p = normalize(vObj);
   vec3 n = normalize(vNormalV);
   vec3 V = normalize(-vPosV);
   vec3 L = normalize(uLight);
-  vec3 col;
+  vec2 uv = vUv;
+
+  // --- stelle (Sole e stelle vicine): superficie ribollente e bordo più scuro ---
   if (uType > 3.5 && uType < 4.5) {
     float mu = max(dot(n, V), 0.0);
-    float gran = fbm(p * 40.0 + uTime * 0.05) * 0.25 + fbm(p * 6.0 - uTime * 0.01) * 0.2;
-    col = uColor * (0.45 + 0.55 * pow(mu, 0.5)) * (0.85 + gran) * 1.6;
+    vec2 w = vec2(noise(uv * 40.0 + uTime * 0.15), noise(uv * 40.0 - uTime * 0.12)) - 0.5;
+    vec3 s1 = texture2D(uMap, uv + w * 0.004 + vec2(uTime * 0.0006, 0.0)).rgb;
+    vec3 s2 = texture2D(uMap, uv * 1.003 - w * 0.003 - vec2(uTime * 0.0004, 0.0)).rgb;
+    float g = mix(lum(s1), lum(s2), 0.5 + 0.5 * sin(uTime * 0.7));
+    float limb = 0.35 + 0.65 * pow(mu, 0.45);
+    vec3 col = uColor * (0.55 + 1.1 * g) * limb * uBright;
+    col += uColor * pow(1.0 - mu, 3.0) * 0.6;
     gl_FragColor = vec4(col, 1.0);
+    #include <colorspace_fragment>
     return;
   }
-  vec3 q = p * 2.0 + uSeed;
-  float diff = max(dot(n, L), 0.0);
-  float term = smoothstep(-0.05, 0.25, dot(n, L));
-  float spec = 0.0;
-  if (uType < 0.5 || (uType > 4.5)) {
-    float h = fbm(q * 1.6);
-    float cr = fbm(q * 7.0);
-    col = mix(uColor * 0.55, uColor * 1.15, h) * (0.8 + 0.4 * cr);
-    if (uType > 4.5) {
-      col = mix(col, uColor2, smoothstep(0.55, 0.7, fbm(q * 2.5)) * 0.6);
-      col = mix(col, vec3(0.95), smoothstep(0.9, 0.94, abs(p.z)));
-    }
-  } else if (uType < 1.5) {
-    float w = fbm(p * vec3(3.0, 3.0, 1.0) + uSeed) * 1.6;
-    float b = sin(p.z * 22.0 + w * 2.5) * 0.5 + 0.5;
-    float b2 = sin(p.z * 9.0 + w) * 0.5 + 0.5;
-    col = mix(uColor, uColor2, b * 0.7 + b2 * 0.3);
-    col *= 0.85 + 0.3 * fbm(p * 12.0 + uSeed);
-  } else if (uType < 2.5) {
-    float h = fbm(p * 2.3 + 3.1);
-    float land = smoothstep(0.5, 0.53, h);
-    vec3 ocean = vec3(0.02, 0.09, 0.25) + vec3(0.0, 0.05, 0.08) * fbm(p * 8.0);
-    float lat = abs(p.z);
-    vec3 ground = mix(vec3(0.12, 0.28, 0.08), vec3(0.45, 0.38, 0.22), smoothstep(0.55, 0.7, h) + smoothstep(0.1, 0.35, 0.35 - abs(lat - 0.35)) * 0.4);
-    col = mix(ocean, ground, land);
-    col = mix(col, vec3(0.92), smoothstep(0.82, 0.88, lat + fbm(p * 6.0) * 0.08));
-    float cl = smoothstep(0.52, 0.72, fbm(p * 4.5 + vec3(uTime * 0.004, 0.0, 0.0)));
-    col = mix(col, vec3(1.0), cl * 0.85);
-    vec3 R = reflect(-L, n);
-    spec = pow(max(dot(R, V), 0.0), 40.0) * (1.0 - land) * (1.0 - cl) * 0.6;
-    // luci delle città sul lato notturno
-    float city = land * (1.0 - cl) * smoothstep(0.62, 0.8, fbm(p * 30.0)) * (1.0 - smoothstep(0.75, 0.85, lat));
-    col += vec3(1.0, 0.75, 0.4) * city * (1.0 - term) * 0.5 / max(diff, 0.02) * 0.02;
-  } else {
-    float s = fbm(p * vec3(2.0, 2.0, 5.0) + uSeed);
-    col = mix(uColor * 0.85, uColor2, s);
+
+  vec3 base = uHasMap > 0.5 ? texture2D(uMap, uv).rgb : uColor;
+  // rilievo dalla luminosità della texture (crateri, canyon, catene montuose)
+  if (uBump > 0.0 && uHasMap > 0.5) {
+    vec2 dx = dFdx(uv), dy = dFdy(uv);
+    float h0 = lum(texture2D(uMap, uv).rgb);
+    vec2 dH = vec2(lum(texture2D(uMap, uv + dx).rgb) - h0, lum(texture2D(uMap, uv + dy).rgb) - h0) * uBump;
+    n = perturb(vPosV, n, dH);
   }
-  vec3 lit = col * (term * (0.25 + 0.85 * diff)) + col * 0.008 + spec;
-  float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);
-  lit += uAtm * rim * (smoothstep(-0.3, 0.4, dot(n, L)));
-  gl_FragColor = vec4(lit, 1.0);
+  float NdL = dot(n, L);
+  float NdV = max(dot(n, V), 0.0);
+  float light = smoothstep(-0.06, 0.22, NdL) * (0.35 + 0.65 * max(NdL, 0.0));
+  vec3 col;
+
+  if (uType > 1.5 && uType < 2.5) {
+    // Terra: oceani speculari, nuvole in movimento con ombra, luci delle città di notte
+    vec4 scl = texture2D(uSCL, uv);
+    float ocean = scl.r;
+    float clouds = texture2D(uSCL, uv + vec2(uCloudOffset, 0.0)).g;
+    float shadow = texture2D(uSCL, uv + vec2(uCloudOffset, 0.0) + vec2(0.0015, 0.0)).g;
+    vec3 day = base * (1.0 - shadow * 0.35);
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(n, H), 0.0), 70.0) * ocean * (1.0 - clouds) * 0.9;
+    col = mix(day, vec3(0.95), clouds * 0.92) * light;
+    col += vec3(1.0, 0.92, 0.8) * spec * smoothstep(0.0, 0.2, NdL);
+    float nightSide = 1.0 - smoothstep(-0.12, 0.08, NdL);
+    col += vec3(1.0, 0.72, 0.38) * pow(scl.b, 1.6) * nightSide * (1.0 - clouds * 0.8) * 1.6;
+    // arrossamento al terminatore
+    col *= mix(vec3(1.0), vec3(1.15, 0.8, 0.6), smoothstep(0.25, 0.0, NdL) * smoothstep(-0.1, 0.05, NdL) * 0.6);
+  } else if (uType > 0.5 && uType < 1.5 || (uType > 2.5 && uType < 3.5)) {
+    // giganti gassosi e Venere: bordo più scuro e lento scorrimento delle bande
+    float lat = uv.y - 0.5;
+    vec2 flow = vec2(uTime * 0.0004 * sin(lat * 40.0), 0.0);
+    base = uHasMap > 0.5 ? texture2D(uMap, uv + flow).rgb : base;
+    float limb = mix(1.0, pow(NdV, 0.35), 0.55);
+    col = base * light * limb;
+  } else {
+    col = base * light;
+  }
+
+  // atmosfera vista di taglio (Rayleigh semplificato)
+  if (uAtmK > 0.0) {
+    float fres = pow(1.0 - NdV, 2.6);
+    float litRim = smoothstep(-0.35, 0.45, NdL);
+    col += uAtm * fres * litRim * uAtmK;
+  }
+  col += base * 0.006; // luce cinerea minima
+  gl_FragColor = vec4(col, 1.0);
+  #include <colorspace_fragment>
 }
 `;
 
-export function planetMaterial(type: number, c1: THREE.ColorRepresentation, c2: THREE.ColorRepresentation, atm: THREE.ColorRepresentation, seed: number) {
+export interface PlanetLook { type: number; map?: string; color?: number; atm?: number; atmK?: number; bump?: number; bright?: number }
+
+export function planetMaterial(look: PlanetLook) {
+  const map = look.map ? planetTexture(look.map) : blankTexture;
+  const scl = look.type === PT.earth ? planetTexture('earth_scl', false) : blankTexture;
   return new THREE.ShaderMaterial({
     vertexShader: vert, fragmentShader: frag,
     uniforms: {
-      uColor: { value: new THREE.Color(c1) }, uColor2: { value: new THREE.Color(c2) }, uLight: { value: new THREE.Vector3(1, 0, 0) },
-      uType: { value: type }, uTime: { value: 0 }, uSeed: { value: seed }, uAtm: { value: new THREE.Color(atm) },
+      uMap: { value: map }, uSCL: { value: scl }, uHasMap: { value: look.map ? 1 : 0 },
+      uColor: { value: new THREE.Color(look.color ?? 0xffffff) }, uLight: { value: new THREE.Vector3(1, 0, 0) },
+      uType: { value: look.type }, uTime: { value: 0 }, uBump: { value: look.bump ?? 0 },
+      uAtm: { value: new THREE.Color(look.atm ?? 0x000000) }, uAtmK: { value: look.atmK ?? 0 },
+      uCloudOffset: { value: 0 }, uBright: { value: look.bright ?? 1.25 },
     },
   });
 }
 
+/** Sfera con le UV allineate agli assi del corpo (polo = +Z, meridiano zero = +X). */
+export function bodySphere(segments: number) {
+  const g = new THREE.SphereGeometry(1, segments, Math.round(segments / 2));
+  g.rotateX(Math.PI / 2);
+  return g;
+}
+
+// --- alone atmosferico (guscio esterno) -------------------------------------
+const atmVert = /* glsl */ `
+#include <common>
+#include <logdepthbuf_pars_vertex>
+varying vec3 vN;
+varying vec3 vP;
+void main() {
+  vN = normalize(normalMatrix * normal);
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vP = mv.xyz;
+  gl_Position = projectionMatrix * mv;
+  #include <logdepthbuf_vertex>
+}
+`;
+const atmFrag = /* glsl */ `
+#include <logdepthbuf_pars_fragment>
+uniform vec3 uColor;
+uniform vec3 uLight;
+uniform float uK;
+varying vec3 vN;
+varying vec3 vP;
+void main() {
+  #include <logdepthbuf_fragment>
+  vec3 n = normalize(vN);
+  vec3 V = normalize(-vP);
+  float edge = pow(clamp(1.0 + dot(n, V) * 1.15, 0.0, 1.0), 3.0);
+  float lit = smoothstep(-0.45, 0.6, dot(n, normalize(uLight)));
+  vec3 c = mix(uColor * vec3(1.4, 0.75, 0.55), uColor, smoothstep(0.0, 0.5, lit));
+  gl_FragColor = vec4(c * edge * lit * uK, 1.0);
+}
+`;
+
+export function atmosphereMaterial(color: number, k: number) {
+  return new THREE.ShaderMaterial({
+    vertexShader: atmVert, fragmentShader: atmFrag, side: THREE.BackSide, transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uColor: { value: new THREE.Color(color) }, uLight: { value: new THREE.Vector3(1, 0, 0) }, uK: { value: k } },
+  });
+}
+
+// --- anelli di Saturno con l'ombra del pianeta --------------------------------
 const ringVert = /* glsl */ `
 #include <common>
 #include <logdepthbuf_pars_vertex>
@@ -122,21 +207,31 @@ void main() {
 }
 `;
 const ringFrag = /* glsl */ `
+#include <common>
 #include <logdepthbuf_pars_fragment>
+uniform sampler2D uMap;
 uniform float uInner;
 uniform float uOuter;
 uniform float uLit;
+uniform vec3 uPlanetV;
+uniform float uPlanetR;
+uniform vec3 uLight;
 varying vec2 vP;
-float h(float x) { return fract(sin(x * 127.1) * 43758.5453); }
+varying vec3 vPosV;
 void main() {
   #include <logdepthbuf_fragment>
   float r = (length(vP) - uInner) / (uOuter - uInner);
   if (r < 0.0 || r > 1.0) discard;
-  float bands = 0.55 + 0.45 * sin(r * 90.0) * sin(r * 23.0 + 1.0);
-  float gap = smoothstep(0.56, 0.58, r) * (1.0 - smoothstep(0.6, 0.62, r));
-  float a = (0.35 + 0.5 * bands) * (1.0 - gap * 0.9) * smoothstep(0.0, 0.05, r) * (1.0 - smoothstep(0.95, 1.0, r));
-  vec3 c = mix(vec3(0.75, 0.68, 0.55), vec3(0.95, 0.9, 0.8), h(floor(r * 60.0)));
-  gl_FragColor = vec4(c * a * uLit, a * 0.9);
+  vec4 t = texture2D(uMap, vec2(r, 0.5));
+  vec3 rel = vPosV - uPlanetV;
+  vec3 L = normalize(uLight);
+  float along = dot(rel, L);
+  float perp = length(rel - along * L);
+  float sh = along < 0.0 ? smoothstep(uPlanetR * 0.97, uPlanetR * 1.03, perp) : 1.0;
+  float a = t.a;
+  vec3 c = t.rgb * (0.2 + 0.8 * uLit) * (0.08 + 0.92 * sh);
+  gl_FragColor = vec4(c * a, a);
+  #include <colorspace_fragment>
 }
 `;
 
@@ -144,7 +239,10 @@ export function ringMaterial(inner: number, outer: number) {
   return new THREE.ShaderMaterial({
     vertexShader: ringVert, fragmentShader: ringFrag, side: THREE.DoubleSide, transparent: true, depthWrite: false,
     blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
-    uniforms: { uInner: { value: inner }, uOuter: { value: outer }, uLit: { value: 1 } },
+    uniforms: {
+      uMap: { value: ringTexture() }, uInner: { value: inner }, uOuter: { value: outer }, uLit: { value: 1 },
+      uPlanetV: { value: new THREE.Vector3() }, uPlanetR: { value: 58232 }, uLight: { value: new THREE.Vector3(1, 0, 0) },
+    },
   });
 }
 

@@ -166,7 +166,8 @@ function frameFromAxes(E: V3, N: V3, U: V3): [V3, V3, V3] {
   return [E, U, [-N[0], -N[1], -N[2]]];
 }
 
-function bodySurfaceFrame(body: A.Body, date: Date, latDeg: number, lonDeg: number) {
+/** Assi del corpo in EQJ: X = meridiano zero, Z = polo nord, Y = 90° est (convenzione IAU). */
+export function bodyAxes(body: A.Body, date: Date): { X: V3; Y: V3; Z: V3 } {
   const ax = A.RotationAxis(body, date);
   const pole = toV(ax.north);
   const a0 = ax.ra * 15 * D2R;
@@ -174,7 +175,11 @@ function bodySurfaceFrame(body: A.Body, date: Date, latDeg: number, lonDeg: numb
   const W = ax.spin * D2R;
   const pxn = v3.cross(pole, node);
   const X: V3 = v3.add(v3.scale(node, Math.cos(W)), v3.scale(pxn, Math.sin(W)));
-  const Y = v3.cross(pole, X);
+  return { X, Y: v3.cross(pole, X), Z: pole };
+}
+
+function bodySurfaceFrame(body: A.Body, date: Date, latDeg: number, lonDeg: number) {
+  const { X, Y, Z: pole } = bodyAxes(body, date);
   const lat = latDeg * D2R, lon = lonDeg * D2R;
   const eq = v3.add(v3.scale(X, Math.cos(lon)), v3.scale(Y, Math.sin(lon)));
   const U = v3.add(v3.scale(eq, Math.cos(lat)), v3.scale(pole, Math.sin(lat)));

@@ -2,7 +2,11 @@
 import * as THREE from 'three';
 import { Background } from '../render/background';
 import { BodySprite } from '../render/bodies';
-import { Place, SkyFrame, V3, horToEqj, placeById, skyFrame, v3 } from '../astro/astro';
+import { Place, SkyFrame, V3, bodyAxes, bodyById, horToEqj, placeById, skyFrame, v3 } from '../astro/astro';
+import { planetTexture } from '../core/textures';
+import { damp } from '../core/motion';
+
+const TEXTURED = new Set(['sun', 'mercury', 'venus', 'earth', 'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']);
 import { constellations, messier, messierName, radecToVec, starAppMag, starName, stars } from '../data/catalog';
 import { ObjRef, refDirection, sameRef } from '../features/objects';
 import { issLook } from '../features/iss';
@@ -47,6 +51,7 @@ void main() {
 const groundFrag = /* glsl */ `
 uniform vec3 uColor;
 uniform float uLight;
+uniform float uAlpha;
 varying vec3 vDir;
 void main() {
   vec3 v = normalize(vDir);
@@ -54,7 +59,7 @@ void main() {
   vec3 c = uColor * (0.12 + 0.88 * uLight) * (1.0 - 0.5 * smoothstep(0.0, 0.6, d));
   float rim = exp(-d * 120.0) * 0.6;
   c += vec3(0.25, 0.32, 0.45) * rim * (0.3 + uLight * 0.7);
-  gl_FragColor = vec4(c, 1.0);
+  gl_FragColor = vec4(c * uAlpha, uAlpha);
 }
 `;
 
@@ -75,7 +80,7 @@ export class SkyView {
   private ground: THREE.Mesh;
   private domeMat: THREE.ShaderMaterial;
   private groundMat: THREE.ShaderMaterial;
-  private labels: LabelLayer;
+  private labels: LabelLayer<ObjRef>;
   private ring: HTMLDivElement;
   private arrow: HTMLDivElement;
   private yaw = 0;      // azimut (rad) da Nord verso Est
@@ -83,7 +88,14 @@ export class SkyView {
   private fov = 70;
   private vYaw = 0;
   private vPitch = 0;
-  private slew: { y0: number; p0: number; y1: number; p1: number; t: number; f0: number; f1: number } | null = null;
+  /** Obiettivi verso cui la camera si muove in modo morbido. */
+  private tYaw = 0;
+  private tPitch = 0.5;
+  private tFov = 70;
+  private slewing = false;
+  /** Oggetto inseguito durante lo spostamento (si aggiorna se il tempo scorre). */
+  private trackRef: ObjRef | null = null;
+  private groundAlpha = 1;
   private gyroQ = new THREE.Quaternion();
   private gyroHas = false;
   private alphaOffset: number | null = null;
@@ -93,6 +105,10 @@ export class SkyView {
   private w = 1;
   private h = 1;
   private tmp = new THREE.Vector3();
+  private obsV = new THREE.Vector3();
+  private zeroV = new THREE.Vector3();
+  private m3 = new THREE.Matrix3();
+  private m3b = new THREE.Matrix3();
   private time = 0;
 
   constructor(private bg: Background, overlay: HTMLElement) {
@@ -112,7 +128,8 @@ export class SkyView {
 
     this.groundMat = new THREE.ShaderMaterial({
       vertexShader: domeVert, fragmentShader: groundFrag, side: THREE.BackSide, depthTest: false, depthWrite: false, transparent: true,
-      uniforms: { uColor: { value: new THREE.Color() }, uLight: { value: 0 } },
+      uniforms: { uColor: { value: new THREE.Color() }, uLight: { value: 0 }, uAlpha: { value: 1 } },
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
     });
     this.ground = new THREE.Mesh(new THREE.SphereGeometry(800, 48, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), this.groundMat);
     this.ground.renderOrder = 10;
@@ -122,7 +139,8 @@ export class SkyView {
     this.issSprite.mesh.visible = false;
     this.celestial.add(this.issSprite.mesh);
 
-    this.labels = new LabelLayer(overlay);
+    this.labels = new LabelLayer<ObjRef>(overlay);
+    this.labels.onPick = (r) => this.select(r);
     this.ring = document.createElement('div');
     this.ring.className = 'sel-ring';
     this.arrow = document.createElement('div');
@@ -189,21 +207,25 @@ export class SkyView {
     const v = new THREE.Vector3(...dir).applyMatrix4(this.celestial.matrix).normalize();
     const alt = Math.asin(v.y);
     let az = Math.atan2(v.x, -v.z);
-    let y0 = this.yaw;
+    const y0 = this.yaw;
     while (az - y0 > Math.PI) az -= 2 * Math.PI;
     while (az - y0 < -Math.PI) az += 2 * Math.PI;
-    if (animate) this.slew = { y0, p0: this.pitch, y1: az, p1: alt, t: 0, f0: this.fov, f1: fov ?? this.fov };
+    this.tYaw = az; this.tPitch = alt; if (fov) this.tFov = fov;
+    if (animate) this.slewing = true;
     else { this.yaw = az; this.pitch = alt; if (fov) this.fov = fov; }
   }
 
   setView(azDeg: number, altDeg: number, fov: number) {
-    this.yaw = azDeg * D2R; this.pitch = altDeg * D2R; this.fov = fov;
+    this.yaw = this.tYaw = azDeg * D2R; this.pitch = this.tPitch = altDeg * D2R; this.fov = this.tFov = fov;
   }
 
   centerOn(ref: ObjRef) {
+    this.frame = skyFrame(this.place, simDate());
+    this.applyFrame();
     const d = refDirection(ref, this.frame, this.issDir);
     if (!d) return;
-    const fov = ref.kind === 'constellation' ? 60 : ref.kind === 'body' && (ref.id === 'moon' || ref.id === 'sun') ? 8 : Math.min(this.fov, 40);
+    this.trackRef = ref;
+    const fov = ref.kind === 'constellation' ? 60 : ref.kind === 'body' && (ref.id === 'moon' || ref.id === 'sun') ? 6 : ref.kind === 'body' ? Math.min(this.tFov, 25) : Math.min(this.tFov, 40);
     this.lookAtEqj(d, true, fov);
   }
 
@@ -257,20 +279,20 @@ export class SkyView {
   handlers(): PointerHandlers {
     const radPerPx = () => (this.fov * D2R) / this.h;
     return {
-      down: () => { this.vYaw = this.vPitch = 0; this.slew = null; },
+      down: () => { this.vYaw = this.vPitch = 0; this.slewing = false; this.trackRef = null; this.tYaw = this.yaw; this.tPitch = this.pitch; },
       drag: (dx, dy) => {
         if (state.gyro) return;
-        this.yaw -= dx * radPerPx();
-        this.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch + dy * radPerPx()));
+        this.tYaw -= dx * radPerPx();
+        this.tPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.tPitch + dy * radPerPx()));
       },
-      dragEnd: (vx, vy) => { this.vYaw = -vx * radPerPx(); this.vPitch = vy * radPerPx(); },
-      pinch: (s) => { this.fov = Math.max(0.5, Math.min(100, this.fov / s)); },
-      wheel: (d) => { this.fov = Math.max(0.5, Math.min(100, this.fov * Math.exp(d * 0.001))); },
+      dragEnd: (vx, vy) => { this.vYaw = -vx * radPerPx() * 60; this.vPitch = vy * radPerPx() * 60; },
+      pinch: (s) => { this.slewing = false; this.tFov = Math.max(0.5, Math.min(100, this.tFov / s)); },
+      wheel: (d) => { this.slewing = false; this.tFov = Math.max(0.5, Math.min(100, this.tFov * Math.exp(d * 0.0012))); },
       tap: (x, y) => this.select(this.pick(x, y)),
       doubleTap: (x, y) => {
         const p = this.pick(x, y);
         if (p) { this.select(p); this.centerOn(p); }
-        else this.fov = Math.max(0.5, this.fov / 2);
+        else this.tFov = Math.max(0.5, this.tFov / 2);
       },
     };
   }
@@ -289,21 +311,23 @@ export class SkyView {
     return v3.norm([stars.pos[i * 3] - o[0], stars.pos[i * 3 + 1] - o[1], stars.pos[i * 3 + 2] - o[2]]);
   }
 
-  private visibleAlt(alt: number) { return !this.groundOn() || alt > -0.5; }
+  private visibleAlt(alt: number) { return !this.groundOn() || alt > -0.5 || this.groundAlpha < 0.6; }
   private groundOn() { return state.settings.ground && !this.ar; }
 
   pick(x: number, y: number): ObjRef | null {
     let best: ObjRef | null = null;
-    let bs = 30;
+    let bs = 34;
     const consider = (ref: ObjRef, dir: V3, bonus: number) => {
       const p = this.project(dir);
       if (!p.front || !this.visibleAlt(p.alt)) return;
       const d = Math.hypot(p.x - x, p.y - y) - bonus;
       if (d < bs) { bs = d; best = ref; }
     };
+    const pxPerRad = this.h / (2 * Math.tan((this.fov * D2R) / 2));
     for (const b of this.frame.bodies) {
       if (b.id.startsWith('exo') || b.id === 'host') continue;
-      consider({ kind: 'body', id: b.id }, b.dir, 8);
+      // il disco intero è toccabile, non solo il centro
+      consider({ kind: 'body', id: b.id }, b.dir, 14 + b.angRadius * pxPerRad);
     }
     if (this.issDir) consider({ kind: 'iss' }, this.issDir, 8);
     const lim = this.magLimit();
@@ -365,34 +389,37 @@ export class SkyView {
     this.time += dt;
     const date = simDate();
     this.frame = skyFrame(this.place, date);
-    const r = this.frame.rows;
-    this.celestial.matrix.set(
-      r[0][0], r[0][1], r[0][2], 0,
-      r[1][0], r[1][1], r[1][2], 0,
-      r[2][0], r[2][1], r[2][2], 0,
-      0, 0, 0, 1,
-    );
-    this.celestial.matrixWorldNeedsUpdate = true;
+    this.applyFrame();
+    if (this.slewing && this.trackRef) {
+      const d = refDirection(this.trackRef, this.frame, this.issDir);
+      if (d) {
+        const v = this.tmp.set(...d).applyMatrix4(this.celestial.matrix).normalize();
+        let az = Math.atan2(v.x, -v.z);
+        while (az - this.yaw > Math.PI) az -= 2 * Math.PI;
+        while (az - this.yaw < -Math.PI) az += 2 * Math.PI;
+        this.tYaw = az;
+        this.tPitch = Math.asin(v.y);
+      }
+    }
 
     // camera
-    if (this.slew) {
-      this.slew.t = Math.min(1, this.slew.t + dt / 1.1);
-      const k = this.slew.t < 0.5 ? 4 * this.slew.t ** 3 : 1 - Math.pow(-2 * this.slew.t + 2, 3) / 2;
-      this.yaw = this.slew.y0 + (this.slew.y1 - this.slew.y0) * k;
-      this.pitch = this.slew.p0 + (this.slew.p1 - this.slew.p0) * k;
-      this.fov = this.slew.f0 + (this.slew.f1 - this.slew.f0) * k;
-      if (this.slew.t >= 1) this.slew = null;
-    } else if (!state.gyro) {
-      this.yaw += this.vYaw; this.pitch += this.vPitch;
-      this.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch));
-      const damp = Math.pow(0.04, dt);
-      this.vYaw *= damp; this.vPitch *= damp;
+    // camera morbida: lo sguardo insegue il dito (o l'oggetto da centrare) con smorzamento
+    if (!state.gyro) {
+      this.tYaw += this.vYaw * dt;
+      this.tPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.tPitch + this.vPitch * dt));
+      const k = Math.exp(-3.2 * dt);
+      this.vYaw *= k; this.vPitch *= k;
+      const lam = this.slewing ? 4.2 : 22;
+      this.yaw = damp(this.yaw, this.tYaw, lam, dt);
+      this.pitch = damp(this.pitch, this.tPitch, lam, dt);
+      if (this.slewing && Math.abs(this.yaw - this.tYaw) + Math.abs(this.pitch - this.tPitch) < 1e-4) { this.slewing = false; this.trackRef = null; }
     }
+    this.fov = Math.exp(damp(Math.log(this.fov), Math.log(this.tFov), this.slewing ? 3.5 : 11, dt));
     if (state.gyro && this.gyroHas) {
       this.camera.quaternion.slerp(this.gyroQ, 1 - Math.pow(0.001, dt));
       const f = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-      this.pitch = Math.asin(f.y);
-      this.yaw = Math.atan2(f.x, -f.z);
+      this.pitch = this.tPitch = Math.asin(f.y);
+      this.yaw = this.tYaw = Math.atan2(f.x, -f.z);
     } else {
       this.camera.rotation.set(this.pitch, -this.yaw, 0, 'YXZ');
     }
@@ -417,13 +444,18 @@ export class SkyView {
     this.ground.visible = this.groundOn();
     this.groundMat.uniforms.uColor.value.setRGB(...this.place.ground);
     this.groundMat.uniforms.uLight.value = Math.max(0, Math.min(1, (this.frame.sunAlt + 8) / 20));
+    // terreno semitrasparente quando guardi un oggetto sotto l'orizzonte
+    const selDir = this.selected ? refDirection(this.selected, this.frame, this.issDir) : null;
+    const selBelow = !!selDir && this.tmp.set(...selDir).applyMatrix4(this.celestial.matrix).y < 0 && this.pitch < 0.05;
+    this.groundAlpha = damp(this.groundAlpha, selBelow ? 0.3 : 1, 5, dt);
+    this.groundMat.uniforms.uAlpha.value = this.groundAlpha;
 
     // stelle e Via Lattea
     let galDim = st.milkyWay ? 1 - day : 0;
     if (this.place.id === 'earth' && st.realisticSky) galDim *= Math.max(0, Math.min(1, (8 - st.bortle) / 4));
     if (this.ar) galDim *= 0.6;
     this.bg.update({
-      obsPc: new THREE.Vector3(...this.frame.observerPc), beta: new THREE.Vector3(), magLimit: this.magLimit(),
+      obsPc: this.obsV.set(...this.frame.observerPc), beta: this.zeroV, magLimit: this.magLimit(), spikes: this.hasAtmosphere() ? 0.45 : 0.9,
       pixelScale: dpr * Math.pow(Math.max(1, 60 / this.fov), 0.12), pixPerRad, dim: 1, galaxyDim: galDim,
       linesOpacity: st.constellations ? 0.28 * (1 - day) * (1 - day) : 0,
       twinkle: this.hasAtmosphere() ? 1 : 0, time: this.time, nearCutPc: 0.002,
@@ -434,17 +466,30 @@ export class SkyView {
     this.updateISS(date, pixPerRad, dpr, day);
   }
 
+  private applyFrame() {
+    const r = this.frame.rows;
+    this.celestial.matrix.set(
+      r[0][0], r[0][1], r[0][2], 0,
+      r[1][0], r[1][1], r[1][2], 0,
+      r[2][0], r[2][1], r[2][2], 0,
+      0, 0, 0, 1,
+    );
+    this.celestial.matrixWorldNeedsUpdate = true;
+  }
+
   private viewRot = new THREE.Matrix4();
   private updateBodies(pixPerRad: number, dpr: number, day: number) {
     const seen = new Set<string>();
     const sorted = [...this.frame.bodies].sort((a, b) => b.distKm - a.distKm);
     this.viewRot.multiplyMatrices(this.camera.matrixWorldInverse, this.celestial.matrix);
-    const viewToBody = new THREE.Matrix3().setFromMatrix4(this.viewRot.clone().invert());
+    // vista → EQJ (la trasposta della rotazione)
+    const viewToEqj = this.m3.setFromMatrix4(this.viewRot).transpose();
+    const date = simDate();
     sorted.forEach((b, k) => {
       seen.add(b.id);
       let sp = this.sprites.get(b.id);
       if (!sp) {
-        sp = new BodySprite(b.id.length * 7.3 + k);
+        sp = new BodySprite(b.id.length * 7.3 + k, TEXTURED.has(b.id) ? planetTexture(b.id) : undefined);
         this.sprites.set(b.id, sp);
         this.celestial.add(sp.mesh);
       }
@@ -475,7 +520,15 @@ export class SkyView {
       u.uStar.value = b.isStar ? 1 : 0;
       u.uDim.value = b.isStar || b.id === 'moon' ? 1 : Math.max(0.15, 1 - day * 0.85);
       u.uLight.value.set(...b.lightDir).transformDirection(this.viewRot);
-      u.uViewToBody.value.copy(viewToBody);
+      // orientamento reale del corpo (mari della Luna, macchia di Giove...)
+      const info = bodyById(b.id);
+      if (info?.body && TEXTURED.has(b.id) && disc > 5) {
+        try {
+          const ax = bodyAxes(info.body, date);
+          this.m3b.set(ax.X[0], ax.X[1], ax.X[2], ax.Y[0], ax.Y[1], ax.Y[2], ax.Z[0], ax.Z[1], ax.Z[2]);
+          u.uViewToBody.value.multiplyMatrices(this.m3b, viewToEqj);
+        } catch { u.uViewToBody.value.copy(viewToEqj); }
+      } else u.uViewToBody.value.copy(viewToEqj);
     });
     for (const [id, sp] of this.sprites) if (!seen.has(id)) sp.mesh.visible = false;
   }
@@ -509,11 +562,12 @@ export class SkyView {
     L.begin();
     const st = state.settings;
     const day = this.dayFactor();
-    const put = (dir: V3, text: string, cls: string, force = false) => {
+    const pxPerRad = this.h / (2 * Math.tan((this.fov * D2R) / 2));
+    const put = (dir: V3, text: string, cls: string, force = false, ref?: ObjRef, offset = 0) => {
       const p = this.project(dir);
       if (!p.front || p.x < -50 || p.x > this.w + 50 || p.y < -20 || p.y > this.h + 20) return;
       if (!this.visibleAlt(p.alt)) return;
-      L.add(p.x, p.y, text, cls, force);
+      L.add(p.x + offset, p.y + offset * 0.6, text, cls, force, ref);
     };
     // punti cardinali
     if (this.groundOn() || this.ar) {
@@ -525,17 +579,20 @@ export class SkyView {
       }
     }
     if (st.labels) {
-      for (const b of this.frame.bodies) put(b.dir, b.name, b.isStar ? 'body star' : 'body', true);
-      if (this.issDir) put(this.issDir, 'ISS', 'body iss', true);
+      for (const b of this.frame.bodies) {
+        const ref: ObjRef | undefined = b.id.startsWith('exo') || b.id === 'host' ? undefined : { kind: 'body', id: b.id };
+        put(b.dir, b.name, 'pill' + (b.isStar ? ' star' : ''), true, ref, Math.min(this.h * 0.3, b.angRadius * pxPerRad * 0.7));
+      }
+      if (this.issDir) put(this.issDir, 'ISS', 'pill iss', true, { kind: 'iss' });
       if (this.place.exo) put(v3.norm(v3.scale(this.frame.observerPc, -1)), tx('Sole ☉', 'Sun ☉', 'Soleil ☉'), 'body sun-far', true);
       if (day < 0.7) {
         const lim = this.magLimit();
         for (const i of this.brightNamed) {
           if (starAppMag(i) > lim) continue;
-          put(this.starDir(i), starName(i), 'star');
+          put(this.starDir(i), starName(i), 'star', false, { kind: 'star', index: i });
         }
-        if (st.constellations) for (const c of this.consCenters) put(c.dir, c.name.toUpperCase(), 'cons');
-        if (this.fov < 35) for (const m of messier) if (m.mag < 7.5) put(radecToVec(m.ra, m.dec), messierName(m), 'dso');
+        if (st.constellations) for (const c of this.consCenters) put(c.dir, c.name.toUpperCase(), 'cons', false, { kind: 'constellation', id: c.id });
+        if (this.fov < 35) for (const m of messier) if (m.mag < 7.5) put(radecToVec(m.ra, m.dec), messierName(m), 'dso', false, { kind: 'messier', id: m.id });
       }
     }
     L.end();

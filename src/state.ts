@@ -22,6 +22,9 @@ export interface Settings {
   bortle: number;
   /** true: il cielo mostra le stelle visibili davvero dalla tua zona. */
   realisticSky: boolean;
+  /** Effetti relativistici fedeli (altrimenti attenuati per chiarezza). */
+  realRelativity: boolean;
+  tutorialDone: boolean;
   alerts: Record<string, boolean>;
 }
 
@@ -53,6 +56,8 @@ const defaultSettings: Settings = {
   nightMode: false,
   bortle: 4,
   realisticSky: false,
+  realRelativity: false,
+  tutorialDone: false,
   alerts: { iss: true, meteors: true, conjunctions: true, moon: true, eclipses: true, planets: true },
 };
 

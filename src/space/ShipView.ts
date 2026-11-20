@@ -4,14 +4,17 @@ import * as THREE from 'three';
 import * as A from 'astronomy-engine';
 import { Background, GALACTIC_CENTER_PC } from '../render/background';
 import { BodySprite } from '../render/bodies';
-import { planetMaterial, ringMaterial, tempColor } from '../render/planet';
-import { BODIES, BodyInfo, V3, v3 } from '../astro/astro';
+import { PT, PlanetLook, atmosphereMaterial, bodySphere, planetMaterial, ringMaterial, tempColor } from '../render/planet';
+import { Streaks } from '../render/streaks';
+import { BODIES, BodyInfo, V3, bodyAxes, v3 } from '../astro/astro';
 import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, messier, radecToVec, starName, starPhysical, stars } from '../data/catalog';
 import { ObjRef, formatDistanceKm, refName, refPosPc } from '../features/objects';
 import { bus, simDate, state } from '../state';
 import { LabelLayer } from '../ui/labels';
 import { num, tx } from '../i18n';
 import { PointerHandlers } from '../ui/pointer';
+import { quality } from '../core/quality';
+import { SmoothValue, damp, easeInOutCubic, smoothstep } from '../core/motion';
 
 const D2R = Math.PI / 180;
 const toV = (v: A.Vector): V3 => [v.x, v.y, v.z];
@@ -20,13 +23,14 @@ interface PlanetObj {
   info: BodyInfo;
   mesh: THREE.Mesh;
   mat: THREE.ShaderMaterial;
+  atm?: THREE.Mesh;
   sprite: BodySprite;
   ring?: THREE.Mesh;
   pos: V3; // km eliocentrici
   orbit?: { pts: Float64Array; line: THREE.Line; geo: THREE.BufferGeometry };
 }
 
-interface NearStar { index: number; mesh: THREE.Mesh; mat: THREE.ShaderMaterial; sprite: BodySprite }
+interface NearStar { index: number; mesh: THREE.Mesh; mat: THREE.ShaderMaterial; sprite: BodySprite; color: THREE.Color }
 
 export interface Telemetry {
   speed: number; beta: number; warp: number; gamma: number;
@@ -35,17 +39,18 @@ export interface Telemetry {
   shipTime: number; earthTime: number; where: string; autopilot: boolean; arrived: string | null;
 }
 
-const PLANET_LOOK: Record<string, { type: number; c1: number; c2: number; atm: number }> = {
-  mercury: { type: 0, c1: 0x9a948c, c2: 0x6f6a64, atm: 0x000000 },
-  venus: { type: 3, c1: 0xe9d7a8, c2: 0xc9a86a, atm: 0x6b5a30 },
-  earth: { type: 2, c1: 0x2f6fd0, c2: 0xffffff, atm: 0x3a7bff },
-  moon: { type: 0, c1: 0xb5b2ad, c2: 0x777777, atm: 0x000000 },
-  mars: { type: 5, c1: 0xc1623a, c2: 0x5a2a18, atm: 0x6a3a22 },
-  jupiter: { type: 1, c1: 0xd8c3a0, c2: 0x9c6b45, atm: 0x40342a },
-  saturn: { type: 1, c1: 0xe8d6a6, c2: 0xb8996a, atm: 0x3a3426 },
-  uranus: { type: 1, c1: 0xa6dde6, c2: 0x8fcad8, atm: 0x3a6a78 },
-  neptune: { type: 1, c1: 0x4a6ee8, c2: 0x2c48b8, atm: 0x2a3a88 },
-  pluto: { type: 0, c1: 0xd2b89a, c2: 0x8a6a50, atm: 0x000000 },
+const LOOKS: Record<string, PlanetLook & { shell?: [number, number, number] }> = {
+  sun: { type: PT.star, map: 'sun', color: 0xffe2b0, bright: 1.45 },
+  mercury: { type: PT.rocky, map: 'mercury', bump: 2.4 },
+  venus: { type: PT.venus, map: 'venus', atm: 0xffe0a8, atmK: 0.45, shell: [0xffcf8a, 1.04, 0.9] },
+  earth: { type: PT.earth, map: 'earth', atm: 0x6fa8ff, atmK: 0.7, bump: 0.5, shell: [0x6aa2ff, 1.022, 0.7] },
+  moon: { type: PT.rocky, map: 'moon', bump: 2.8 },
+  mars: { type: PT.rocky, map: 'mars', bump: 1.8, atm: 0xe0a080, atmK: 0.22, shell: [0xe8a07a, 1.015, 0.45] },
+  jupiter: { type: PT.gas, map: 'jupiter', atm: 0xe8d6b8, atmK: 0.18 },
+  saturn: { type: PT.gas, map: 'saturn', atm: 0xf0e0b8, atmK: 0.15 },
+  uranus: { type: PT.gas, map: 'uranus', atm: 0xa8ecff, atmK: 0.35, shell: [0x9fe6ff, 1.03, 0.5] },
+  neptune: { type: PT.gas, map: 'neptune', atm: 0x6f8cff, atmK: 0.4, shell: [0x5d7cff, 1.03, 0.55] },
+  pluto: { type: PT.rocky, color: 0xc9b29a },
 };
 
 /** Magnitudine assoluta (a 1 UA dal Sole e dall'osservatore). */
@@ -107,32 +112,55 @@ export class ShipView {
   private planets: PlanetObj[] = [];
   private near: NearStar[] = [];
   private nearScanT = 0;
-  private labels: LabelLayer;
+  private labels: LabelLayer<ObjRef>;
   private w = 1;
   private h = 1;
+  private pendYaw = 0;
+  private pendPitch = 0;
   private yawV = 0;
   private pitchV = 0;
-  private rollV = 0;
   private keys = new Set<string>();
   private dust: THREE.LineSegments;
   private dustPts: Float32Array;
   private dustMat: THREE.LineBasicMaterial;
   private sunGlow: BodySprite;
+  private streaks = new Streaks();
   private time = 0;
   private labelStars: number[] = [];
   private labelScanT = 0;
-  private apStart = 0;
-  private fov = 70;
+  private baseFov = 70;
+  private fov = new SmoothValue(70, 0.6);
+  private logSpeed = new SmoothValue(-1, 0.9);
+  private lastLog = -1;
+  private shake = 0;
+  private galSpin = 0;
+  private launch: { t: number; base: V3; up: V3; quat: THREE.Quaternion } | null = null;
+  private marker: HTMLDivElement;
+  private markerArrow: HTMLDivElement;
+  private cloudOffset = 0;
+  // oggetti riutilizzati per non allocare a ogni fotogramma
+  private tq = new THREE.Quaternion();
+  private te = new THREE.Euler();
+  private tv = new THREE.Vector3();
+  private tv2 = new THREE.Vector3();
+  private upV = new THREE.Vector3();
+  private fwdTmp = new THREE.Vector3();
+  private tm = new THREE.Matrix4();
+  private obsV = new THREE.Vector3();
+  private betaV = new THREE.Vector3();
+  private fwdV = new THREE.Vector3();
+  private color = new THREE.Color();
 
   constructor(private bg: Background, overlay: HTMLElement) {
     this.scene.add(this.root);
     this.scene.add(this.camera);
-    this.labels = new LabelLayer(overlay);
+    this.labels = new LabelLayer<ObjRef>(overlay);
     this.labels.el.style.display = 'none';
-    const sphere = new THREE.SphereGeometry(1, 96, 48);
+    this.labels.onPick = (r) => bus.emit('ship-select', r);
+    const sphere = bodySphere(quality.sphereSegments);
     for (const b of BODIES) {
-      const look = PLANET_LOOK[b.id];
-      const mat = b.id === 'sun' ? planetMaterial(4, 0xfff1d6, 0xffffff, 0, 1) : planetMaterial(look.type, look.c1, look.c2, look.atm, b.id.length * 3.1);
+      const look = LOOKS[b.id];
+      const mat = planetMaterial(look);
       mat.transparent = true;
       const mesh = new THREE.Mesh(sphere, mat);
       mesh.renderOrder = 3;
@@ -142,8 +170,16 @@ export class ShipView {
       const sprite = new BodySprite(b.id.length);
       this.root.add(sprite.mesh);
       const p: PlanetObj = { info: b, mesh, mat, sprite, pos: [0, 0, 0] };
+      if (look.shell) {
+        const atm = new THREE.Mesh(sphere, atmosphereMaterial(look.shell[0], look.shell[2]));
+        atm.scale.setScalar(b.radiusKm * look.shell[1]);
+        atm.frustumCulled = false;
+        atm.renderOrder = 4;
+        this.root.add(atm);
+        p.atm = atm;
+      }
       if (b.rings) {
-        const ring = new THREE.Mesh(new THREE.RingGeometry(74500, 140220, 128, 1), ringMaterial(74500, 140220));
+        const ring = new THREE.Mesh(new THREE.RingGeometry(74500, 140220, 160, 1), ringMaterial(74500, 140220));
         ring.frustumCulled = false;
         ring.renderOrder = 6;
         this.root.add(ring);
@@ -153,10 +189,11 @@ export class ShipView {
     }
     this.sunGlow = new BodySprite(1);
     this.root.add(this.sunGlow.mesh);
+    this.root.add(this.streaks.lines);
     this.buildOrbits();
 
     // polvere spaziale per percepire la velocità
-    const N = 500;
+    const N = 420;
     this.dustPts = new Float32Array(N * 3);
     for (let i = 0; i < N * 3; i++) this.dustPts[i] = Math.random() * 2 - 1;
     const dg = new THREE.BufferGeometry();
@@ -167,12 +204,26 @@ export class ShipView {
     this.dust.renderOrder = 20;
     this.camera.add(this.dust);
 
+    // mirino del bersaglio e freccia quando è fuori schermo
+    this.marker = document.createElement('div');
+    this.marker.className = 'ship-target';
+    this.marker.innerHTML = '<i></i><i></i><i></i><i></i><span></span>';
+    this.markerArrow = document.createElement('div');
+    this.markerArrow.className = 'sel-arrow ship';
+    this.markerArrow.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3l7 12h-14z"/></svg><span></span>';
+    overlay.append(this.marker, this.markerArrow);
+    this.marker.style.display = this.markerArrow.style.display = 'none';
+
     window.addEventListener('keydown', (e) => { if (state.mode === 'ship' && !(e.target instanceof HTMLInputElement)) this.keys.add(e.key.toLowerCase()); });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
   }
 
   attach() { this.root.add(this.bg.group); this.labels.el.style.display = ''; }
-  detach() { this.labels.clear(); this.labels.el.style.display = 'none'; }
+  detach() {
+    this.labels.clear();
+    this.labels.el.style.display = 'none';
+    this.marker.style.display = this.markerArrow.style.display = 'none';
+  }
 
   private buildOrbits() {
     const now = simDate();
@@ -188,7 +239,7 @@ export class ShipView {
       }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-      const line = new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: b.id === 'moon' ? 0x8899aa : 0x4a6a9a, transparent: true, opacity: 0.45, depthWrite: false }));
+      const line = new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: b.id === 'moon' ? 0x8899aa : 0x5a7aaa, transparent: true, opacity: 0.4, depthWrite: false }));
       line.frustumCulled = false;
       line.renderOrder = 1;
       this.root.add(line);
@@ -210,21 +261,21 @@ export class ShipView {
   }
 
   /** Posizione (km) e raggio di "arrivo" per un oggetto. */
-  targetInfo(ref: ObjRef): { pos: V3; standoff: number } | null {
+  targetInfo(ref: ObjRef): { pos: V3; standoff: number; radius: number } | null {
     if (ref.kind === 'body') {
       const b = BODIES.find((x) => x.id === ref.id)!;
-      return { pos: this.bodyPosKm(ref.id), standoff: b.radiusKm * (b.id === 'sun' ? 12 : b.rings ? 7 : 4) };
+      return { pos: this.bodyPosKm(ref.id), standoff: b.radiusKm * (b.id === 'sun' ? 10 : b.rings ? 6.5 : 3.6), radius: b.radiusKm };
     }
     if (ref.kind === 'star') {
       const R = Math.min(1500, starPhysical(ref.index).R) * 696340;
-      return { pos: v3.scale([stars.pos[ref.index * 3], stars.pos[ref.index * 3 + 1], stars.pos[ref.index * 3 + 2]], PC_IN_KM), standoff: Math.max(R * 10, 3e6) };
+      return { pos: v3.scale([stars.pos[ref.index * 3], stars.pos[ref.index * 3 + 1], stars.pos[ref.index * 3 + 2]], PC_IN_KM), standoff: Math.max(R * 9, 3e6), radius: R };
     }
     if (ref.kind === 'messier') {
       const p = refPosPc(ref)!;
       const m = messier.find((x) => x.id === ref.id)!;
       const gal = ['sg', 's0', 'sd', 'i', 'e'].includes(m.type);
       const ly = gal ? (m.id === 'M31' ? 160000 : 90000) : m.type === 'gc' ? 250 : 40;
-      return { pos: v3.scale(p, PC_IN_KM), standoff: ly * LY_IN_KM };
+      return { pos: v3.scale(p, PC_IN_KM), standoff: ly * LY_IN_KM, radius: ly * LY_IN_KM * 0.3 };
     }
     return null;
   }
@@ -235,20 +286,29 @@ export class ShipView {
     if (!t) return;
     let away: V3 = v3.norm(v3.sub([0, 0, 0], t.pos));
     if (v3.len(t.pos) < 1) away = [1, 0, 0];
-    // illuminato dal Sole, leggermente di lato
     const side = v3.norm(v3.cross(away, [0, 0, 1]));
     const dir = v3.norm(v3.add(away, v3.scale(side, 0.45)));
+    this.launch = null;
     this.pos = v3.add(t.pos, v3.scale(dir, t.standoff * 1.3));
     this.lookAt(t.pos);
-    this.stop();
+    this.stop(true);
     this.target = ref;
     this.arrived = refName(ref);
   }
 
   placeAt(pos: V3, look: V3, up: V3 = [0, 0, 1]) {
+    this.launch = null;
     this.pos = pos;
     this.lookAt(look, up);
-    this.stop();
+    this.stop(true);
+  }
+
+  /** Decollo cinematografico dalla superficie della Terra. */
+  launchFrom(surface: V3, lookDir: V3, up: V3) {
+    this.placeAt(v3.add(surface, v3.scale(up, 60)), v3.add(surface, v3.scale(lookDir, 1e5)), up);
+    this.launch = { t: 0, base: surface, up, quat: this.quat.clone() };
+    this.target = null;
+    this.arrived = null;
   }
 
   aboveGalaxy() {
@@ -262,17 +322,21 @@ export class ShipView {
 
   lookAt(p: V3, up: V3 = [0, 0, 1]) {
     const d = v3.norm(v3.sub(p, this.pos));
-    const m = new THREE.Matrix4().lookAt(new THREE.Vector3(0, 0, 0), new THREE.Vector3(...d), new THREE.Vector3(...up));
-    this.quat.setFromRotationMatrix(m);
+    this.tm.lookAt(this.tv.set(0, 0, 0), this.tv2.set(d[0], d[1], d[2]), new THREE.Vector3(...up));
+    this.quat.setFromRotationMatrix(this.tm);
   }
 
-  stop() { this.speed = 0; this.targetSpeed = 0; this.autopilot = false; }
+  stop(instant = false) {
+    this.targetSpeed = 0;
+    this.autopilot = false;
+    if (instant) { this.speed = 0; this.logSpeed.value = -1; this.logSpeed.velocity = 0; }
+  }
 
   goTo(ref: ObjRef) {
     this.target = ref;
     this.autopilot = true;
     this.arrived = null;
-    this.apStart = this.time;
+    this.launch = null;
   }
 
   setThrottle(t: number) {
@@ -283,27 +347,29 @@ export class ShipView {
 
   // --- input ----------------------------------------------------------------
   handlers(): PointerHandlers {
-    const k = () => ((this.fov * D2R) / this.h);
+    const k = () => ((this.camera.fov * D2R) / this.h);
     return {
       drag: (dx, dy) => {
-        this.rotate(-dx * k(), -dy * k(), 0);
+        this.pendYaw += -dx * k();
+        this.pendPitch += -dy * k();
         if (this.autopilot) this.autopilot = false;
+        this.launch = null;
       },
-      dragEnd: (vx, vy) => { this.yawV = -vx * k() * 60; this.pitchV = -vy * k() * 60; },
+      dragEnd: (vx, vy) => { this.yawV = -vx * k() * 50; this.pitchV = -vy * k() * 50; },
       down: () => { this.yawV = this.pitchV = 0; },
-      pinch: (s) => { this.fov = Math.max(10, Math.min(100, this.fov / s)); },
-      wheel: (d) => { this.fov = Math.max(10, Math.min(100, this.fov * Math.exp(d * 0.001))); },
+      pinch: (s) => { this.baseFov = Math.max(15, Math.min(100, this.baseFov / s)); },
+      wheel: (d) => { this.baseFov = Math.max(15, Math.min(100, this.baseFov * Math.exp(d * 0.001))); },
       tap: (x, y) => { const r = this.pick(x, y); if (r) bus.emit('ship-select', r); },
     };
   }
 
   private rotate(yaw: number, pitch: number, roll: number) {
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
-    this.quat.multiply(q).normalize();
+    this.tq.setFromEuler(this.te.set(pitch, yaw, roll, 'YXZ'));
+    this.quat.multiply(this.tq).normalize();
   }
 
   forward(): V3 {
-    const f = new THREE.Vector3(0, 0, -1).applyQuaternion(this.quat);
+    const f = this.tv.set(0, 0, -1).applyQuaternion(this.quat);
     return [f.x, f.y, f.z];
   }
 
@@ -312,7 +378,7 @@ export class ShipView {
     this.time += dt;
     const date = simDate();
     const K = this.keys;
-    const kr = 1.2 * dt;
+    const kr = 1.1 * dt;
     if (K.has('a') || K.has('arrowleft')) this.rotate(kr, 0, 0);
     if (K.has('d') || K.has('arrowright')) this.rotate(-kr, 0, 0);
     if (K.has('arrowup')) this.rotate(0, kr, 0);
@@ -322,10 +388,26 @@ export class ShipView {
     if (K.has('w')) this.setThrottle(Math.min(1, speedToThrottle(Math.max(this.targetSpeed, 1)) + dt * 0.12));
     if (K.has('s')) this.setThrottle(Math.max(0, speedToThrottle(this.targetSpeed) - dt * 0.12));
     if (K.has(' ')) this.stop();
-    if (Math.abs(this.yawV) + Math.abs(this.pitchV) + Math.abs(this.rollV) > 1e-5) {
-      this.rotate(this.yawV * dt, this.pitchV * dt, this.rollV * dt);
-      const damp = Math.pow(0.05, dt);
-      this.yawV *= damp; this.pitchV *= damp; this.rollV *= damp;
+
+    // rotazione morbida: il dito guida, la navicella segue con un leggero ritardo
+    const f1 = 1 - Math.exp(-16 * dt);
+    const ry = this.pendYaw * f1, rp = this.pendPitch * f1;
+    this.pendYaw -= ry; this.pendPitch -= rp;
+    this.rotate(ry + this.yawV * dt, rp + this.pitchV * dt, 0);
+    const damping = Math.exp(-2.2 * dt);
+    this.yawV *= damping; this.pitchV *= damping;
+
+    // decollo
+    if (this.launch) {
+      const L = this.launch;
+      L.t += dt / 4.2;
+      const e = easeInOutCubic(Math.min(1, L.t));
+      const alt = 60 + 2400 * e * e + 40 * e;
+      this.pos = v3.add(L.base, v3.scale(L.up, alt));
+      // la vista si inclina verso il basso per mostrare la Terra che si allontana
+      this.tq.setFromAxisAngle(this.tv.set(1, 0, 0), -0.55 * e);
+      this.quat.copy(L.quat).multiply(this.tq);
+      if (L.t >= 1) this.launch = null;
     }
 
     // pilota automatico
@@ -335,30 +417,35 @@ export class ShipView {
         const to = v3.sub(t.pos, this.pos);
         const dist = v3.len(to);
         const remaining = dist - t.standoff;
-        const desired = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), new THREE.Vector3(...v3.norm(to)), new THREE.Vector3(0, 1, 0).applyQuaternion(this.quat)));
-        this.quat.slerp(desired, 1 - Math.pow(0.02, dt));
-        const aligned = this.quat.angleTo(desired) < 0.08 || this.time - this.apStart > 3;
-        if (remaining <= t.standoff * 0.02 || remaining < 1) {
+        const n = v3.norm(to);
+        this.tm.lookAt(this.tv.set(0, 0, 0), this.tv2.set(n[0], n[1], n[2]), this.upV.set(0, 1, 0).applyQuaternion(this.quat));
+        this.tq.setFromRotationMatrix(this.tm);
+        this.quat.slerp(this.tq, 1 - Math.exp(-2.6 * dt));
+        const angle = this.quat.angleTo(this.tq);
+        if (remaining <= Math.max(1, t.standoff * 0.015)) {
           this.stop();
           this.arrived = refName(this.target);
           bus.emit('arrived', this.target);
+          bus.emit('flash');
         } else {
-          this.targetSpeed = aligned ? Math.max(1, remaining / 1.1) : 0;
+          const aligned = smoothstep(0.6, 0.12, angle);
+          this.targetSpeed = Math.max(1, remaining / 0.55) * aligned;
         }
       }
     }
 
-    // accelerazione "logaritmica": ogni ordine di grandezza richiede lo stesso tempo
-    const rate = this.autopilot ? 4.2 : 2.5;
-    if (this.targetSpeed > this.speed) {
-      this.speed = Math.min(this.targetSpeed, Math.max(this.speed, 1) * Math.exp(rate * dt));
-    } else {
-      this.speed = Math.max(this.targetSpeed, this.speed * Math.exp(-rate * 1.6 * dt));
-      if (this.speed < 0.5) this.speed = this.targetSpeed;
-    }
+    // velocità con accelerazione "logaritmica" e smorzata: ogni ordine di grandezza
+    // richiede circa lo stesso tempo, senza strappi in partenza o in frenata
+    const goal = this.targetSpeed < 0.5 ? -1 : Math.log10(this.targetSpeed);
+    this.logSpeed.smoothTime = this.autopilot ? 0.75 : 0.9;
+    const ls = this.logSpeed.to(goal, dt);
+    this.speed = ls <= -0.5 ? 0 : Math.pow(10, ls);
+    const accel = (ls - this.lastLog) / Math.max(dt, 1e-3);
+    this.lastLog = ls;
+    this.shake = damp(this.shake, Math.min(1, Math.abs(accel) * 0.12) * (this.speed > 1000 ? 1 : 0), 6, dt);
+
     const f = this.forward();
     let step = this.speed * dt;
-    // non oltrepassare il bersaglio
     if (this.autopilot && this.target) {
       const t = this.targetInfo(this.target);
       if (t) step = Math.min(step, Math.max(0, v3.len(v3.sub(t.pos, this.pos)) - t.standoff));
@@ -369,29 +456,44 @@ export class ShipView {
     this.shipTime += dt;
     this.earthTime += dt * gamma;
 
-    // camera
+    // camera: campo visivo che si allarga con la velocità, leggero tremolio nelle accelerazioni
+    const warp = smoothstep(4.0, 10.0, Math.log10(Math.max(1, this.speed)));
+    const fov = this.fov.to(this.baseFov + 26 * warp, dt);
     this.camera.quaternion.copy(this.quat);
-    this.camera.fov = this.fov;
+    if (this.shake > 0.002) {
+      const s = this.shake * 0.0035;
+      this.tq.setFromEuler(this.te.set(Math.sin(this.time * 37) * s, Math.sin(this.time * 29 + 1) * s, 0));
+      this.camera.quaternion.multiply(this.tq);
+    }
+    this.camera.fov = fov;
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const pixPerRad = (this.h * dpr) / (2 * Math.tan((this.fov * D2R) / 2));
+    const pixPerRad = (this.h * dpr) / (2 * Math.tan((fov * D2R) / 2));
+    // effetti relativistici: "cinematografici" (leggeri) di default, realistici su richiesta
+    const betaVis = state.settings.realRelativity ? Math.min(beta, 0.9995) : beta * 0.35;
+    this.obsV.set(this.pos[0] / PC_IN_KM, this.pos[1] / PC_IN_KM, this.pos[2] / PC_IN_KM);
+    this.fwdV.set(f[0], f[1], f[2]);
+    this.betaV.copy(this.fwdV).multiplyScalar(betaVis);
+    // la galassia ruota lentamente quando la si guarda da fuori
+    const gcDist = v3.len(v3.sub(GALACTIC_CENTER_PC as V3, [this.obsV.x, this.obsV.y, this.obsV.z]));
+    this.galSpin = gcDist > 16000 ? this.galSpin + dt * 0.035 : damp(this.galSpin, 0, 0.6, dt);
     this.bg.update({
-      obsPc: new THREE.Vector3(...v3.scale(this.pos, 1 / PC_IN_KM)),
-      beta: new THREE.Vector3(...v3.scale(f, Math.min(beta, 0.9995))),
+      obsPc: this.obsV, beta: this.betaV,
       magLimit: 7.2, pixelScale: dpr, pixPerRad, dim: 1, galaxyDim: state.settings.milkyWay ? 1 : 0,
-      linesOpacity: state.settings.constellations ? 0.18 * Math.max(0, Math.min(1, (100 - v3.len(this.pos) / LY_IN_KM) / 80)) : 0, twinkle: 0, time: this.time, nearCutPc: 0.003,
+      linesOpacity: state.settings.constellations ? 0.16 * Math.max(0, Math.min(1, (100 - v3.len(this.pos) / LY_IN_KM) / 80)) : 0,
+      twinkle: 0, time: this.time, nearCutPc: 0.003, galSpin: this.galSpin,
     });
-    this.updateSolarSystem(date, pixPerRad, dpr);
+    this.streaks.update(this.obsV, this.fwdV, warp);
+    this.updateSolarSystem(date, pixPerRad, dpr, dt);
     this.updateNearStars(dt, pixPerRad, dpr);
-    this.updateDust(dt, f);
+    this.updateDust(dt, warp);
   }
 
-  private setSprite(sp: BodySprite, rel: V3, discPx: number, glowPx: number, glow: number, color: THREE.Color, star: boolean, pixPerRad: number, light?: THREE.Vector3) {
+  private setSprite(sp: BodySprite, rel: V3, discPx: number, glowPx: number, glow: number, color: THREE.Color, star: boolean, pixPerRad: number) {
     const d = v3.norm(rel);
     sp.mesh.position.set(d[0] * 900, d[1] * 900, d[2] * 900);
-    sp.mesh.quaternion.copy(this.quat);
     const u = sp.mat.uniforms;
     const quadPx = Math.max(discPx * 1.2, glowPx * 2.4);
     u.uQuad.value = (quadPx / pixPerRad) * 900;
@@ -401,15 +503,14 @@ export class ShipView {
     u.uGlow.value = glow;
     u.uStar.value = star ? 1 : 0;
     u.uColor.value.copy(color);
-    if (light) u.uLight.value.copy(light);
     sp.mesh.visible = true;
   }
 
-  private updateSolarSystem(date: Date, pixPerRad: number, dpr: number) {
-    const sunRel = v3.scale(this.pos, -1);
-    const sunDist = v3.len(sunRel);
+  private updateSolarSystem(date: Date, pixPerRad: number, dpr: number, dt: number) {
+    const sunDist = v3.len(this.pos);
     const inSystem = sunDist < 2e5 * AU_IN_KM;
     const view = this.camera.matrixWorldInverse;
+    this.cloudOffset = (this.cloudOffset + dt * 0.0012) % 1;
     for (const p of this.planets) {
       const b = p.info;
       p.pos = b.id === 'sun' ? [0, 0, 0] : this.bodyPosKm(b.id, date);
@@ -419,45 +520,52 @@ export class ShipView {
       const visibleMesh = inSystem && disc > 1.2;
       p.mesh.visible = visibleMesh;
       p.mesh.position.set(rel[0], rel[1], rel[2]);
-      const toSun = new THREE.Vector3(...v3.norm(v3.scale(p.pos, -1)));
-      if (b.body && b.id !== 'sun') {
+      const toSun = this.tv2.set(-p.pos[0], -p.pos[1], -p.pos[2]).normalize();
+      if (b.body && b.id !== 'sun' && visibleMesh) {
         try {
-          const ax = A.RotationAxis(b.body, date);
-          const pole = new THREE.Vector3(ax.north.x, ax.north.y, ax.north.z);
-          const a0 = ax.ra * 15 * D2R;
-          const node = new THREE.Vector3(-Math.sin(a0), Math.cos(a0), 0);
-          const W = ax.spin * D2R;
-          const X = node.clone().multiplyScalar(Math.cos(W)).add(new THREE.Vector3().crossVectors(pole, node).multiplyScalar(Math.sin(W)));
-          const Y = new THREE.Vector3().crossVectors(pole, X);
-          p.mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, pole));
+          const ax = bodyAxes(b.body, date);
+          this.tm.makeBasis(this.tv.set(...ax.X), this.upV.set(...ax.Y), this.fwdTmp.set(...ax.Z));
+          p.mesh.quaternion.setFromRotationMatrix(this.tm);
           if (p.ring) {
             p.ring.position.copy(p.mesh.position);
-            p.ring.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, pole));
-            p.ring.visible = visibleMesh || disc * 2.4 > 1.2;
-            (p.ring.material as THREE.ShaderMaterial).uniforms.uLit.value = 0.25 + 0.75 * Math.abs(toSun.dot(pole));
+            p.ring.quaternion.copy(p.mesh.quaternion);
+            const ru = (p.ring.material as THREE.ShaderMaterial).uniforms;
+            ru.uLit.value = 0.25 + 0.75 * Math.abs(toSun.dot(this.tv.set(...ax.Z)));
+            ru.uPlanetV.value.copy(p.mesh.position).applyMatrix4(view);
+            ru.uLight.value.copy(toSun).transformDirection(view);
           }
         } catch { /* */ }
       }
-      p.mat.uniforms.uLight.value.copy(toSun).transformDirection(view);
-      p.mat.uniforms.uTime.value = this.time;
-      // punto luminoso quando il pianeta è troppo piccolo
+      if (p.ring) p.ring.visible = inSystem && disc * 2.4 > 1.2;
+      if (p.atm) {
+        p.atm.visible = visibleMesh && disc > 4;
+        p.atm.position.copy(p.mesh.position);
+        (p.atm.material as THREE.ShaderMaterial).uniforms.uLight.value.copy(toSun).transformDirection(view);
+      }
+      const u = p.mat.uniforms;
+      u.uLight.value.copy(toSun).transformDirection(view);
+      u.uTime.value = this.time;
+      u.uCloudOffset.value = this.cloudOffset;
       if (b.id === 'sun') {
         p.sprite.mesh.visible = false;
         const glowPx = Math.max(disc * 5, 26 * dpr);
         const fade = Math.max(0, Math.min(1, 1 - Math.log10(sunDist / AU_IN_KM / 50) / 3));
-        if (fade > 0.01) this.setSprite(this.sunGlow, rel, 0, glowPx, 0.9 * fade, new THREE.Color(1, 0.93, 0.8), true, pixPerRad);
+        if (fade > 0.01) this.setSprite(this.sunGlow, rel, 0, glowPx, 0.9 * fade, this.color.setRGB(1, 0.9, 0.75), true, pixPerRad);
         else this.sunGlow.mesh.visible = false;
         this.sunGlow.mesh.renderOrder = 5;
       } else if (inSystem && disc <= 2.5) {
         const mag = (H_MAG[b.id] ?? 0) + 5 * Math.log10((dist / AU_IN_KM) * Math.max(0.01, v3.len(p.pos) / AU_IN_KM));
         const s = 7 - mag * 0.6;
-        if (s > 0) this.setSprite(p.sprite, rel, 0, Math.max(2, Math.min(9, 1.8 + s * 0.5)) * dpr, Math.min(1.2, 0.3 + s * 0.08), new THREE.Color(...b.color), false, pixPerRad);
+        if (s > 0) this.setSprite(p.sprite, rel, 0, Math.max(2, Math.min(9, 1.8 + s * 0.5)) * dpr, Math.min(1.2, 0.3 + s * 0.08), this.color.setRGB(...b.color), false, pixPerRad);
         else p.sprite.mesh.visible = false;
         p.sprite.mesh.renderOrder = 4;
       } else p.sprite.mesh.visible = false;
 
       if (p.orbit) {
         const o = p.orbit;
+        const showOrbit = state.settings.constellations && (b.id === 'moon' ? dist < 5e6 : sunDist < 300 * AU_IN_KM);
+        o.line.visible = showOrbit;
+        if (!showOrbit) continue;
         const arr = o.geo.attributes.position.array as Float32Array;
         const base = b.id === 'moon' ? this.bodyPosKm('earth', date) : [0, 0, 0];
         for (let i = 0; i < o.pts.length; i += 3) {
@@ -466,9 +574,7 @@ export class ShipView {
           arr[i + 2] = o.pts[i + 2] + base[2] - this.pos[2];
         }
         o.geo.attributes.position.needsUpdate = true;
-        const near = b.id === 'moon' ? dist < 5e6 : sunDist < 300 * AU_IN_KM;
-        o.line.visible = state.settings.constellations && near;
-        (o.line.material as THREE.LineBasicMaterial).opacity = b.id === 'moon' ? 0.3 : 0.26 * Math.max(0.15, Math.min(1, 1 - Math.log10(sunDist / AU_IN_KM / 40) / 1.2));
+        (o.line.material as THREE.LineBasicMaterial).opacity = b.id === 'moon' ? 0.3 : 0.24 * Math.max(0.15, Math.min(1, 1 - Math.log10(sunDist / AU_IN_KM / 40) / 1.2));
       }
     }
   }
@@ -486,22 +592,21 @@ export class ShipView {
       }
       found.sort((a, b) => a.d - b.d);
       const want = found.slice(0, 6).map((f) => f.i);
-      // ricicla le stelle vicine
-      for (const n of this.near) if (!want.includes(n.index)) { this.root.remove(n.mesh, n.sprite.mesh); }
+      for (const n of this.near) if (!want.includes(n.index)) { this.root.remove(n.mesh, n.sprite.mesh); n.mat.dispose(); }
       this.near = this.near.filter((n) => want.includes(n.index));
       for (const i of want) {
         if (this.near.some((n) => n.index === i)) continue;
         const ph = starPhysical(i);
         const col = tempColor(ph.T);
-        const mat = planetMaterial(4, col, col, 0, i);
+        const mat = planetMaterial({ type: PT.star, map: 'sun', color: col.getHex(), bright: 1.5 });
         mat.transparent = true;
-        const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat);
+        const mesh = new THREE.Mesh(bodySphere(64), mat);
         mesh.renderOrder = 3;
         mesh.scale.setScalar(Math.min(1500, ph.R) * 696340);
         mesh.frustumCulled = false;
         const sprite = new BodySprite(i);
         this.root.add(mesh, sprite.mesh);
-        this.near.push({ index: i, mesh, mat, sprite });
+        this.near.push({ index: i, mesh, mat, sprite, color: col });
       }
     }
     for (const n of this.near) {
@@ -512,24 +617,22 @@ export class ShipView {
       const R = n.mesh.scale.x;
       const disc = Math.atan(R / Math.max(dist, R * 1.0001)) * pixPerRad;
       n.mesh.position.set(rel[0], rel[1], rel[2]);
+      n.mesh.rotation.z = this.time * 0.01;
       n.mesh.visible = disc > 1.2;
       n.mat.uniforms.uTime.value = this.time;
-      const col = tempColor(stars.temp[i]);
       const fade = Math.max(0, Math.min(1, 1 - Math.log10(dist / AU_IN_KM / 50) / 3));
-      if (fade > 0.01) this.setSprite(n.sprite, rel, 0, Math.max(disc * 5, 22 * dpr), 0.9 * fade, col, true, pixPerRad);
+      if (fade > 0.01) this.setSprite(n.sprite, rel, 0, Math.max(disc * 5, 22 * dpr), 0.9 * fade, n.color, true, pixPerRad);
       else n.sprite.mesh.visible = false;
       n.sprite.mesh.renderOrder = 5;
     }
   }
 
-  private updateDust(dt: number, _f: V3) {
+  private updateDust(dt: number, warp: number) {
     const v = this.speed;
     const arr = this.dust.geometry.attributes.position.array as Float32Array;
     const flow = v < 1 ? 0 : 0.15 + 0.11 * Math.log10(1 + v);
-    const warp = v > C_KMS;
-    this.dustMat.opacity = Math.min(0.55, flow * 0.5) * (warp ? 1 : 0.7);
-    this.dustMat.color.setRGB(warp ? 0.7 : 0.6, warp ? 0.8 : 0.75, 1);
-    const len = Math.min(1.2, flow * (warp ? 0.9 : 0.35));
+    this.dustMat.opacity = Math.min(0.5, flow * 0.45) * (1 - warp * 0.6);
+    const len = Math.min(1.2, flow * (0.35 + warp * 0.6));
     const P = this.dustPts;
     const S = 40;
     for (let i = 0; i < P.length; i += 3) {
@@ -537,7 +640,7 @@ export class ShipView {
       if (P[i + 2] > 1) { P[i + 2] -= 2; P[i] = Math.random() * 2 - 1; P[i + 1] = Math.random() * 2 - 1; }
       let x = P[i], y = P[i + 1];
       const r = Math.hypot(x, y);
-      if (r < 0.12) { x *= 0.12 / (r || 1); y *= 0.12 / (r || 1); }
+      if (r < 0.15) { x *= 0.15 / (r || 1); y *= 0.15 / (r || 1); }
       const z = P[i + 2];
       const j = i * 2;
       arr[j] = x * S; arr[j + 1] = y * S; arr[j + 2] = z * S - S * 0.2;
@@ -549,32 +652,42 @@ export class ShipView {
 
   // --- overlay ----------------------------------------------------------------
   private project(rel: V3) {
-    const v = new THREE.Vector3(...v3.norm(rel)).multiplyScalar(1000).applyMatrix4(this.camera.matrixWorldInverse);
+    const v = this.tv.set(...v3.norm(rel)).multiplyScalar(1000).applyMatrix4(this.camera.matrixWorldInverse);
     const front = v.z < 0;
+    const vx = v.x, vy = v.y;
     v.applyMatrix4(this.camera.projectionMatrix);
-    return { x: (v.x * 0.5 + 0.5) * this.w, y: (-v.y * 0.5 + 0.5) * this.h, front };
+    return { x: (v.x * 0.5 + 0.5) * this.w, y: (-v.y * 0.5 + 0.5) * this.h, front, vx, vy };
+  }
+
+  private discPxCss(radius: number, dist: number) {
+    return (Math.atan(radius / Math.max(dist, radius * 1.0001)) * this.h) / (2 * Math.tan((this.camera.fov * D2R) / 2));
   }
 
   private pick(x: number, y: number): ObjRef | null {
     let best: ObjRef | null = null;
-    let bs = 28;
-    const c = (ref: ObjRef, rel: V3) => {
+    let bs = Infinity;
+    const c = (ref: ObjRef, rel: V3, radiusPx: number) => {
       const p = this.project(rel);
       if (!p.front) return;
       const d = Math.hypot(p.x - x, p.y - y);
-      if (d < bs) { bs = d; best = ref; }
+      const lim = Math.max(30, radiusPx + 12);
+      if (d < lim && d - radiusPx * 0.5 < bs) { bs = d - radiusPx * 0.5; best = ref; }
     };
-    for (const p of this.planets) c({ kind: 'body', id: p.info.id }, v3.sub(p.pos, this.pos));
+    for (const p of this.planets) {
+      const rel = v3.sub(p.pos, this.pos);
+      c({ kind: 'body', id: p.info.id }, rel, this.discPxCss(p.info.radiusKm * (p.info.rings ? 2.3 : 1), v3.len(rel)));
+    }
     const obs = v3.scale(this.pos, 1 / PC_IN_KM);
     for (let i = 0; i < stars.count; i++) {
       const dx = stars.pos[i * 3] - obs[0], dy = stars.pos[i * 3 + 1] - obs[1], dz = stars.pos[i * 3 + 2] - obs[2];
       const d = Math.hypot(dx, dy, dz);
       if (stars.absmag[i] + 5 * Math.log10(d) - 5 > 5.5) continue;
-      c({ kind: 'star', index: i }, [dx, dy, dz]);
+      const R = Math.min(1500, starPhysical(i).R) * 696340;
+      c({ kind: 'star', index: i }, [dx, dy, dz], this.discPxCss(R, d * PC_IN_KM));
     }
     for (const m of messier) {
       const p = refPosPc({ kind: 'messier', id: m.id })!;
-      c({ kind: 'messier', id: m.id }, v3.sub(p, obs));
+      c({ kind: 'messier', id: m.id }, v3.sub(p, obs), 0);
     }
     return best;
   }
@@ -583,25 +696,20 @@ export class ShipView {
     const L = this.labels;
     L.begin();
     const sunDist = v3.len(this.pos);
-    const put = (rel: V3, text: string, cls: string, force = false) => {
+    const put = (rel: V3, text: string, cls: string, force = false, ref?: ObjRef) => {
       const p = this.project(rel);
       if (!p.front || p.x < -40 || p.x > this.w + 40 || p.y < -20 || p.y > this.h + 20) return;
-      L.add(p.x, p.y, text, cls, force);
+      L.add(p.x, p.y, text, cls, force, ref);
     };
-    if (this.target) {
-      const t = this.targetInfo(this.target);
-      if (t) put(v3.sub(t.pos, this.pos), '◎ ' + refName(this.target), 'target', true);
-    }
     if (state.settings.labels) {
-      if (sunDist > 2000 * AU_IN_KM) put(v3.scale(this.pos, -1), tx('Sole', 'Sun', 'Soleil'), 'body sun-far', true);
+      if (sunDist > 2000 * AU_IN_KM) put(v3.scale(this.pos, -1), tx('Sole', 'Sun', 'Soleil'), 'pill star', true, { kind: 'body', id: 'sun' });
       for (const p of this.planets) {
         const rel = v3.sub(p.pos, this.pos);
         const d = v3.len(rel);
         const show = p.info.id === 'sun' ? sunDist < 2000 * AU_IN_KM : (p.info.id === 'moon' ? d < 3e7 : sunDist < 200 * AU_IN_KM);
         const isTarget = this.target?.kind === 'body' && this.target.id === p.info.id;
-        if (show && !isTarget) put(rel, p.info.name, p.info.id === 'sun' ? 'body star' : 'body', true);
+        if (show && !isTarget) put(rel, p.info.name, 'pill' + (p.info.id === 'sun' ? ' star' : ''), true, { kind: 'body', id: p.info.id });
       }
-      // stelle più luminose dalla posizione attuale
       this.labelScanT -= 1;
       const obs = v3.scale(this.pos, 1 / PC_IN_KM);
       if (this.labelScanT <= 0) {
@@ -617,20 +725,53 @@ export class ShipView {
         this.labelStars = cand.filter((c) => c.m < 6).slice(0, 30).map((c) => c.i);
       }
       for (const i of this.labelStars) {
+        if (this.target?.kind === 'star' && this.target.index === i) continue;
         const rel: V3 = [stars.pos[i * 3] - obs[0], stars.pos[i * 3 + 1] - obs[1], stars.pos[i * 3 + 2] - obs[2]];
         const dpc = v3.len(rel);
         const near = dpc < 2 ? ` · ${formatDistanceKm(dpc * PC_IN_KM)}` : '';
-        put(rel, starName(i) + near, 'star');
+        put(rel, starName(i) + near, 'star', false, { kind: 'star', index: i });
       }
-      if (sunDist > 3000 * PC_IN_KM) {
-        put(v3.sub(GALACTIC_CENTER_PC as V3, obs), tx('Centro galattico', 'Galactic centre', 'Centre galactique'), 'dso');
-      }
+      if (sunDist > 3000 * PC_IN_KM) put(v3.sub(GALACTIC_CENTER_PC as V3, obs), tx('Centro galattico', 'Galactic centre', 'Centre galactique'), 'dso');
       for (const m of messier) {
-        if (!['M31', 'M33', 'M42', 'M45', 'M13', 'M44', 'M1'].includes(m.id)) continue;
-        put(v3.sub(refPosPc({ kind: 'messier', id: m.id })!, obs), refName({ kind: 'messier', id: m.id }), 'dso');
+        if (!['M31', 'M33', 'M42', 'M45', 'M13', 'M44', 'M1', 'M8', 'M16'].includes(m.id)) continue;
+        const ref: ObjRef = { kind: 'messier', id: m.id };
+        put(v3.sub(refPosPc(ref)!, obs), refName(ref), 'dso', false, ref);
       }
     }
     L.end();
+    this.updateTargetMarker();
+  }
+
+  /** Mirino sul bersaglio (o freccia ai bordi se è fuori dallo schermo). */
+  private updateTargetMarker() {
+    const t = this.target ? this.targetInfo(this.target) : null;
+    if (!t || !this.target) { this.marker.style.display = this.markerArrow.style.display = 'none'; return; }
+    const rel = v3.sub(t.pos, this.pos);
+    const dist = v3.len(rel);
+    const p = this.project(rel);
+    const label = `${refName(this.target)} · ${formatDistanceKm(Math.max(0, dist - t.radius))}`;
+    const on = p.front && p.x > 24 && p.x < this.w - 24 && p.y > 24 && p.y < this.h - 24;
+    if (on) {
+      const size = Math.max(46, Math.min(this.h * 0.7, this.discPxCss(t.radius, dist) * 2 + 26));
+      this.marker.style.display = '';
+      this.marker.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
+      this.marker.style.setProperty('--s', `${size}px`);
+      this.marker.classList.toggle('locked', this.autopilot);
+      (this.marker.lastElementChild as HTMLElement).textContent = label;
+      this.markerArrow.style.display = 'none';
+    } else {
+      this.marker.style.display = 'none';
+      let ax = p.vx, ay = -p.vy;
+      if (!p.front && Math.hypot(ax, ay) < 1e-3) { ax = 0; ay = 1; }
+      const l = Math.hypot(ax, ay) || 1;
+      ax /= l; ay /= l;
+      const cx = this.w / 2, cy = this.h / 2, m = 56;
+      const k = Math.min((cx - m) / Math.abs(ax || 1e-6), (cy - m) / Math.abs(ay || 1e-6));
+      this.markerArrow.style.display = '';
+      this.markerArrow.style.transform = `translate3d(${cx + ax * k}px, ${cy + ay * k}px, 0)`;
+      (this.markerArrow.firstElementChild as HTMLElement).style.transform = `rotate(${Math.atan2(ay, ax) * 180 / Math.PI + 90}deg)`;
+      (this.markerArrow.lastElementChild as HTMLElement).textContent = label;
+    }
   }
 
   telemetry(): Telemetry {
@@ -642,7 +783,7 @@ export class ShipView {
     for (const n of this.near) {
       const i = n.index;
       const d = v3.len(v3.sub([stars.pos[i * 3] * PC_IN_KM, stars.pos[i * 3 + 1] * PC_IN_KM, stars.pos[i * 3 + 2] * PC_IN_KM], this.pos)) - n.mesh.scale.x;
-      if (d < nd) { nd = d; nearest = starName(i); }
+      if (d < nd && stars.name[i] >= 0) { nd = d; nearest = starName(i); }
     }
     const beta = this.speed < C_KMS * 0.99995 ? this.speed / C_KMS : 1;
     let target: string | null = null, td = '', eta = '';
@@ -651,10 +792,10 @@ export class ShipView {
       const t = this.targetInfo(this.target);
       if (t) {
         const full = v3.len(v3.sub(t.pos, this.pos));
-        const radius = this.target.kind === 'body' ? (BODIES.find((b) => b.id === (this.target as any).id)?.radiusKm ?? 0) : 0;
-        td = formatDistanceKm(Math.max(0, full - radius));
-        const v = this.speed;
-        eta = v > 1 && this.autopilot ? formatDuration(Math.max(0, full - t.standoff) / v) : '';
+        td = formatDistanceKm(Math.max(0, full - t.radius));
+        // il pilota automatico rallenta in modo esponenziale: stima del tempo reale di arrivo
+        const rem = Math.max(0, full - t.standoff);
+        eta = this.autopilot && rem > 0 ? formatDuration(Math.max(1, 0.55 * Math.log(Math.max(1, rem / Math.max(1, t.standoff * 0.015))) + 0.8)) : '';
       }
     }
     const sd = v3.len(this.pos);

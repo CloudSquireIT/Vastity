@@ -19,6 +19,7 @@ export interface AppApi {
   setPlace(id: string): void;
   setMode(m: 'sky' | 'ship'): void;
   share(): void;
+  tutorial(): void;
   setAR(on: boolean): Promise<boolean>;
   ar(): boolean;
 }
@@ -321,15 +322,17 @@ export function openSettings() {
     h('label', { class: 'full' }, h('span', {}, tx('Inquinamento luminoso (scala di Bortle) ', 'Light pollution (Bortle scale) ', 'Pollution lumineuse (échelle de Bortle) ')), bortleLbl, bortle),
     h('h3', {}, tx('Immersione', 'Immersion', 'Immersion')),
     toggle(tx('Modalità notte (rossa, protegge la vista al buio)', 'Night mode (red, protects your dark vision)', 'Mode nuit (rouge, préserve la vision nocturne)'), st.nightMode, set('nightMode')),
+    toggle(tx('Relatività realistica (le stelle si comprimono davanti a te vicino alla velocità della luce)', 'Realistic relativity (stars bunch up ahead of you near light speed)', 'Relativité réaliste (les étoiles se resserrent devant vous près de la vitesse de la lumière)'), st.realRelativity, set('realRelativity')),
     toggle(tx('Realtà aumentata con la fotocamera', 'Augmented reality with the camera', 'Réalité augmentée avec la caméra'), api.ar(), async (v) => { const ok = await api.setAR(v); if (!ok && v) toast(tx('Fotocamera non disponibile', 'Camera unavailable', 'Caméra indisponible')); }),
     h('div', { class: 'actions' },
       h('button', { class: 'btn', onclick: () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}); } }, icon('fullscreen'), tx('Schermo intero', 'Full screen', 'Plein écran')),
-      h('button', { class: 'btn', onclick: () => api.share() }, icon('share'), tx('Condividi questa vista', 'Share this view', 'Partager cette vue'))),
+      h('button', { class: 'btn', onclick: () => api.share() }, icon('share'), tx('Condividi questa vista', 'Share this view', 'Partager cette vue')),
+      h('button', { class: 'btn', onclick: () => api.tutorial() }, icon('eye'), tx('Rivedi il tutorial', 'Replay the tutorial', 'Revoir le tutoriel'))),
     h('h3', {}, tx('Informazioni', 'About', 'À propos')),
     h('p', { class: 'muted small' }, tx(
-      'Vastity · catalogo stellare HYG v4.1 (CC BY-SA 4.0, astronexus), costellazioni e Messier da d3-celestial (BSD-3), calcoli con Astronomy Engine (MIT), meteo da Open-Meteo, orbita della ISS da CelesTrak.',
-      'Vastity · HYG v4.1 star catalogue (CC BY-SA 4.0, astronexus), constellations and Messier from d3-celestial (BSD-3), calculations by Astronomy Engine (MIT), weather from Open-Meteo, ISS orbit from CelesTrak.',
-      'Vastity · catalogue d\'étoiles HYG v4.1 (CC BY-SA 4.0, astronexus), constellations et Messier de d3-celestial (BSD-3), calculs avec Astronomy Engine (MIT), météo Open-Meteo, orbite de l\'ISS par CelesTrak.')),
+      'Vastity · catalogo stellare HYG v4.1 (CC BY-SA 4.0, astronexus), costellazioni e Messier da d3-celestial (BSD-3), calcoli con Astronomy Engine (MIT), meteo da Open-Meteo, orbita della ISS da CelesTrak. Texture planetarie: Solar System Scope (CC BY 4.0), basate su dati NASA.',
+      'Vastity · HYG v4.1 star catalogue (CC BY-SA 4.0, astronexus), constellations and Messier from d3-celestial (BSD-3), calculations by Astronomy Engine (MIT), weather from Open-Meteo, ISS orbit from CelesTrak. Planet textures: Solar System Scope (CC BY 4.0), based on NASA data.',
+      'Vastity · catalogue d\'étoiles HYG v4.1 (CC BY-SA 4.0, astronexus), constellations et Messier de d3-celestial (BSD-3), calculs avec Astronomy Engine (MIT), météo Open-Meteo, orbite de l\'ISS par CelesTrak. Textures planétaires : Solar System Scope (CC BY 4.0), d\'après des données NASA.')),
   );
   openSheet('settings', tx('Impostazioni', 'Settings', 'Réglages'), body, { wide: true });
 }

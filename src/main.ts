@@ -8,12 +8,15 @@ import { ShipView, formatDuration, formatSpeed, speedToThrottle } from './space/
 import { V3, v3 } from './astro/astro';
 import { bus, setTime, simDate, state, tick } from './state';
 import { attachPointer } from './ui/pointer';
-import { closeSheet, h, icon, iconButton, initSheet, initToasts, openSheet, sheetOpen, toast } from './ui/dom';
+import { closeSheet, h, iconButton, initSheet, initToasts, openSheet, sheetOpen, toast } from './ui/dom';
 import { AppApi, initPanels, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
 import { ObjRef, refName, sameRef, search } from './features/objects';
 import { activeMissions, ensureDailyMissions, flag, tryComplete } from './features/missions';
 import { loadISS } from './features/iss';
 import { AU_IN_KM, C_KMS, stars } from './data/catalog';
+import { AdaptiveResolution } from './core/quality';
+import { initTextures } from './core/textures';
+import { startTutorial } from './ui/tutorial';
 import { LOCALE, num, tx } from './i18n';
 
 const app = document.getElementById('app')!;
@@ -35,7 +38,8 @@ async function main() {
   await loadCatalogs();
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const adaptive = new AdaptiveResolution(renderer);
+  initTextures(renderer);
   renderer.setClearColor(0x000000, 1);
   renderer.domElement.className = 'gl';
   const video = h('video', { class: 'ar-video', playsinline: true, muted: true, autoplay: true }) as HTMLVideoElement;
@@ -44,7 +48,8 @@ async function main() {
   const ui = h('div', { class: 'ui' });
   const fade = h('div', { class: 'fade' });
   const night = h('div', { class: 'night-filter' });
-  app.append(overlay, ui, fade, night);
+  const flash = h('div', { class: 'warp-flash' });
+  app.append(overlay, ui, flash, fade, night);
   initSheet(ui);
   initToasts(ui);
 
@@ -66,6 +71,7 @@ async function main() {
     setPlace: (id) => sky.setPlace(id),
     setMode: (m) => setMode(m),
     share: () => share(),
+    tutorial: () => { closeSheet(); setTimeout(() => startTutorial(ui), 350); },
     ar: () => sky.ar,
     setAR: async (on) => {
       if (on) {
@@ -94,18 +100,18 @@ async function main() {
   // ------------------------------------------------------------------ HUD
   const placeLbl = h('button', { class: 'place-lbl', onclick: () => openWorlds() });
   const brand = h('div', { class: 'brand' }, h('span', { class: 'brand-n' }, 'Vastity'), placeLbl);
-  const modeBtn = iconButton('ship', tx('Navicella', 'Spaceship', 'Vaisseau'), () => setMode(state.mode === 'sky' ? 'ship' : 'sky'), 'ibtn');
+  const searchBtn = iconButton('search', tx('Cerca', 'Search', 'Chercher'), () => (state.mode === 'ship' ? openSearch((r) => { ship.goTo(r); toast(routeTo(r)); }) : openSearch()), 'ibtn lens');
   const gyroBtn = iconButton('compass', tx('Punta il telefono', 'Point your phone', 'Pointez votre téléphone'), async () => {
     const ok = await sky.setGyro(!state.gyro);
     if (!ok) toast(tx('Sensori di orientamento non disponibili su questo dispositivo', 'Orientation sensors are not available on this device', 'Capteurs d\'orientation indisponibles sur cet appareil'));
   });
-  const top = h('div', { class: 'top' }, brand, h('div', { class: 'top-r' }, modeBtn, gyroBtn, iconButton('settings', tx('Impostazioni', 'Settings', 'Réglages'), () => openSettings())));
+  const top = h('div', { class: 'top' }, brand, h('div', { class: 'top-r' }, searchBtn, gyroBtn, iconButton('settings', tx('Impostazioni', 'Settings', 'Réglages'), () => openSettings())));
 
   const timePill = h('button', { class: 'time-pill' }, h('span', { class: 'tp-dot' }), h('span', { class: 'tp-t' }));
   const dockSky = h('nav', { class: 'dock' },
     iconButton('tonight', tx('Stasera', 'Tonight', 'Ce soir'), () => openTonight(), 'dbtn'),
     iconButton('missions', tx('Missioni', 'Missions', 'Missions'), () => openMissions(), 'dbtn'),
-    iconButton('search', tx('Cerca', 'Search', 'Chercher'), () => openSearch(), 'dbtn main'),
+    iconButton('ship', tx('Navicella', 'Spaceship', 'Vaisseau'), () => setMode('ship'), 'dbtn main'),
     iconButton('worlds', tx('Mondi', 'Worlds', 'Mondes'), () => openWorlds(), 'dbtn'),
     iconButton('bell', tx('Avvisi', 'Alerts', 'Alertes'), () => openAlerts(), 'dbtn'),
   );
@@ -143,10 +149,11 @@ async function main() {
         // decollo: dalla tua posizione, guardando nella stessa direzione
         if (sky.place.id === 'earth' && sky.frame.observerHelioAU) {
           const up = sky.frame.rows[1] as V3;
-          const pos = v3.add(v3.scale(sky.frame.observerHelioAU, AU_IN_KM), v3.scale(up, 400));
-          const dir = sky.viewDirEqj();
-          ship.placeAt(pos, v3.add(pos, v3.scale(dir, 1e6)), up);
-          ship.target = null; ship.arrived = null;
+          const surface = v3.scale(sky.frame.observerHelioAU, AU_IN_KM);
+          // guarda verso l'orizzonte nella direzione in cui stavi guardando, poi decolla
+          let dir = sky.viewDirEqj();
+          dir = v3.norm(v3.sub(dir, v3.scale(up, v3.dot(dir, up) - 0.12)));
+          ship.launchFrom(surface, dir, up);
         } else if (sky.place.exo) {
           const i = sky.place.exo.hip ? findHip(sky.place.exo.hip) : -1;
           const r = i >= 0 ? { ref: { kind: 'star', index: i } as ObjRef } : search(sky.place.exo.starName)[0];
@@ -212,6 +219,7 @@ async function main() {
   attachPointer(renderer.domElement, () => (state.mode === 'sky' ? sky.handlers() : ship.handlers()));
   bus.on('select', (r: ObjRef | null) => { if (r && state.mode === 'sky') showInfo(r); });
   bus.on('ship-select', (r: ObjRef) => { ship.target = r; showInfo(r); });
+  bus.on('flash', () => { flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on'); });
   bus.on('arrived', (r: ObjRef) => {
     toast(`${tx('Arrivato', 'Arrived', 'Arrivé')}: ${refName(r)}`);
     if (r.kind === 'star') flag('star');
@@ -263,8 +271,7 @@ async function main() {
       (state.live ? '' : state.timeRate === 0 ? ' · ' + tx('pausa', 'paused', 'pause') : state.timeRate === 1 ? '' : ` · ${rateLabel(state.timeRate)}`);
     timePill.classList.toggle('live', state.live);
     placeLbl.textContent = state.mode === 'ship' ? tx('Navicella', 'Spaceship', 'Vaisseau') : sky.place.id === 'earth' ? state.location.name : `${tx('da', 'from', 'depuis')} ${sky.place.name}`;
-    modeBtn.replaceChildren(icon(state.mode === 'sky' ? 'ship' : 'sky'), h('span', { class: 'ibtn-label' }, state.mode === 'sky' ? tx('Navicella', 'Spaceship', 'Vaisseau') : tx('Cielo', 'Sky', 'Ciel')));
-    modeBtn.setAttribute('aria-label', state.mode === 'sky' ? tx('Passa alla navicella', 'Switch to the spaceship', 'Passer au vaisseau') : tx('Torna al cielo', 'Back to the sky', 'Retour au ciel'));
+
     const m = activeMissions()[0];
     missionChip.textContent = m && state.mode === 'sky' ? `◎ ${m.title}` : '';
     missionChip.style.display = m && state.mode === 'sky' ? '' : 'none';
@@ -281,7 +288,7 @@ async function main() {
     const t = ship.telemetry();
     tSpeed.textContent = formatSpeed(t.speed);
     const parts: string[] = [];
-    if (t.beta > 0.05 && t.beta < 1) { const g = num(t.gamma, t.gamma < 10 ? 2 : 0), g1 = num(t.gamma, 1, 1); parts.push(`γ ${g} · ` + tx(`a bordo il tempo scorre ${g1}× più lento`, `time on board runs ${g1}× slower`, `à bord, le temps s'écoule ${g1}× plus lentement`)); }
+    if (t.beta > 0.4 && t.beta < 1) { const g = num(t.gamma, t.gamma < 10 ? 2 : 0), g1 = num(t.gamma, 1, 1); parts.push(`γ ${g} · ` + tx(`a bordo il tempo scorre ${g1}× più lento`, `time on board runs ${g1}× slower`, `à bord, le temps s'écoule ${g1}× plus lentement`)); }
     if (t.speed >= C_KMS * 0.99995) parts.push(tx('Motore a curvatura', 'Warp drive', 'Moteur de distorsion'));
     parts.push(t.nearest ? `${t.where} · ${tx('vicino a', 'near', 'près de')} ${t.nearest} (${t.nearestDist})` : t.where);
     tSub.textContent = parts.join(' · ');
@@ -353,11 +360,13 @@ async function main() {
   let last = performance.now();
   let hudT = 0;
   function frame(now: number) {
-    const dt = Math.min(0.1, (now - last) / 1000);
+    const raw = (now - last) / 1000;
+    const dt = Math.min(0.1, raw);
     last = now;
+    adaptive.update(raw);
     tick(dt);
     idleT += dt;
-    if (idleT > 6 && !sheetOpen() && !throttleActive) document.body.classList.add('idle');
+    if (idleT > 6 && !sheetOpen() && !throttleActive && !document.body.classList.contains('touring')) document.body.classList.add('idle');
     if (state.mode === 'sky') { sky.update(dt); sky.updateOverlay(); sky.render(renderer); }
     else { ship.update(dt); ship.updateOverlay(); ship.render(renderer); }
     hudT += dt;
@@ -367,10 +376,10 @@ async function main() {
       if (state.mode === 'ship') updateShipHud();
       if (!state.live || Math.floor(now / 1000) % 15 === 0) updateHud();
     }
-    requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
+  renderer.setAnimationLoop(frame);
   loader?.classList.add('done');
+  if (!state.settings.tutorialDone && !location.hash) setTimeout(() => startTutorial(ui), 1300);
   setTimeout(() => loader?.remove(), 900);
 
   // dati di rete in secondo piano

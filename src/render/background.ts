@@ -1,10 +1,11 @@
-// Sfondo celeste 3D condiviso: stelle reali (con posizione in parsec), linee delle
-// costellazioni, Via Lattea a particelle, Andromeda e Nubi di Magellano.
-// Tutto è calcolato rispetto a un osservatore uObs (parsec), quindi funziona
-// dalla Terra, da un esopianeta o dalla navicella. Include gli effetti relativistici
-// (aberrazione e Doppler) quando la navicella si avvicina alla velocità della luce.
+// Sfondo celeste 3D condiviso: stelle reali (posizione in parsec), linee delle costellazioni,
+// Via Lattea volumetrica (bagliore, polveri che fanno ombra, regioni di formazione stellare,
+// nucleo), nebulose 3D, Andromeda e Nubi di Magellano.
+// Tutto è calcolato rispetto a un osservatore uObs (parsec): funziona dalla Terra, da un
+// esopianeta o dalla navicella, con effetti relativistici opzionali.
 import * as THREE from 'three';
 import { constellations, radecToVec, stars } from '../data/catalog';
+import { quality } from '../core/quality';
 
 const BLACKBODY = /* glsl */ `
 vec3 blackbody(float T) {
@@ -18,8 +19,6 @@ vec3 blackbody(float T) {
 
 const RELATIVITY = /* glsl */ `
 uniform vec3 uBeta;
-// n: direzione verso la sorgente nel riferimento "fermo". Restituisce la direzione osservata
-// e scrive in D il fattore Doppler.
 vec3 aberrate(vec3 n, out float D) {
   float b = length(uBeta);
   if (b < 1e-6) { D = 1.0; return n; }
@@ -32,6 +31,7 @@ vec3 aberrate(vec3 n, out float D) {
 }
 `;
 
+// ---------------------------------------------------------------------------- stelle
 const starVert = /* glsl */ `
 attribute float absmag;
 attribute float temp;
@@ -41,8 +41,11 @@ uniform float uScale;
 uniform float uNearCut;
 uniform float uTime;
 uniform float uTwinkle;
+uniform float uSpikes;
 varying vec3 vColor;
 varying float vAlpha;
+varying float vSpike;
+varying float vCore;
 ${BLACKBODY}
 ${RELATIVITY}
 float hash(float n) { return fract(sin(n) * 43758.5453); }
@@ -60,13 +63,17 @@ void main() {
     vAlpha = 0.0;
     return;
   }
-  vec4 mv = modelViewMatrix * vec4(dir * 1000.0, 1.0);
-  gl_Position = projectionMatrix * mv;
-  float tw = 1.0 + uTwinkle * 0.22 * sin(uTime * (3.0 + hash(float(gl_VertexID)) * 5.0) + hash(float(gl_VertexID) * 1.3) * 6.28);
-  gl_PointSize = clamp(2.0 + s * 1.25, 2.0, 18.0) * uScale;
-  vAlpha = clamp(0.22 + s * 0.5, 0.0, 1.0) * (1.0 + max(0.0, s - 5.0) * 0.25) * tw;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(dir * 1000.0, 1.0);
+  float id = float(gl_VertexID);
+  float tw = 1.0 + uTwinkle * 0.22 * sin(uTime * (3.0 + hash(id) * 5.0) + hash(id * 1.3) * 6.28);
+  // stelle molto brillanti: punte di diffrazione e un alone più ampio
+  vSpike = uSpikes * smoothstep(5.2, 8.5, s);
+  float size = clamp(2.0 + s * 1.3, 2.0, 18.0) * (1.0 + vSpike * 1.6);
+  gl_PointSize = size * uScale;
+  vCore = clamp((2.0 + s * 1.3) / size, 0.1, 1.0);
+  vAlpha = clamp(0.24 + s * 0.5, 0.0, 1.0) * (1.0 + max(0.0, s - 5.0) * 0.25) * tw;
   vec3 c = blackbody(Tobs);
-  vColor = mix(c, vec3(1.0), 0.3) * (Tobs > 40000.0 ? 1.15 : 1.0);
+  vColor = mix(c, vec3(1.0), 0.18) * (Tobs > 40000.0 ? 1.15 : 1.0);
 }
 `;
 
@@ -74,12 +81,23 @@ const starFrag = /* glsl */ `
 uniform float uDim;
 varying vec3 vColor;
 varying float vAlpha;
+varying float vSpike;
+varying float vCore;
 void main() {
-  float r = length(gl_PointCoord - 0.5) * 2.0;
+  vec2 p = (gl_PointCoord - 0.5) * 2.0;
+  float r = length(p);
   if (r > 1.0) discard;
-  float core = exp(-r * r * 6.0);
-  float halo = exp(-r * 3.0) * 0.28;
-  gl_FragColor = vec4(vColor * (core + halo) * vAlpha * uDim, 1.0);
+  float rc = r / vCore;
+  float core = exp(-rc * rc * 5.5);
+  float halo = exp(-rc * 2.6) * 0.3;
+  float spikes = 0.0;
+  if (vSpike > 0.01) {
+    float sx = exp(-abs(p.y) * 70.0) * pow(1.0 - abs(p.x), 2.0);
+    float sy = exp(-abs(p.x) * 70.0) * pow(1.0 - abs(p.y), 2.0);
+    spikes = (sx + sy) * 0.55 * vSpike + exp(-r * 4.0) * 0.12 * vSpike;
+  }
+  vec3 col = vColor * (core + halo) + mix(vColor, vec3(1.0), 0.4) * spikes;
+  gl_FragColor = vec4(col * vAlpha * uDim, 1.0);
 }
 `;
 
@@ -99,27 +117,48 @@ uniform float uOpacity;
 void main() { gl_FragColor = vec4(uColor * uOpacity, 1.0); }
 `;
 
+// ---------------------------------------------------------------------------- galassia
+// aGal: posizione galattocentrica (pc) per la Via Lattea (aKind 0, ruota),
+// o posizione EQJ eliocentrica già pronta per gli altri oggetti (aKind 1).
 const galVert = /* glsl */ `
 attribute vec3 color;
 attribute float size;
+attribute float aKind;
+attribute float aSeed;
 uniform vec3 uObs;
 uniform float uPixPerRad;
+uniform mat3 uGalToEq;
+uniform vec3 uSunGal;
+uniform float uSpin;
+uniform float uTime;
+uniform float uMaxPx;
 varying vec3 vColor;
 varying float vAlpha;
+varying float vSoft;
 ${RELATIVITY}
 void main() {
-  vec3 rel = position - uObs;
+  vec3 p = position;
+  if (aKind < 0.5) {
+    float r = length(p.xy);
+    float a = uSpin * (0.75 + 0.25 * clamp(8000.0 / max(r, 1500.0), 0.0, 2.0));
+    float c = cos(a), s = sin(a);
+    p.xy = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+    p = uGalToEq * (p - uSunGal);
+  }
+  vec3 rel = p - uObs;
   float d = length(rel);
   float D;
   vec3 dir = aberrate(rel / d, D);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(dir * 1000.0, 1.0);
-  float s = size / d * uPixPerRad;
-  float a = smoothstep(size * 0.6, size * 3.0, d);
-  if (s < 1.5) { a *= (s * s) / 2.25; s = 1.5; }
-  if (s > 90.0) { a *= 90.0 / s; s = 90.0; }
-  gl_PointSize = s;
-  vAlpha = a / max(1.0, D * D);
+  float px = size / d * uPixPerRad;
+  float alpha = smoothstep(size * 0.6, size * 3.0, d);
+  if (px < 1.5) { alpha *= (px * px) / 2.25; px = 1.5; }
+  if (px > uMaxPx) { alpha *= uMaxPx / px; px = uMaxPx; }
+  gl_PointSize = px;
+  float shimmer = 0.92 + 0.08 * sin(uTime * (0.3 + aSeed * 0.6) + aSeed * 40.0);
+  vAlpha = alpha * shimmer / max(1.0, D * D);
   vColor = color * clamp(sqrt(D), 0.4, 1.4);
+  vSoft = aKind > 1.5 ? 1.0 : 0.0;
 }
 `;
 const galFrag = /* glsl */ `
@@ -127,16 +166,82 @@ uniform float uDim;
 uniform float uGain;
 varying vec3 vColor;
 varying float vAlpha;
+varying float vSoft;
 void main() {
   vec2 p = gl_PointCoord - 0.5;
   float r2 = dot(p, p) * 4.0;
   if (r2 > 1.0) discard;
-  float f = exp(-r2 * 3.0) - 0.05;
+  float f = vSoft > 0.5 ? exp(-r2 * 6.0) * 1.4 : exp(-r2 * 3.0) - 0.05;
   gl_FragColor = vec4(vColor * f * vAlpha * uDim * uGain, 1.0);
 }
 `;
 
-// Matrice galattico → equatoriale J2000 (trasposta di quella eq → gal)
+// le polveri sottraggono luce: bande scure e "Grande Fenditura"
+const dustFrag = /* glsl */ `
+uniform float uDim;
+uniform float uGain;
+varying vec3 vColor;
+varying float vAlpha;
+varying float vSoft;
+void main() {
+  vec2 p = gl_PointCoord - 0.5;
+  float r2 = dot(p, p) * 4.0;
+  if (r2 > 1.0) discard;
+  float f = exp(-r2 * 2.5) - 0.08;
+  gl_FragColor = vec4(vColor * max(f, 0.0) * vAlpha * uDim * uGain, 1.0);
+}
+`;
+
+// nebulose: nubi colorate con struttura filamentosa
+const nebVert = /* glsl */ `
+attribute vec3 color;
+attribute float size;
+attribute float aSeed;
+uniform vec3 uObs;
+uniform float uPixPerRad;
+uniform float uMaxPx;
+varying vec3 vColor;
+varying float vAlpha;
+varying float vSeed;
+${RELATIVITY}
+void main() {
+  vec3 rel = position - uObs;
+  float d = length(rel);
+  float D;
+  vec3 dir = aberrate(rel / d, D);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(dir * 1000.0, 1.0);
+  float px = size / d * uPixPerRad;
+  float alpha = smoothstep(size * 0.3, size * 1.6, d);
+  if (px < 2.0) { alpha *= (px * px) / 4.0; px = 2.0; }
+  if (px > uMaxPx) { alpha *= sqrt(uMaxPx / px); px = uMaxPx; }
+  gl_PointSize = px;
+  vAlpha = alpha;
+  vColor = color;
+  vSeed = aSeed;
+}
+`;
+const nebFrag = /* glsl */ `
+uniform float uDim;
+uniform float uTime;
+varying vec3 vColor;
+varying float vAlpha;
+varying float vSeed;
+float h(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+float n2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * n2(p); p *= 2.07; a *= 0.5; } return s; }
+void main() {
+  vec2 p = gl_PointCoord - 0.5;
+  float r = length(p) * 2.0;
+  if (r > 1.0) discard;
+  vec2 q = p * 3.0 + vSeed * 17.0;
+  float w = fbm(q + fbm(q * 1.7 + uTime * 0.01));
+  float shape = smoothstep(1.0, 0.15, r) * smoothstep(0.25, 0.85, w);
+  gl_FragColor = vec4(vColor * shape * vAlpha * uDim, 1.0);
+}
+`;
+
+// Matrice equatoriale J2000 → galattica (righe); la sua trasposta va da galattico a EQJ
 const R_EQ_GAL = [
   [-0.0548755604, -0.873437090, -0.4838350155],
   [0.4941094279, -0.4448296300, 0.7469822445],
@@ -165,55 +270,66 @@ function gauss(r: () => number) {
   return Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(2 * Math.PI * r());
 }
 
+const SUN_GAL: [number, number, number] = [-8200, 0, 20];
 export const GALACTIC_CENTER_PC = galToEq(8200, 0, -20);
 
-interface Particles { pos: number[]; col: number[]; size: number[] }
+interface Particles { pos: number[]; col: number[]; size: number[]; kind: number[]; seed: number[] }
+const P = (): Particles => ({ pos: [], col: [], size: [], kind: [], seed: [] });
 
-function buildMilkyWay(p: Particles, n: number) {
+const PITCH = (12.5 * Math.PI) / 180;
+const armAngle = (rad: number, arm: number) => Math.log(rad / 2400) / Math.tan(PITCH) + (arm * Math.PI) / 2;
+
+function buildMilkyWay(p: Particles, dust: Particles, n: number, nd: number) {
   const r = rng(42);
-  const sunGal = [-8200, 0, 20];
-  const pitch = (12.5 * Math.PI) / 180;
+  const push = (q: Particles, x: number, y: number, z: number, c: number[], s: number, kind: number) => {
+    q.pos.push(x, y, z); q.col.push(c[0], c[1], c[2]); q.size.push(s); q.kind.push(kind); q.seed.push(r());
+  };
   for (let i = 0; i < n; i++) {
-    let x: number, y: number, z: number, c: [number, number, number], s: number;
     const u = r();
-    if (u < 0.16) {
-      // bulge + barra
+    if (u < 0.13) {
+      // bulge + barra: luce dorata di stelle vecchie
       const bx = gauss(r) * 1400, by = gauss(r) * 520, bz = gauss(r) * 380;
       const a = (27 * Math.PI) / 180;
-      x = bx * Math.cos(a) - by * Math.sin(a);
-      y = bx * Math.sin(a) + by * Math.cos(a);
-      z = bz;
-      c = [1.0, 0.82, 0.58];
-      s = 220 + r() * 220;
+      const k = 0.55 + r() * 0.45;
+      push(p, bx * Math.cos(a) - by * Math.sin(a), bx * Math.sin(a) + by * Math.cos(a), bz, [1.0 * k, 0.8 * k, 0.55 * k], 220 + r() * 220, 0);
+    } else if (u < 0.17) {
+      // regioni di formazione stellare (HII): nodi rosati lungo i bracci
+      const rad = 3000 + r() * 12000;
+      const th = armAngle(rad, Math.floor(r() * 4)) + gauss(r) * 0.08;
+      push(p, rad * Math.cos(th), rad * Math.sin(th), gauss(r) * 60, [1.2, 0.42, 0.55], 50 + r() * 70, 0);
+    } else if (u < 0.42) {
+      // polvere di stelle fine: granulosità e profondità
+      let rad = -Math.log(1 - r() * 0.985) * 3400 + 1500;
+      if (rad > 17000) rad = 1500 + r() * 15000;
+      const th = r() < 0.65 ? armAngle(rad, Math.floor(r() * 4)) + gauss(r) * 0.18 : r() * Math.PI * 2;
+      const k = 0.5 + r() * 0.6;
+      push(p, rad * Math.cos(th), rad * Math.sin(th), gauss(r) * (90 + rad * 0.01), [0.85 * k, 0.88 * k, 1.0 * k], 25 + r() * 35, 0);
     } else {
+      // bagliore diffuso del disco e dei bracci
       let rad = -Math.log(1 - r() * 0.985) * 3600 + 1200;
       if (rad > 17000) rad = 1200 + r() * 15000;
-      let th: number;
-      const arm = Math.floor(r() * 4);
-      if (r() < 0.72) {
-        th = Math.log(rad / 2400) / Math.tan(pitch) + (arm * Math.PI) / 2 + gauss(r) * 0.22;
-        c = r() < 0.12 ? [1.0, 0.55, 0.65] : [0.72, 0.8, 1.0];
-      } else {
-        th = r() * Math.PI * 2;
-        c = [0.95, 0.88, 0.78];
-      }
-      x = rad * Math.cos(th);
-      y = rad * Math.sin(th);
-      z = gauss(r) * (110 + rad * 0.012);
-      s = 90 + r() * 170;
+      const inArm = r() < 0.72;
+      const th = inArm ? armAngle(rad, Math.floor(r() * 4)) + gauss(r) * 0.22 : r() * Math.PI * 2;
+      const c = inArm ? [0.72, 0.8, 1.0] : [0.95, 0.86, 0.74];
+      const k = 0.45 + r() * 0.5;
+      push(p, rad * Math.cos(th), rad * Math.sin(th), gauss(r) * (110 + rad * 0.012), [c[0] * k, c[1] * k, c[2] * k], 100 + r() * 170, 0);
     }
-    const e = galToEq(x - sunGal[0], y - sunGal[1], z - sunGal[2]);
-    p.pos.push(e[0], e[1], e[2]);
-    const k = 0.5 + r() * 0.5;
-    p.col.push(c[0] * k, c[1] * k, c[2] * k);
-    p.size.push(s);
+  }
+  // nucleo: un bagliore caldo e ampio
+  for (let i = 0; i < 40; i++) push(p, gauss(r) * 500, gauss(r) * 300, gauss(r) * 250, [1.0, 0.82, 0.55], 900 + r() * 700, 0);
+  // polveri: sul bordo interno dei bracci, molto sottili in altezza
+  for (let i = 0; i < nd; i++) {
+    let rad = -Math.log(1 - r() * 0.98) * 3800 + 1800;
+    if (rad > 15000) rad = 2500 + r() * 12000;
+    const th = r() < 0.8 ? armAngle(rad, Math.floor(r() * 4)) - 0.12 + gauss(r) * 0.12 : r() * Math.PI * 2;
+    const k = 0.55 + r() * 0.45;
+    push(dust, rad * Math.cos(th), rad * Math.sin(th), gauss(r) * 45, [0.55 * k, 0.6 * k, 0.75 * k], 70 + r() * 140, 0);
   }
 }
 
-function buildDiskGalaxy(p: Particles, n: number, raDeg: number, decDeg: number, distPc: number, radiusPc: number, incl: number, pa: number, bright: number, seed: number) {
+function buildDiskGalaxy(p: Particles, dust: Particles, n: number, raDeg: number, decDeg: number, distPc: number, radiusPc: number, incl: number, pa: number, bright: number, seed: number) {
   const r = rng(seed);
-  const l = radecToVec(raDeg, decDeg);
-  const L = new THREE.Vector3(...l);
+  const L = new THREE.Vector3(...radecToVec(raDeg, decDeg));
   const n0 = new THREE.Vector3(0, 0, 1).sub(L.clone().multiplyScalar(L.z)).normalize();
   const e0 = new THREE.Vector3().crossVectors(n0, L).normalize().negate();
   const a = n0.clone().multiplyScalar(Math.cos(pa)).add(e0.clone().multiplyScalar(Math.sin(pa)));
@@ -221,18 +337,22 @@ function buildDiskGalaxy(p: Particles, n: number, raDeg: number, decDeg: number,
   const normal = L.clone().multiplyScalar(Math.cos(incl)).add(m.multiplyScalar(Math.sin(incl))).normalize();
   const b = new THREE.Vector3().crossVectors(normal, a).normalize();
   const center = L.clone().multiplyScalar(distPc);
+  const put = (q: Particles, rad: number, th: number, zz: number, c: number[], s: number) => {
+    const v = center.clone().add(a.clone().multiplyScalar(rad * Math.cos(th))).add(b.clone().multiplyScalar(rad * Math.sin(th))).add(normal.clone().multiplyScalar(zz));
+    q.pos.push(v.x, v.y, v.z); q.col.push(c[0], c[1], c[2]); q.size.push(s); q.kind.push(1); q.seed.push(r());
+  };
   for (let i = 0; i < n; i++) {
     const core = r() < 0.25;
     const rad = core ? Math.abs(gauss(r)) * radiusPc * 0.12 : -Math.log(1 - r() * 0.98) * radiusPc * 0.25;
-    const arm = Math.floor(r() * 2);
-    const th = core ? r() * 6.283 : Math.log(rad / (radiusPc * 0.1) + 1) * 3.2 + arm * Math.PI + gauss(r) * 0.35;
-    const zz = gauss(r) * radiusPc * (core ? 0.06 : 0.015);
-    const pnt = center.clone().add(a.clone().multiplyScalar(rad * Math.cos(th))).add(b.clone().multiplyScalar(rad * Math.sin(th))).add(normal.clone().multiplyScalar(zz));
-    p.pos.push(pnt.x, pnt.y, pnt.z);
-    const c = core ? [1, 0.85, 0.65] : [0.75, 0.82, 1];
+    const th = core ? r() * 6.283 : Math.log(rad / (radiusPc * 0.1) + 1) * 3.2 + Math.floor(r() * 2) * Math.PI + gauss(r) * 0.35;
+    const c = core ? [1, 0.85, 0.65] : r() < 0.05 ? [1.2, 0.5, 0.6] : [0.75, 0.82, 1];
     const k = (0.5 + r() * 0.5) * bright;
-    p.col.push(c[0] * k, c[1] * k, c[2] * k);
-    p.size.push(radiusPc * (core ? 0.05 : 0.035));
+    put(p, rad, th, gauss(r) * radiusPc * (core ? 0.06 : 0.015), [c[0] * k, c[1] * k, c[2] * k], radiusPc * (core ? 0.05 : 0.035));
+  }
+  for (let i = 0; i < n * 0.25; i++) {
+    const rad = radiusPc * (0.15 + r() * 0.7);
+    const th = Math.log(rad / (radiusPc * 0.1) + 1) * 3.2 + Math.floor(r() * 2) * Math.PI - 0.15 + gauss(r) * 0.15;
+    put(dust, rad, th, gauss(r) * radiusPc * 0.006, [0.5, 0.55, 0.7], radiusPc * 0.03);
   }
 }
 
@@ -242,9 +362,58 @@ function buildBlob(p: Particles, n: number, raDeg: number, decDeg: number, distP
   for (let i = 0; i < n; i++) {
     p.pos.push(c[0] + gauss(r) * radiusPc, c[1] + gauss(r) * radiusPc * 0.7, c[2] + gauss(r) * radiusPc * 0.6);
     const k = (0.5 + r() * 0.5) * bright;
-    p.col.push(0.8 * k, 0.85 * k, 1 * k);
+    const pink = r() < 0.06;
+    p.col.push((pink ? 1.1 : 0.8) * k, (pink ? 0.45 : 0.85) * k, (pink ? 0.6 : 1) * k);
     p.size.push(radiusPc * 0.12);
+    p.kind.push(1);
+    p.seed.push(r());
   }
+}
+
+/** Nebulose principali: [AR°, Dec°, distanza al, raggio al, colore principale, colore secondario]. */
+const NEBULAE: [number, number, number, number, number[], number[]][] = [
+  [83.82, -5.39, 1344, 12, [1.0, 0.35, 0.45], [0.35, 0.8, 0.85]], // Orione M42
+  [161.27, -59.87, 7500, 120, [1.0, 0.4, 0.4], [0.9, 0.7, 0.4]], // Carena
+  [270.9, -24.38, 4100, 50, [1.0, 0.35, 0.5], [0.5, 0.6, 1.0]], // Laguna M8
+  [274.7, -13.81, 7000, 35, [0.95, 0.55, 0.35], [0.4, 0.7, 0.8]], // Aquila M16
+  [270.6, -23.03, 4100, 20, [1.0, 0.35, 0.45], [0.35, 0.5, 1.0]], // Trifida M20
+  [275.2, -16.17, 5500, 20, [1.0, 0.4, 0.5], [0.8, 0.5, 0.4]], // Omega M17
+  [97.98, 4.94, 5200, 60, [1.0, 0.3, 0.4], [0.9, 0.5, 0.4]], // Rosetta
+  [314.7, 44.3, 2590, 50, [1.0, 0.35, 0.4], [0.7, 0.4, 0.4]], // Nord America
+  [83.63, 22.01, 6500, 5.5, [0.6, 0.75, 1.0], [1.0, 0.45, 0.35]], // Granchio M1
+  [337.41, -20.84, 655, 1.4, [0.35, 0.9, 0.85], [1.0, 0.4, 0.35]], // Elica
+  [299.9, 22.72, 1360, 1.5, [0.4, 0.9, 0.9], [1.0, 0.45, 0.4]], // Manubrio M27
+  [85.25, -2.46, 1375, 8, [1.0, 0.3, 0.35], [0.6, 0.35, 0.4]], // Testa di Cavallo / IC 434
+];
+
+function buildNebulae(p: Particles) {
+  const r = rng(77);
+  const LY = 1 / 3.26156;
+  for (const [ra, dec, ly, rad, c1, c2] of NEBULAE) {
+    const c = radecToVec(ra, dec).map((v) => v * ly * LY);
+    const R = rad * LY;
+    const count = 34;
+    for (let i = 0; i < count; i++) {
+      const t = r();
+      const col = t < 0.6 ? c1 : c2;
+      const k = 0.4 + r() * 0.5;
+      p.pos.push(c[0] + gauss(r) * R * 0.45, c[1] + gauss(r) * R * 0.45, c[2] + gauss(r) * R * 0.45);
+      p.col.push(col[0] * k, col[1] * k, col[2] * k);
+      p.size.push(R * (0.6 + r() * 0.9));
+      p.kind.push(0);
+      p.seed.push(r());
+    }
+  }
+}
+
+function toGeometry(p: Particles) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(p.pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(p.col, 3));
+  g.setAttribute('size', new THREE.Float32BufferAttribute(p.size, 1));
+  g.setAttribute('aKind', new THREE.Float32BufferAttribute(p.kind, 1));
+  g.setAttribute('aSeed', new THREE.Float32BufferAttribute(p.seed, 1));
+  return g;
 }
 
 export interface BackgroundUpdate {
@@ -259,6 +428,8 @@ export interface BackgroundUpdate {
   twinkle: number;
   time: number;
   nearCutPc: number;
+  galSpin?: number;
+  spikes?: number;
 }
 
 export class Background {
@@ -266,15 +437,24 @@ export class Background {
   starPoints: THREE.Points;
   lines: THREE.LineSegments;
   galaxy: THREE.Points;
+  dust: THREE.Points;
+  nebulae: THREE.Points;
   private starMat: THREE.ShaderMaterial;
   private lineMat: THREE.ShaderMaterial;
   private galMat: THREE.ShaderMaterial;
+  private dustMat: THREE.ShaderMaterial;
+  private nebMat: THREE.ShaderMaterial;
+  private baseGain = 0.04;
   /** Per ogni costellazione: indici dei vertici-stella delle sue linee. */
   lineStars: Map<string, number[]> = new Map();
 
   constructor() {
     const beta = { value: new THREE.Vector3() };
     const obs = { value: new THREE.Vector3() };
+    const time = { value: 0 };
+    const pixPerRad = { value: 800 };
+    const dim = { value: 1 };
+
     // --- stelle (+ il Sole in coda) ---
     const n = stars.count + 1;
     const pos = new Float32Array(n * 3);
@@ -293,7 +473,7 @@ export class Background {
       vertexShader: starVert, fragmentShader: starFrag,
       uniforms: {
         uObs: obs, uBeta: beta, uMagLimit: { value: 6.5 }, uScale: { value: 1 }, uNearCut: { value: 1e-4 },
-        uDim: { value: 1 }, uTime: { value: 0 }, uTwinkle: { value: 0 },
+        uDim: { value: 1 }, uTime: time, uTwinkle: { value: 0 }, uSpikes: { value: 1 },
       },
       blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
     });
@@ -348,28 +528,57 @@ export class Background {
     this.lines.frustumCulled = false;
     this.lines.renderOrder = 1;
 
-    // --- Via Lattea e galassie vicine ---
-    const p: Particles = { pos: [], col: [], size: [] };
-    const mobile = Math.min(window.innerWidth, window.innerHeight) < 700;
-    buildMilkyWay(p, mobile ? 45000 : 80000);
-    buildDiskGalaxy(p, 9000, 10.6847, 41.2687, 765000, 30000, (77 * Math.PI) / 180, (38 * Math.PI) / 180, 1.6, 7);
-    buildDiskGalaxy(p, 2500, 23.4621, 30.6599, 840000, 9000, (55 * Math.PI) / 180, (23 * Math.PI) / 180, 1.2, 9);
-    buildBlob(p, 3500, 80.894, -69.756, 50000, 1600, 1.2, 11);
-    buildBlob(p, 1800, 13.187, -72.829, 62000, 1000, 1.1, 13);
-    const gg = new THREE.BufferGeometry();
-    gg.setAttribute('position', new THREE.Float32BufferAttribute(p.pos, 3));
-    gg.setAttribute('color', new THREE.Float32BufferAttribute(p.col, 3));
-    gg.setAttribute('size', new THREE.Float32BufferAttribute(p.size, 1));
+    // --- Via Lattea, polveri e galassie vicine ---
+    const glow = P();
+    const dust = P();
+    buildMilkyWay(glow, dust, quality.galaxyParticles, quality.dustParticles);
+    buildDiskGalaxy(glow, dust, 9000, 10.6847, 41.2687, 765000, 30000, (77 * Math.PI) / 180, (38 * Math.PI) / 180, 1.6, 7);
+    buildDiskGalaxy(glow, dust, 2500, 23.4621, 30.6599, 840000, 9000, (55 * Math.PI) / 180, (23 * Math.PI) / 180, 1.2, 9);
+    buildBlob(glow, 3500, 80.894, -69.756, 50000, 1600, 1.2, 11);
+    buildBlob(glow, 1800, 13.187, -72.829, 62000, 1000, 1.1, 13);
+    const galToEqM = new THREE.Matrix3().set(
+      R_EQ_GAL[0][0], R_EQ_GAL[1][0], R_EQ_GAL[2][0],
+      R_EQ_GAL[0][1], R_EQ_GAL[1][1], R_EQ_GAL[2][1],
+      R_EQ_GAL[0][2], R_EQ_GAL[1][2], R_EQ_GAL[2][2],
+    );
+    const shared = {
+      uObs: obs, uBeta: beta, uPixPerRad: pixPerRad, uTime: time, uDim: dim,
+      uGalToEq: { value: galToEqM }, uSunGal: { value: new THREE.Vector3(...SUN_GAL) }, uSpin: { value: 0 },
+    };
+    const mobile = quality.tier !== 'high';
+    this.baseGain = mobile ? 0.05 : 0.04;
     this.galMat = new THREE.ShaderMaterial({
       vertexShader: galVert, fragmentShader: galFrag,
-      uniforms: { uObs: obs, uBeta: beta, uPixPerRad: { value: 800 }, uDim: { value: 1 }, uGain: { value: mobile ? 0.05 : 0.035 } },
+      uniforms: { ...shared, uGain: { value: mobile ? 0.05 : 0.04 }, uMaxPx: { value: 90 } },
       blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
     });
-    this.galaxy = new THREE.Points(gg, this.galMat);
+    this.galaxy = new THREE.Points(toGeometry(glow), this.galMat);
     this.galaxy.frustumCulled = false;
     this.galaxy.renderOrder = 0;
 
-    this.group.add(this.galaxy, this.lines, this.starPoints);
+    this.dustMat = new THREE.ShaderMaterial({
+      vertexShader: galVert, fragmentShader: dustFrag,
+      uniforms: { ...shared, uGain: { value: 0.022 }, uMaxPx: { value: 110 } },
+      blending: THREE.CustomBlending, blendEquation: THREE.ReverseSubtractEquation,
+      blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+      depthTest: false, depthWrite: false, transparent: true,
+    });
+    this.dust = new THREE.Points(toGeometry(dust), this.dustMat);
+    this.dust.frustumCulled = false;
+    this.dust.renderOrder = 0.5;
+
+    const neb = P();
+    buildNebulae(neb);
+    this.nebMat = new THREE.ShaderMaterial({
+      vertexShader: nebVert, fragmentShader: nebFrag,
+      uniforms: { uObs: obs, uBeta: beta, uPixPerRad: pixPerRad, uTime: time, uDim: dim, uMaxPx: { value: 420 } },
+      blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
+    });
+    this.nebulae = new THREE.Points(toGeometry(neb), this.nebMat);
+    this.nebulae.frustumCulled = false;
+    this.nebulae.renderOrder = 0.7;
+
+    this.group.add(this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
   }
 
   update(u: BackgroundUpdate) {
@@ -382,10 +591,19 @@ export class Background {
     su.uTime.value = u.time;
     su.uTwinkle.value = u.twinkle;
     su.uNearCut.value = u.nearCutPc;
+    su.uSpikes.value = u.spikes ?? 1;
     this.lineMat.uniforms.uOpacity.value = u.linesOpacity;
     this.lines.visible = u.linesOpacity > 0.001;
-    this.galMat.uniforms.uPixPerRad.value = u.pixPerRad;
-    this.galMat.uniforms.uDim.value = u.galaxyDim;
-    this.galaxy.visible = u.galaxyDim > 0.001;
+    const gu = this.galMat.uniforms;
+    // vista da fuori: più luce e polveri più marcate per far risaltare bracci e bande scure
+    const dgc = Math.hypot(u.obsPc.x - GALACTIC_CENTER_PC[0], u.obsPc.y - GALACTIC_CENTER_PC[1], u.obsPc.z - GALACTIC_CENTER_PC[2]);
+    const out = Math.max(0, Math.min(1, (dgc - 12000) / 18000));
+    gu.uGain.value = this.baseGain * (1 + 1.8 * out);
+    this.dustMat.uniforms.uGain.value = 0.022 * (1 + 4 * out);
+    gu.uPixPerRad.value = u.pixPerRad;
+    gu.uDim.value = u.galaxyDim;
+    gu.uSpin.value = u.galSpin ?? 0;
+    this.dustMat.uniforms.uSpin.value = u.galSpin ?? 0;
+    this.galaxy.visible = this.dust.visible = this.nebulae.visible = u.galaxyDim > 0.001;
   }
 }
