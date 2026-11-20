@@ -10,6 +10,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+env:
+  # nome dei file: il tag (v1.0.0) o, se avviata a mano, la versione di package.json
+  VER: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+
 permissions:
   contents: write
   pages: write
@@ -23,8 +27,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: echo "VER=${VER:-v$(node -p "require('./package.json').version")}" >> $GITHUB_ENV
       - run: npm run build
-      - run: cd dist && zip -qr ../vastity-web-${{ github.ref_name }}.zip .
+      - run: cd dist && zip -qr ../vastity-web-$VER.zip .
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }
       - uses: actions/upload-artifact@v4
@@ -49,6 +54,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
       - run: npm ci
+      - run: echo "VER=${VER:-v$(node -p "require('./package.json').version")}" >> $GITHUB_ENV
       - run: npm run build && npx cap sync android
       - name: Firma (se configurata)
         if: env.HAS_KEYSTORE == 'true'
@@ -64,9 +70,9 @@ jobs:
       - run: cd android && chmod +x gradlew && ./gradlew assembleRelease bundleRelease assembleDebug --no-daemon
       - run: |
           mkdir out
-          cp android/app/build/outputs/apk/debug/app-debug.apk out/vastity-${{ github.ref_name }}-debug.apk
-          cp android/app/build/outputs/apk/release/*.apk out/vastity-${{ github.ref_name }}-release.apk
-          cp android/app/build/outputs/bundle/release/*.aab out/vastity-${{ github.ref_name }}.aab
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/vastity-$VER-debug.apk
+          cp android/app/build/outputs/apk/release/*.apk out/vastity-$VER-release.apk
+          cp android/app/build/outputs/bundle/release/*.aab out/vastity-$VER.aab
       - uses: actions/upload-artifact@v4
         with: { name: android, path: out/* }
 
