@@ -805,6 +805,20 @@ export class ShipView {
       const q = this.project(rel);
       if (q.front) discs.push(q.x, q.y, r, v3.len(rel));
     }
+    // anche una galassia grande sullo schermo copre i nomi degli oggetti molto più lontani dietro di lei
+    {
+      const obsPc = v3.scale(this.pos, 1 / PC_IN_KM);
+      const pxr0 = this.h / (2 * Math.tan((this.camera.fov * D2R) / 2));
+      for (const o of deepObjects()) {
+        if (o.type !== 'galaxy' || o.id === 'milkyway') continue;
+        const relPc = v3.sub(refPosPc({ kind: 'deep', id: o.id })!, obsPc);
+        const dpc = v3.len(relPc);
+        const px = ((o.radiusLy / 3.26156) / dpc) * pxr0;
+        if (px < 40) continue;
+        const q = this.project(relPc);
+        if (q.front) discs.push(q.x, q.y, px * 0.75, dpc * PC_IN_KM * 1.5);
+      }
+    }
     // un'etichetta è nascosta se il suo oggetto sta dietro il disco di un pianeta più vicino
     const hidden = (rel: V3, dist = Infinity) => {
       if (!discs.length) return false;
@@ -840,7 +854,7 @@ export class ShipView {
         const rel: V3 = [stars.pos[i * 3] - obs[0], stars.pos[i * 3 + 1] - obs[1], stars.pos[i * 3 + 2] - obs[2]];
         const dpc = v3.len(rel);
         const near = dpc < 2 ? ` · ${formatDistanceKm(dpc * PC_IN_KM)}` : '';
-        if (hidden(rel)) continue;
+        if (hidden(rel, dpc * PC_IN_KM)) continue;
         put(rel, starName(i) + near, 'star', false, { kind: 'star', index: i });
       }
       if (sunDist > 3000 * PC_IN_KM) {
@@ -862,6 +876,7 @@ export class ShipView {
         const rel = v3.sub(refPosPc(ref)!, obs);
         const d = v3.len(rel);
         const px = ((o.radiusLy / 3.26156) / d) * pxr;
+        if (hidden(rel, d * PC_IN_KM)) continue;
         if (px > 5 || (outside && o.type === 'galaxy') || d < 60) put(rel, o.name, o.type === 'galaxy' && (outside || px > 30) ? 'pill' : 'dso', px > 30, ref, o.type === 'galaxy' || o.type === 'nebula' || o.type === 'gc' ? px * 0.55 : px);
       }
     }

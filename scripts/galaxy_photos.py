@@ -42,7 +42,7 @@ OVERRIDE = {
 # galassie principali: texture in alta risoluzione (2048 px)
 FLAGSHIP = {'m31g', 'm33g', 'm51g', 'm81g', 'm101g', 'm104g', 'lmc', 'smc', 'ngc253', 'cena', 'm82g', 'm87g'}
 # foto scartate al controllo visivo (oggetto sbagliato, collage, galassia tagliata)
-REJECT = {'Auv0175.png', 'Messier 65 through the years.jpg', 'NGC 891 Hubble north part.jpg', 'NGC 4631 Hubble mosaic.jpg'}
+REJECT = {'Caldwell 45 (50291468631).jpg', 'Messier89 - HST - Potw1902a.tif', 'Caldwell 32.jpg', 'Auv0175.png', 'Messier 65 through the years.jpg', 'NGC 891 Hubble north part.jpg', 'NGC 4631 Hubble mosaic.jpg'}
 SKIP_NAME = re.compile(r'(map|chart|diagram|locator|location|finder|sketch|drawing|plot|spectrum|logo|auv\d|stamp|comparison|annotated|labeled|labelled)', re.I)
 
 
@@ -124,7 +124,14 @@ def download(fname, w, big=False):
     elif w >= 960: url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/{h[0]}/{h[:2]}/{q}/960px-{q}'
     else: url = f'https://upload.wikimedia.org/wikipedia/commons/{h[0]}/{h[:2]}/{q}'
     if n.lower().endswith(('.tif', '.tiff')): url += '.jpg' if 'thumb' in url else ''
-    b = get(url, binary=True)
+    cache = os.path.join(ROOT, '.data-src', 'galaxy-cache', hashlib.md5(url.encode()).hexdigest())
+    if os.path.exists(cache):
+        b = open(cache, 'rb').read()
+    else:
+        b = get(url, binary=True)
+        if b:
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            open(cache, 'wb').write(b)
     if not b: return None
     try:
         return Image.open(io.BytesIO(b)).convert('RGB')
@@ -196,7 +203,12 @@ def make(a, centre, ang, A, q, S=1024):
     img = Image.fromarray((a2 * 255).astype(np.uint8))
     valid = Image.new('L', (W, H), 255)
     m = int(max(4, 0.03 * min(W, H)))
-    valid = Image.fromarray(np.pad(np.full((H - 2 * m, W - 2 * m), 255, np.uint8), m)).filter(ImageFilter.GaussianBlur(m * 0.7))
+    frame = np.pad(np.full((H - 2 * m, W - 2 * m), 255, np.uint8), m)
+    # anche i "buchi" neri dei mosaici (zone a zero assoluto) contano come fuori dalla foto
+    lumi = Image.fromarray((a.max(2) * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(9))
+    gaps = np.asarray(lumi) <= 1
+    frame = np.where(gaps, 0, frame).astype(np.uint8)
+    valid = Image.fromarray(frame).filter(ImageFilter.MinFilter(5)).filter(ImageFilter.GaussianBlur(m * 0.7))
     canvas = Image.new('RGB', (W + 2 * pad, H + 2 * pad))
     canvas.paste(img, (pad, pad))
     vcanvas = Image.new('L', (W + 2 * pad, H + 2 * pad))
@@ -208,18 +220,41 @@ def make(a, centre, ang, A, q, S=1024):
     if q >= 0.28:
         # vista di fronte: si "raddrizza" l'ellisse in un cerchio (deproiezione)
         b = A * q
-        face = rot.crop((int(cx - A), int(cy - b), int(cx + A), int(cy + b))).resize((S, S), Image.LANCZOS)
+        box = (int(cx - A), int(cy - b), int(cx + A), int(cy + b))
+        face = rot.crop(box).resize((S, S), Image.LANCZOS)
+        val = np.asarray(vrot.crop(box).resize((S, S), Image.BILINEAR)).astype(np.float32) / 255
         t = np.asarray(face).astype(np.float32) / 255
-        r = np.hypot(*np.meshgrid(np.linspace(-1, 1, S), np.linspace(-1, 1, S)))
-        fade = np.clip((1.0 - r) / 0.3, 0, 1) ** 1.6
+        X, Y = np.meshgrid(np.linspace(-1, 1, S), np.linspace(-1, 1, S))
+        r = np.hypot(X, Y)
+        # dove la foto originale finisce prima del bordo del cerchio, la galassia sfuma in tempo:
+        # per ogni direzione si trova il raggio utile e si sfuma prima di arrivarci (niente tagli netti)
+        n_ang = 360
+        rl = np.ones(n_ang)
+        for k in range(n_ang):
+            th = 2 * np.pi * k / n_ang
+            for rr in np.linspace(0.02, 1.0, 120):
+                x = int((np.cos(th) * rr * 0.5 + 0.5) * (S - 1)); y = int((np.sin(th) * rr * 0.5 + 0.5) * (S - 1))
+                if val[y, x] < 0.6: rl[k] = rr; break
+        win = 14
+        ext = np.concatenate([rl[-win:], rl, rl[:win]])
+        er = np.array([ext[i:i + 2 * win + 1].min() for i in range(n_ang)])
+        ext = np.concatenate([er[-8:], er, er[:8]])
+        sm = np.array([ext[i:i + 17].mean() for i in range(n_ang)])
+        ang = (np.arctan2(Y, X) % (2 * np.pi)) / (2 * np.pi) * n_ang
+        lim = sm[np.clip(ang.astype(int), 0, n_ang - 1)] * 0.96
+        fade = (np.clip((1.0 - r) / 0.3, 0, 1) * np.clip((lim - r) / np.maximum(0.12, 0.3 * lim), 0, 1)) ** 1.6
         kind = 'face'
     else:
-        # di taglio: profilo orizzontale 1024×358 (coordinate dello strato di taglio: ±1.2 R × ±0.42 R)
+        # di taglio: profilo orizzontale 2048×716 (coordinate dello strato di taglio: ±1.2 R × ±0.42 R)
         R = A / 1.05
-        face = rot.crop((int(cx - 1.2 * R), int(cy - 0.42 * R), int(cx + 1.2 * R), int(cy + 0.42 * R))).resize((2048, 716), Image.LANCZOS)
+        box = (int(cx - 1.2 * R), int(cy - 0.42 * R), int(cx + 1.2 * R), int(cy + 0.42 * R))
+        face = rot.crop(box).resize((2048, 716), Image.LANCZOS)
+        val = vrot.crop(box).resize((2048, 716), Image.BILINEAR)
+        # bordo del fotogramma: maschera erosa e molto sfumata
+        val = np.asarray(val.filter(ImageFilter.MinFilter(41)).filter(ImageFilter.GaussianBlur(40))).astype(np.float32) / 255
         t = np.asarray(face).astype(np.float32) / 255
         X, Y = np.meshgrid(np.linspace(-1.2, 1.2, 2048), np.linspace(-0.42, 0.42, 716))
-        fade = (np.clip((1.18 - np.abs(X)) / 0.3, 0, 1) * np.clip((0.42 - np.abs(Y)) / 0.14, 0, 1)) ** 1.4
+        fade = (np.clip((1.18 - np.abs(X)) / 0.3, 0, 1) * np.clip((0.42 - np.abs(Y)) / 0.14, 0, 1)) ** 1.4 * val ** 2
         kind = 'edge'
     t = t * fade[..., None]
     return Image.fromarray((t * 255).astype(np.uint8)), kind

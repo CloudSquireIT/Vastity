@@ -239,14 +239,6 @@
   "credit": "ESA/Hubble",
   "source": "https://commons.wikimedia.org/wiki/File:Beacon_of_Light_Messier_86.jpg"
  },
- "m89g": {
-  "kind": "face",
-  "q": 0.803,
-  "file": "Messier89 - HST - Potw1902a.tif",
-  "license": "CC BY 4.0",
-  "credit": "ESA/Hubble",
-  "source": "https://commons.wikimedia.org/wiki/File:Messier89_-_HST_-_Potw1902a.tif"
- },
  "m90g": {
   "kind": "face",
   "q": 0.394,
@@ -423,14 +415,6 @@
   "credit": "NASA Hubble",
   "source": "https://commons.wikimedia.org/wiki/File:Caldwell_44.jpg"
  },
- "c45g": {
-  "kind": "face",
-  "q": 0.627,
-  "file": "Caldwell 45 (50291468631).jpg",
-  "license": "CC BY 2.0",
-  "credit": "NASA Hubble Space Telescope",
-  "source": "https://commons.wikimedia.org/wiki/File:Caldwell_45_(50291468631).jpg"
- },
  "c48g": {
   "kind": "face",
   "q": 0.867,
@@ -510,13 +494,5 @@
   "license": "CC BY 3.0",
   "credit": "ESO",
   "source": "https://commons.wikimedia.org/wiki/File:Wide_Field_Imager_view_of_a_Milky_Way_look-alike_NGC_6744.jpg"
- },
- "c32g": {
-  "kind": "edge",
-  "q": 0.203,
-  "file": "Caldwell 32.jpg",
-  "license": "CC BY 2.0",
-  "credit": "NASA Hubble",
-  "source": "https://commons.wikimedia.org/wiki/File:Caldwell_32.jpg"
  }
 }
