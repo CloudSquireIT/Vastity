@@ -747,8 +747,11 @@ export class Background {
     this.dustMat = new THREE.ShaderMaterial({
       vertexShader: galVert, fragmentShader: dustFrag,
       uniforms: { ...shared, uGain: { value: 0.022 }, uMaxPx: { value: 110 }, uBoost: { value: 1 }, uOther: { value: 1 } },
+      // le polveri tolgono luce ma NON trasparenza: il canvas ha l'alfa (realtà aumentata) e sottrarre
+      // anche l'alfa lo renderebbe trasparente (dischi neri su alcuni browser desktop)
       blending: THREE.CustomBlending, blendEquation: THREE.ReverseSubtractEquation,
       blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+      blendEquationAlpha: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
       depthTest: false, depthWrite: false, transparent: true,
     });
     this.dust = new THREE.Points(toGeometry(dust), this.dustMat);

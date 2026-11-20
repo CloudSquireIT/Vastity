@@ -42,16 +42,40 @@ export function initSheet(root: HTMLElement) {
     sheetBody,
   );
   root.appendChild(sheetEl);
-  // trascina verso il basso per chiudere
+  // trascina: su per espandere la scheda a metà altezza, giù per tornare a metà o chiudere
   let y0 = 0, dy = 0, dragging = false;
   const head = sheetEl.querySelector('.sheet-head') as HTMLElement;
-  head.addEventListener('pointerdown', (e) => { y0 = e.clientY; dy = 0; dragging = true; head.setPointerCapture(e.pointerId); });
-  head.addEventListener('pointermove', (e) => { if (!dragging) return; dy = Math.max(0, e.clientY - y0); sheetEl.style.transform = `translateY(${dy}px)`; });
-  head.addEventListener('pointerup', () => { dragging = false; sheetEl.style.transform = ''; if (dy > 80) closeSheet(); });
+  head.addEventListener('pointerdown', (e) => {
+    // i pulsanti nell'intestazione (X) devono ricevere il loro click anche con il mouse
+    if ((e.target as HTMLElement).closest('button')) return;
+    y0 = e.clientY; dy = 0; dragging = true; head.setPointerCapture(e.pointerId);
+    sheetEl.classList.add('dragging');
+  });
+  head.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    dy = e.clientY - y0;
+    sheetEl.style.transform = `translateY(${Math.max(dy, sheetEl.classList.contains('peek') ? -40 : 0)}px)`;
+  });
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    sheetEl.classList.remove('dragging');
+    sheetEl.style.transform = '';
+    const peekable = sheetEl.dataset.peekable === '1';
+    if (dy < -30 && sheetEl.classList.contains('peek')) sheetEl.classList.remove('peek');
+    else if (dy > 80) {
+      if (peekable && !sheetEl.classList.contains('peek')) sheetEl.classList.add('peek');
+      else closeSheet();
+    } else if (Math.abs(dy) < 6 && peekable) sheetEl.classList.toggle('peek');
+  };
+  head.addEventListener('pointerup', endDrag);
+  head.addEventListener('pointercancel', endDrag);
+  // scorrendo il contenuto di una scheda a metà, si apre del tutto
+  sheetBody.addEventListener('scroll', () => { if (sheetEl.classList.contains('peek') && sheetBody.scrollTop > 12) sheetEl.classList.remove('peek'); }, { passive: true });
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 }
 
-export function openSheet(id: string, title: string, body: Node, opts: { wide?: boolean; onClose?: () => void; compact?: boolean } = {}) {
+export function openSheet(id: string, title: string, body: Node, opts: { wide?: boolean; onClose?: () => void; compact?: boolean; peek?: boolean } = {}) {
   if (current && current !== id) onCloseCb?.();
   current = id;
   onCloseCb = opts.onClose ?? null;
@@ -60,6 +84,8 @@ export function openSheet(id: string, title: string, body: Node, opts: { wide?: 
   sheetBody.scrollTop = 0;
   sheetEl.classList.toggle('wide', !!opts.wide);
   sheetEl.classList.toggle('compact', !!opts.compact);
+  sheetEl.classList.toggle('peek', !!opts.peek);
+  sheetEl.dataset.peekable = opts.peek ? '1' : '';
   sheetEl.classList.add('open');
   document.body.classList.add('sheet-open');
   bus.emit('sheet', id);

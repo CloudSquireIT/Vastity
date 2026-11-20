@@ -4,7 +4,7 @@ import { galaxyPhotos } from '../data/catalog';
 import { Category, ObjRef, SearchItem, SortKey, categories, filterItems, sortItems, info, refName, search } from '../features/objects';
 import { formatLightTime, formatYear, lightJourney } from '../features/history';
 import { computeTonight } from '../features/tonight';
-import { BADGES, activeMissions, ensureDailyMissions, logObservation, progress, rankOf, visitPlace } from '../features/missions';
+import { BADGES, activeMissions, ensureDailyMissions, isLogged, logObservation, progress, rankOf, removeJournalEntry, unlogObservation, visitPlace } from '../features/missions';
 import { ALERT_TYPES, SkyEvent, computeEvents, downloadICS, fmtDay, notificationsEnabled, requestNotifications, scheduleNotifications } from '../features/alerts';
 import { PLACES, SkyFrame } from '../astro/astro';
 import { bus, saveSettings, setLocation, setTime, state } from '../state';
@@ -42,7 +42,6 @@ export function showInfo(ref: ObjRef) {
     if (/Catalogo|Catalogue|Sigla|Abbreviation|Abréviation|Tipo spettrale|Spectral type|Type spectral/.test(k)) tags.append(h('span', { class: 'tag' }, v));
   }
   body.append(h('div', { class: 'info-head' }, objectThumb(ref), h('div', { class: 'info-head-text' }, d.subtitle ? h('div', { class: 'info-sub' }, d.subtitle) : null, tags)));
-  if (d.desc) body.append(h('p', { class: 'info-desc' }, d.desc));
 
   const actions = h('div', { class: 'actions' });
   if (state.mode === 'sky') {
@@ -52,8 +51,23 @@ export function showInfo(ref: ObjRef) {
     actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('fly'), tx('Pilota automatico', 'Autopilot', 'Pilote automatique')));
     actions.append(h('button', { class: 'btn', onclick: () => { closeSheet(); api.teleport(ref); } }, icon('place'), tx('Teletrasporto', 'Teleport', 'Téléportation')));
   }
-  actions.append(h('button', { class: 'btn ghost', onclick: () => { logObservation(ref); toast(tx(`${d.title} aggiunto al diario`, `${d.title} added to your log`, `${d.title} ajouté au journal`)); } }, icon('journal'), tx('Diario', 'Log', 'Journal')));
+  // diario: interruttore (aggiungi / togli)
+  const logBtn = h('button', { class: 'btn ghost' });
+  const paintLog = () => {
+    const on = isLogged(ref);
+    logBtn.classList.toggle('on', on);
+    logBtn.replaceChildren(icon(on ? 'check' : 'journal'), on ? tx('Nel diario', 'In your log', 'Dans le journal') : tx('Diario', 'Log', 'Journal'));
+  };
+  logBtn.addEventListener('click', () => {
+    if (isLogged(ref)) { unlogObservation(ref); toast(tx(`${d.title} tolto dal diario`, `${d.title} removed from your log`, `${d.title} retiré du journal`)); }
+    else { logObservation(ref); toast(tx(`${d.title} aggiunto al diario`, `${d.title} added to your log`, `${d.title} ajouté au journal`)); }
+    paintLog();
+  });
+  paintLog();
+  actions.append(logBtn);
+  // le azioni subito sotto il titolo: visibili anche con la scheda a metà altezza
   body.append(actions);
+  if (d.desc) body.append(h('p', { class: 'info-desc' }, d.desc));
 
   // Idea 2: viaggio della luce
   const LJ = tx('Viaggio della luce', 'Light\'s journey', 'Voyage de la lumière');
@@ -86,7 +100,7 @@ export function showInfo(ref: ObjRef) {
   const facts = h('dl', { class: 'facts' });
   for (const [k, v] of d.facts) facts.append(h('dt', {}, k), h('dd', {}, v));
   body.append(facts);
-  openSheet('info', d.title, body, { compact: true, onClose: () => { if (state.mode === 'sky') api.selectSky(null); } });
+  openSheet('info', d.title, body, { compact: true, peek: true, onClose: () => { if (state.mode === 'sky') api.selectSky(null); } });
 }
 
 // ---------------------------------------------------------------------------
@@ -246,8 +260,10 @@ export function openMissions() {
   for (const e of progress.journal.slice(0, 60)) {
     const note = e.note === 'mission' || e.note === 'Missione completata' ? tx('Missione completata', 'Mission complete', 'Mission accomplie') : e.note;
     const from = e.place !== 'earth' ? ' · ' + tx('da', 'from', 'depuis') + ' ' + (PLACES.find((p) => p.id === e.place)?.name ?? '') : '';
-    j.append(h('div', { class: 'row static' }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, refName(e.ref)),
-      h('div', { class: 'row-s' }, `${fmtDate(new Date(e.t))} ${fmtTime(new Date(e.t))}${e.gyro ? ' · ' + tx('cielo vero', 'real sky', 'vrai ciel') : ''}${from}${note ? ' · ' + note : ''}`))));
+    const row = h('div', { class: 'row static' }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, refName(e.ref)),
+      h('div', { class: 'row-s' }, `${fmtDate(new Date(e.t))} ${fmtTime(new Date(e.t))}${e.gyro ? ' · ' + tx('cielo vero', 'real sky', 'vrai ciel') : ''}${from}${note ? ' · ' + note : ''}`)),
+      iconButton('close', tx('Rimuovi dal diario', 'Remove from log', 'Retirer du journal'), () => { removeJournalEntry(e.t); row.remove(); }, 'ibtn small row-del'));
+    j.append(row);
   }
   body.append(j);
   openSheet('missions', tx('Caccia al tesoro celeste', 'Celestial treasure hunt', 'Chasse au trésor céleste'), body, { wide: true });

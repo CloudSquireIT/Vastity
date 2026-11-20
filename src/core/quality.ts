@@ -16,6 +16,9 @@ export interface Quality {
 }
 
 function detectTier(): Tier {
+  // forzatura per test e supporto: ?q=low|mid|high
+  const forced = new URLSearchParams(location.search).get('q');
+  if (forced === 'low' || forced === 'mid' || forced === 'high') return forced;
   const nav = navigator as any;
   const mobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
   const mem: number = nav.deviceMemory ?? 8;

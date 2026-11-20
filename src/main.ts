@@ -140,7 +140,7 @@ async function main() {
   const tBack = iconButton('rewind', tx('Indietro nel tempo', 'Back in time', 'Reculer dans le temps'), () => stepTime(-1), 'tbtn');
   const tPause = iconButton('pause', tx('Pausa', 'Pause', 'Pause'), () => togglePause(), 'tbtn');
   const tFwd = iconButton('ffwd', tx('Avanti nel tempo', 'Forward in time', 'Avancer dans le temps'), () => stepTime(1), 'tbtn');
-  const timeCtl = h('div', { class: 'time-ctl' }, timePill, tBack, tPause, tFwd);
+  const timeCtl = h('div', { class: 'time-ctl' }, h('div', { class: 'time-btns' }, tBack, tPause, tFwd), timePill);
   const dockSky = h('nav', { class: 'dock' },
     iconButton('tonight', tx('Stasera', 'Tonight', 'Ce soir'), () => openTonight(), 'dbtn'),
     iconButton('missions', tx('Missioni', 'Missions', 'Missions'), () => openMissions(), 'dbtn'),

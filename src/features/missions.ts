@@ -174,6 +174,30 @@ export function logObservation(ref: ObjRef, note?: string) {
   bus.emit('progress');
 }
 
+/** L'oggetto è già nel diario (aggiunto a mano)? */
+export function isLogged(ref: ObjRef) {
+  return progress.journal.some((e) => !e.note && sameRef(e.ref, ref));
+}
+
+/** Toglie dal diario le voci aggiunte a mano per questo oggetto (le missioni restano). */
+export function unlogObservation(ref: ObjRef) {
+  const before = progress.journal.length;
+  progress.journal = progress.journal.filter((e) => e.note || !sameRef(e.ref, ref));
+  progress.xp = Math.max(0, progress.xp - 5 * (before - progress.journal.length));
+  persist();
+  bus.emit('progress');
+}
+
+/** Rimuove una singola voce del diario (dal pannello Missioni). */
+export function removeJournalEntry(t: number) {
+  const i = progress.journal.findIndex((e) => e.t === t);
+  if (i < 0) return;
+  if (!progress.journal[i].note) progress.xp = Math.max(0, progress.xp - 5);
+  progress.journal.splice(i, 1);
+  persist();
+  bus.emit('progress');
+}
+
 /** Chiamata dalla vista cielo: completa una missione se il suo oggetto è nel mirino. */
 export function tryComplete(ref: ObjRef): Mission | null {
   const m = progress.missions.find((x) => !x.done && sameRef(x.ref, ref));
