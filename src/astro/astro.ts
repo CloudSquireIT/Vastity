@@ -1,6 +1,7 @@
 // Calcoli astronomici: corpi del Sistema Solare, sistemi di riferimento, luoghi di osservazione.
 import * as A from 'astronomy-engine';
 import { AU_IN_KM, PC_IN_KM, radecToVec } from '../data/catalog';
+import { tx } from '../i18n';
 import { state } from '../state';
 
 export type V3 = [number, number, number];
@@ -20,7 +21,7 @@ const D2R = Math.PI / 180;
 export interface BodyInfo {
   id: string;
   body?: A.Body;
-  it: string;
+  name: string;
   radiusKm: number;
   color: [number, number, number];
   kind: 'star' | 'planet' | 'dwarf' | 'moon';
@@ -31,17 +32,17 @@ export interface BodyInfo {
 }
 
 export const BODIES: BodyInfo[] = [
-  { id: 'sun', body: A.Body.Sun, it: 'Sole', radiusKm: 696340, color: [1, 0.95, 0.85], kind: 'star', desc: 'La nostra stella: una nana gialla di 4,6 miliardi di anni.' },
-  { id: 'mercury', body: A.Body.Mercury, it: 'Mercurio', radiusKm: 2439.7, color: [0.62, 0.6, 0.58], kind: 'planet', period: 87.97, desc: 'Il pianeta più vicino al Sole: un anno dura solo 88 giorni.' },
-  { id: 'venus', body: A.Body.Venus, it: 'Venere', radiusKm: 6051.8, color: [0.95, 0.88, 0.7], kind: 'planet', period: 224.7, desc: 'La "stella del mattino": avvolta da nubi di acido solforico, è il pianeta più caldo.' },
-  { id: 'earth', body: A.Body.Earth, it: 'Terra', radiusKm: 6371, color: [0.3, 0.55, 0.95], kind: 'planet', period: 365.256, desc: 'Casa. L\'unico posto conosciuto con la vita.' },
-  { id: 'moon', body: A.Body.Moon, it: 'Luna', radiusKm: 1737.4, color: [0.78, 0.77, 0.75], kind: 'moon', period: 27.32, desc: 'Il nostro satellite naturale, a circa 384.400 km.' },
-  { id: 'mars', body: A.Body.Mars, it: 'Marte', radiusKm: 3389.5, color: [0.86, 0.45, 0.28], kind: 'planet', period: 686.98, desc: 'Il pianeta rosso, con il vulcano più alto del Sistema Solare.' },
-  { id: 'jupiter', body: A.Body.Jupiter, it: 'Giove', radiusKm: 69911, color: [0.86, 0.76, 0.62], kind: 'planet', period: 4332.6, desc: 'Il gigante gassoso: potrebbe contenere oltre 1300 Terre.' },
-  { id: 'saturn', body: A.Body.Saturn, it: 'Saturno', radiusKm: 58232, color: [0.92, 0.84, 0.62], kind: 'planet', period: 10759, rings: true, desc: 'Il signore degli anelli, fatti di ghiaccio e roccia.' },
-  { id: 'uranus', body: A.Body.Uranus, it: 'Urano', radiusKm: 25362, color: [0.62, 0.85, 0.9], kind: 'planet', period: 30687, desc: 'Ruota "sdraiato" su un fianco, con un\'inclinazione di 98°.' },
-  { id: 'neptune', body: A.Body.Neptune, it: 'Nettuno', radiusKm: 24622, color: [0.35, 0.5, 0.95], kind: 'planet', period: 60190, desc: 'Il pianeta più lontano, con venti fino a 2000 km/h.' },
-  { id: 'pluto', body: A.Body.Pluto, it: 'Plutone', radiusKm: 1188.3, color: [0.8, 0.7, 0.6], kind: 'dwarf', period: 90560, desc: 'Pianeta nano con un cuore di ghiaccio di azoto.' },
+  { id: 'sun', body: A.Body.Sun, name: tx('Sole', 'Sun', 'Soleil'), radiusKm: 696340, color: [1, 0.95, 0.85], kind: 'star', desc: tx('La nostra stella: una nana gialla di 4,6 miliardi di anni.', 'Our star: a 4.6-billion-year-old yellow dwarf.', 'Notre étoile : une naine jaune de 4,6 milliards d\'années.') },
+  { id: 'mercury', body: A.Body.Mercury, name: tx('Mercurio', 'Mercury', 'Mercure'), radiusKm: 2439.7, color: [0.62, 0.6, 0.58], kind: 'planet', period: 87.97, desc: tx('Il pianeta più vicino al Sole: un anno dura solo 88 giorni.', 'The closest planet to the Sun: a year lasts only 88 days.', 'La planète la plus proche du Soleil : une année ne dure que 88 jours.') },
+  { id: 'venus', body: A.Body.Venus, name: tx('Venere', 'Venus', 'Vénus'), radiusKm: 6051.8, color: [0.95, 0.88, 0.7], kind: 'planet', period: 224.7, desc: tx('La "stella del mattino": avvolta da nubi di acido solforico, è il pianeta più caldo.', 'The "morning star": wrapped in sulphuric acid clouds, it is the hottest planet.', 'L\'« étoile du berger » : enveloppée de nuages d\'acide sulfurique, c\'est la planète la plus chaude.') },
+  { id: 'earth', body: A.Body.Earth, name: tx('Terra', 'Earth', 'Terre'), radiusKm: 6371, color: [0.3, 0.55, 0.95], kind: 'planet', period: 365.256, desc: tx('Casa. L\'unico posto conosciuto con la vita.', 'Home. The only place known to harbour life.', 'Notre maison. Le seul endroit connu abritant la vie.') },
+  { id: 'moon', body: A.Body.Moon, name: tx('Luna', 'Moon', 'Lune'), radiusKm: 1737.4, color: [0.78, 0.77, 0.75], kind: 'moon', period: 27.32, desc: tx('Il nostro satellite naturale, a circa 384.400 km.', 'Our natural satellite, about 384,400 km away.', 'Notre satellite naturel, à environ 384 400 km.') },
+  { id: 'mars', body: A.Body.Mars, name: tx('Marte', 'Mars', 'Mars'), radiusKm: 3389.5, color: [0.86, 0.45, 0.28], kind: 'planet', period: 686.98, desc: tx('Il pianeta rosso, con il vulcano più alto del Sistema Solare.', 'The red planet, home to the tallest volcano in the Solar System.', 'La planète rouge, avec le plus haut volcan du Système solaire.') },
+  { id: 'jupiter', body: A.Body.Jupiter, name: tx('Giove', 'Jupiter', 'Jupiter'), radiusKm: 69911, color: [0.86, 0.76, 0.62], kind: 'planet', period: 4332.6, desc: tx('Il gigante gassoso: potrebbe contenere oltre 1300 Terre.', 'The gas giant: it could hold more than 1,300 Earths.', 'La géante gazeuse : elle pourrait contenir plus de 1 300 Terres.') },
+  { id: 'saturn', body: A.Body.Saturn, name: tx('Saturno', 'Saturn', 'Saturne'), radiusKm: 58232, color: [0.92, 0.84, 0.62], kind: 'planet', period: 10759, rings: true, desc: tx('Il signore degli anelli, fatti di ghiaccio e roccia.', 'The lord of the rings, made of ice and rock.', 'Le seigneur des anneaux, faits de glace et de roche.') },
+  { id: 'uranus', body: A.Body.Uranus, name: tx('Urano', 'Uranus', 'Uranus'), radiusKm: 25362, color: [0.62, 0.85, 0.9], kind: 'planet', period: 30687, desc: tx('Ruota "sdraiato" su un fianco, con un\'inclinazione di 98°.', 'It spins lying on its side, tilted by 98°.', 'Elle tourne couchée sur le côté, inclinée de 98°.') },
+  { id: 'neptune', body: A.Body.Neptune, name: tx('Nettuno', 'Neptune', 'Neptune'), radiusKm: 24622, color: [0.35, 0.5, 0.95], kind: 'planet', period: 60190, desc: tx('Il pianeta più lontano, con venti fino a 2000 km/h.', 'The farthest planet, with winds up to 2,000 km/h.', 'La planète la plus lointaine, avec des vents jusqu\'à 2 000 km/h.') },
+  { id: 'pluto', body: A.Body.Pluto, name: tx('Plutone', 'Pluto', 'Pluton'), radiusKm: 1188.3, color: [0.8, 0.7, 0.6], kind: 'dwarf', period: 90560, desc: tx('Pianeta nano con un cuore di ghiaccio di azoto.', 'A dwarf planet with a heart of nitrogen ice.', 'Une planète naine au cœur de glace d\'azote.') },
 ];
 
 export const bodyById = (id: string) => BODIES.find((b) => b.id === id);
@@ -53,6 +54,8 @@ export const bodyById = (id: string) => BODIES.find((b) => b.id === id);
 export interface ExoPlanet { name: string; aAU: number; periodD: number; radiusEarth: number; color: [number, number, number] }
 export interface ExoSystem {
   starName: string;
+  /** Numero Hipparcos della stella ospite, se è nel catalogo. */
+  hip?: string;
   /** Posizione della stella ospite (EQJ, parsec dal Sole). */
   raDeg: number; decDeg: number; distPc: number;
   starRadiusSun: number; starTemp: number; absmag: number;
@@ -62,7 +65,7 @@ export interface ExoSystem {
 
 export interface Place {
   id: string;
-  it: string;
+  name: string;
   sub: string;
   body?: A.Body;
   lat?: number;
@@ -74,26 +77,26 @@ export interface Place {
 }
 
 export const PLACES: Place[] = [
-  { id: 'earth', it: 'Terra', sub: 'La tua posizione', body: A.Body.Earth, ground: [0.11, 0.12, 0.11], sky: [0.25, 0.5, 0.95], note: '' },
-  { id: 'moon', it: 'Luna', sub: 'Mare della Tranquillità', body: A.Body.Moon, lat: 0.67, lon: 23.47, ground: [0.16, 0.16, 0.16], sky: [0, 0, 0], note: 'Nessuna atmosfera: le stelle si vedono anche di giorno. La Terra resta quasi ferma nel cielo.' },
-  { id: 'mercury', it: 'Mercurio', sub: 'Bacino Caloris', body: A.Body.Mercury, lat: 30.5, lon: 170.2, ground: [0.14, 0.13, 0.12], sky: [0, 0, 0], note: 'Il Sole appare tre volte più grande che dalla Terra.' },
-  { id: 'venus', it: 'Venere', sub: 'Sopra le nubi', body: A.Body.Venus, lat: 0, lon: 0, ground: [0.35, 0.28, 0.15], sky: [0.9, 0.7, 0.35], note: 'Dalla superficie le nubi nascondono tutto: qui sei sopra di esse. Venere ruota al contrario!' },
-  { id: 'mars', it: 'Marte', sub: 'Cratere Jezero', body: A.Body.Mars, lat: 18.38, lon: 77.58, ground: [0.2, 0.09, 0.05], sky: [0.75, 0.55, 0.4], note: 'La Terra è una "stella del mattino" azzurra. Il tramonto su Marte è blu.' },
-  { id: 'jupiter', it: 'Giove', sub: 'Sopra le nubi', body: A.Body.Jupiter, lat: 10, lon: 0, ground: [0.25, 0.18, 0.12], sky: [0.2, 0.15, 0.1], note: 'Un giorno dura meno di 10 ore: il cielo ruota velocissimo.' },
-  { id: 'saturn', it: 'Saturno', sub: 'Sopra le nubi', body: A.Body.Saturn, lat: 20, lon: 0, ground: [0.3, 0.25, 0.15], sky: [0.2, 0.17, 0.1], note: 'Il Sole è 90 volte più debole che dalla Terra.' },
-  { id: 'pluto', it: 'Plutone', sub: 'Sputnik Planitia', body: A.Body.Pluto, lat: 20, lon: 180, ground: [0.25, 0.22, 0.2], sky: [0, 0, 0], note: 'Il Sole è solo una stella molto brillante.' },
+  { id: 'earth', name: tx('Terra', 'Earth', 'Terre'), sub: tx('La tua posizione', 'Your location', 'Votre position'), body: A.Body.Earth, ground: [0.11, 0.12, 0.11], sky: [0.25, 0.5, 0.95], note: '' },
+  { id: 'moon', name: tx('Luna', 'Moon', 'Lune'), sub: tx('Mare della Tranquillità', 'Sea of Tranquillity', 'Mer de la Tranquillité'), body: A.Body.Moon, lat: 0.67, lon: 23.47, ground: [0.16, 0.16, 0.16], sky: [0, 0, 0], note: tx('Nessuna atmosfera: le stelle si vedono anche di giorno. La Terra resta quasi ferma nel cielo.', 'No atmosphere: stars are visible even by day. Earth stays almost still in the sky.', 'Pas d\'atmosphère : les étoiles sont visibles même le jour. La Terre reste presque immobile dans le ciel.') },
+  { id: 'mercury', name: tx('Mercurio', 'Mercury', 'Mercure'), sub: tx('Bacino Caloris', 'Caloris Basin', 'Bassin Caloris'), body: A.Body.Mercury, lat: 30.5, lon: 170.2, ground: [0.14, 0.13, 0.12], sky: [0, 0, 0], note: tx('Il Sole appare tre volte più grande che dalla Terra.', 'The Sun looks three times larger than from Earth.', 'Le Soleil paraît trois fois plus grand que depuis la Terre.') },
+  { id: 'venus', name: tx('Venere', 'Venus', 'Vénus'), sub: tx('Sopra le nubi', 'Above the clouds', 'Au-dessus des nuages'), body: A.Body.Venus, lat: 0, lon: 0, ground: [0.35, 0.28, 0.15], sky: [0.9, 0.7, 0.35], note: tx('Dalla superficie le nubi nascondono tutto: qui sei sopra di esse. Venere ruota al contrario!', 'From the surface the clouds hide everything: here you are above them. Venus spins backwards!', 'Depuis la surface, les nuages cachent tout : ici vous êtes au-dessus. Vénus tourne à l\'envers !') },
+  { id: 'mars', name: tx('Marte', 'Mars', 'Mars'), sub: tx('Cratere Jezero', 'Jezero Crater', 'Cratère Jezero'), body: A.Body.Mars, lat: 18.38, lon: 77.58, ground: [0.2, 0.09, 0.05], sky: [0.75, 0.55, 0.4], note: tx('La Terra è una "stella del mattino" azzurra. Il tramonto su Marte è blu.', 'Earth is a blue "morning star". Sunsets on Mars are blue.', 'La Terre est une « étoile du matin » bleue. Les couchers de soleil sur Mars sont bleus.') },
+  { id: 'jupiter', name: tx('Giove', 'Jupiter', 'Jupiter'), sub: tx('Sopra le nubi', 'Above the clouds', 'Au-dessus des nuages'), body: A.Body.Jupiter, lat: 10, lon: 0, ground: [0.25, 0.18, 0.12], sky: [0.2, 0.15, 0.1], note: tx('Un giorno dura meno di 10 ore: il cielo ruota velocissimo.', 'A day lasts less than 10 hours: the sky spins very fast.', 'Une journée dure moins de 10 heures : le ciel tourne très vite.') },
+  { id: 'saturn', name: tx('Saturno', 'Saturn', 'Saturne'), sub: tx('Sopra le nubi', 'Above the clouds', 'Au-dessus des nuages'), body: A.Body.Saturn, lat: 20, lon: 0, ground: [0.3, 0.25, 0.15], sky: [0.2, 0.17, 0.1], note: tx('Il Sole è 90 volte più debole che dalla Terra.', 'The Sun is 90 times fainter than from Earth.', 'Le Soleil est 90 fois plus faible que depuis la Terre.') },
+  { id: 'pluto', name: tx('Plutone', 'Pluto', 'Pluton'), sub: 'Sputnik Planitia', body: A.Body.Pluto, lat: 20, lon: 180, ground: [0.25, 0.22, 0.2], sky: [0, 0, 0], note: tx('Il Sole è solo una stella molto brillante.', 'The Sun is just a very bright star.', 'Le Soleil n\'est qu\'une étoile très brillante.') },
   {
-    id: 'proxima', it: 'Proxima b', sub: 'Proxima Centauri · 4,2 al', ground: [0.12, 0.05, 0.04], sky: [0.25, 0.08, 0.04],
-    note: 'Il pianeta più vicino fuori dal Sistema Solare. Probabilmente mostra sempre la stessa faccia alla sua stella. Guarda verso Cassiopea: il Sole è una stella in più.',
-    exo: { starName: 'Proxima Centauri', raDeg: 217.4289, decDeg: -62.6795, distPc: 1.3012, starRadiusSun: 0.154, starTemp: 3042, absmag: 15.5, observerIndex: 0,
+    id: 'proxima', name: 'Proxima b', sub: tx('Proxima Centauri · 4,2 al', 'Proxima Centauri · 4.2 ly', 'Proxima du Centaure · 4,2 al'), ground: [0.12, 0.05, 0.04], sky: [0.25, 0.08, 0.04],
+    note: tx('Il pianeta più vicino fuori dal Sistema Solare. Probabilmente mostra sempre la stessa faccia alla sua stella. Guarda verso Cassiopea: il Sole è una stella in più.', 'The nearest planet outside the Solar System. It probably always shows the same face to its star. Look towards Cassiopeia: the Sun is an extra star there.', 'La planète la plus proche hors du Système solaire. Elle montre sans doute toujours la même face à son étoile. Regardez vers Cassiopée : le Soleil y est une étoile de plus.'),
+    exo: { starName: tx('Proxima Centauri', 'Proxima Centauri', 'Proxima du Centaure'), hip: '70890', raDeg: 217.4289, decDeg: -62.6795, distPc: 1.3012, starRadiusSun: 0.154, starTemp: 3042, absmag: 15.5, observerIndex: 0,
       planets: [
         { name: 'Proxima d', aAU: 0.02885, periodD: 5.12, radiusEarth: 0.8, color: [0.6, 0.5, 0.45] },
         { name: 'Proxima b', aAU: 0.04857, periodD: 11.19, radiusEarth: 1.07, color: [0.5, 0.35, 0.3] },
       ] },
   },
   {
-    id: 'trappist', it: 'TRAPPIST-1e', sub: 'TRAPPIST-1 · 40 al', ground: [0.08, 0.05, 0.06], sky: [0.2, 0.06, 0.05],
-    note: 'Sette pianeti rocciosi vicinissimi tra loro: dal cielo di TRAPPIST-1e gli altri appaiono come lune.',
+    id: 'trappist', name: 'TRAPPIST-1e', sub: tx('TRAPPIST-1 · 40 al', 'TRAPPIST-1 · 40 ly', 'TRAPPIST-1 · 40 al'), ground: [0.08, 0.05, 0.06], sky: [0.2, 0.06, 0.05],
+    note: tx('Sette pianeti rocciosi vicinissimi tra loro: dal cielo di TRAPPIST-1e gli altri appaiono come lune.', 'Seven rocky planets packed close together: from TRAPPIST-1e the others look like moons.', 'Sept planètes rocheuses très proches les unes des autres : depuis TRAPPIST-1e, les autres ressemblent à des lunes.'),
     exo: { starName: 'TRAPPIST-1', raDeg: 346.6223, decDeg: -5.0414, distPc: 12.43, starRadiusSun: 0.119, starTemp: 2566, absmag: 18.4, observerIndex: 3,
       planets: [
         { name: 'TRAPPIST-1b', aAU: 0.01154, periodD: 1.5109, radiusEarth: 1.116, color: [0.6, 0.45, 0.4] },
@@ -106,8 +109,8 @@ export const PLACES: Place[] = [
       ] },
   },
   {
-    id: 'kepler186', it: 'Kepler-186f', sub: 'Kepler-186 · 580 al', ground: [0.1, 0.07, 0.05], sky: [0.35, 0.15, 0.08],
-    note: 'Il primo pianeta grande come la Terra trovato nella zona abitabile. Da qui le costellazioni sono già deformate.',
+    id: 'kepler186', name: 'Kepler-186f', sub: tx('Kepler-186 · 580 al', 'Kepler-186 · 580 ly', 'Kepler-186 · 580 al'), ground: [0.1, 0.07, 0.05], sky: [0.35, 0.15, 0.08],
+    note: tx('Il primo pianeta grande come la Terra trovato nella zona abitabile. Da qui le costellazioni sono già deformate.', 'The first Earth-sized planet found in a habitable zone. From here the constellations are already distorted.', 'La première planète de la taille de la Terre trouvée en zone habitable. D\'ici, les constellations sont déjà déformées.'),
     exo: { starName: 'Kepler-186', raDeg: 298.6527, decDeg: 43.955, distPc: 177.6, starRadiusSun: 0.523, starTemp: 3755, absmag: 8.6, observerIndex: 4,
       planets: [
         { name: 'Kepler-186b', aAU: 0.0378, periodD: 3.887, radiusEarth: 1.07, color: [0.6, 0.5, 0.4] },
@@ -256,7 +259,7 @@ export function skyFrame(place: Place, date: Date): SkyFrame {
       const helio = b.id === 'sun' ? [0, 0, 0] as V3 : toV(A.HelioVector(b.body, date));
       const isSun = b.id === 'sun';
       bodies.push({
-        id: b.id, name: b.it, dir: v3.norm(vec), distKm: dist * AU_IN_KM,
+        id: b.id, name: b.name, dir: v3.norm(vec), distKm: dist * AU_IN_KM,
         angRadius: Math.atan(b.radiusKm / (dist * AU_IN_KM)),
         mag: isSun ? sunMagAt(dist) : planetMag(b, date, dist),
         color: b.color, lightDir: isSun ? [0, 0, 1] : v3.norm(v3.scale(helio, -1)),
@@ -276,7 +279,7 @@ export function skyFrame(place: Place, date: Date): SkyFrame {
       const dist = v3.len(rel);
       const isSun = b.id === 'sun';
       bodies.push({
-        id: b.id, name: b.it, dir: v3.norm(rel), distKm: dist * AU_IN_KM,
+        id: b.id, name: b.name, dir: v3.norm(rel), distKm: dist * AU_IN_KM,
         angRadius: Math.atan(b.radiusKm / (dist * AU_IN_KM)),
         mag: isSun ? sunMagAt(dist) : planetMag(b, date, dist),
         color: b.color, lightDir: isSun ? [0, 0, 1] : v3.norm(v3.scale(helio, -1)),
@@ -361,14 +364,14 @@ export function starRiseSet(raDeg: number, decDeg: number, date: Date) {
 }
 
 export function moonPhaseName(deg: number) {
-  if (deg < 10 || deg > 350) return 'Luna nuova';
-  if (deg < 80) return 'Luna crescente';
-  if (deg < 100) return 'Primo quarto';
-  if (deg < 170) return 'Gibbosa crescente';
-  if (deg < 190) return 'Luna piena';
-  if (deg < 260) return 'Gibbosa calante';
-  if (deg < 280) return 'Ultimo quarto';
-  return 'Luna calante';
+  if (deg < 10 || deg > 350) return tx('Luna nuova', 'New Moon', 'Nouvelle lune');
+  if (deg < 80) return tx('Luna crescente', 'Waxing crescent', 'Premier croissant');
+  if (deg < 100) return tx('Primo quarto', 'First quarter', 'Premier quartier');
+  if (deg < 170) return tx('Gibbosa crescente', 'Waxing gibbous', 'Gibbeuse croissante');
+  if (deg < 190) return tx('Luna piena', 'Full Moon', 'Pleine lune');
+  if (deg < 260) return tx('Gibbosa calante', 'Waning gibbous', 'Gibbeuse décroissante');
+  if (deg < 280) return tx('Ultimo quarto', 'Last quarter', 'Dernier quartier');
+  return tx('Luna calante', 'Waning crescent', 'Dernier croissant');
 }
 
 export function sunAltitude(date: Date) {

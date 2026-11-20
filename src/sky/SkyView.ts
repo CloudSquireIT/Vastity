@@ -8,6 +8,7 @@ import { ObjRef, refDirection, sameRef } from '../features/objects';
 import { issLook } from '../features/iss';
 import { bus, simDate, state } from '../state';
 import { LabelLayer } from '../ui/labels';
+import { tx } from '../i18n';
 import { PointerHandlers } from '../ui/pointer';
 
 const D2R = Math.PI / 180;
@@ -162,7 +163,7 @@ export class SkyView {
       let s: V3 = [0, 0, 0];
       for (const i of ids) s = v3.add(s, v3.norm([stars.pos[i * 3] - obs[0], stars.pos[i * 3 + 1] - obs[1], stars.pos[i * 3 + 2] - obs[2]]));
       const dir = ids.length ? v3.norm(s) : radecToVec(c.c[0], c.c[1]);
-      return { id: c.id, name: c.it, dir };
+      return { id: c.id, name: c.name, dir };
     });
   }
 
@@ -516,7 +517,7 @@ export class SkyView {
     };
     // punti cardinali
     if (this.groundOn() || this.ar) {
-      const card: [number, string][] = [[0, 'N'], [90, 'E'], [180, 'S'], [270, 'O']];
+      const card: [number, string][] = [[0, 'N'], [90, 'E'], [180, 'S'], [270, tx('O', 'W', 'O')]];
       for (const [az, t] of card) {
         const h: V3 = [Math.sin(az * D2R), 0.0, -Math.cos(az * D2R)];
         const p = this.tmp.set(...h).multiplyScalar(1000).project(this.camera);
@@ -526,7 +527,7 @@ export class SkyView {
     if (st.labels) {
       for (const b of this.frame.bodies) put(b.dir, b.name, b.isStar ? 'body star' : 'body', true);
       if (this.issDir) put(this.issDir, 'ISS', 'body iss', true);
-      if (this.place.exo) put(v3.norm(v3.scale(this.frame.observerPc, -1)), 'Sole ☉', 'body sun-far', true);
+      if (this.place.exo) put(v3.norm(v3.scale(this.frame.observerPc, -1)), tx('Sole ☉', 'Sun ☉', 'Soleil ☉'), 'body sun-far', true);
       if (day < 0.7) {
         const lim = this.magLimit();
         for (const i of this.brightNamed) {
@@ -566,7 +567,7 @@ export class SkyView {
       this.arrow.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       (this.arrow.firstElementChild as HTMLElement).style.transform = `rotate(${ang}deg)`;
       const span = this.arrow.lastElementChild as HTMLElement;
-      const below = p.alt < 0 && this.groundOn() ? ' · sotto l\'orizzonte' : '';
+      const below = p.alt < 0 && this.groundOn() ? ' · ' + tx('sotto l\'orizzonte', 'below the horizon', 'sous l\'horizon') : '';
       span.textContent = (sel.kind === 'iss' ? 'ISS' : '') + below;
     }
   }

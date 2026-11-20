@@ -1,6 +1,7 @@
 // Piccole utilità DOM: creazione elementi, pannelli a scomparsa, notifiche "toast".
 import { IconName, icons } from './icons';
 import { bus } from '../state';
+import { LOCALE, tx } from '../i18n';
 
 type Child = Node | string | null | undefined | false;
 
@@ -37,7 +38,7 @@ export function initSheet(root: HTMLElement) {
   sheetTitle = h('div', { class: 'sheet-title' });
   sheetBody = h('div', { class: 'sheet-body' });
   sheetEl = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'false' },
-    h('div', { class: 'sheet-head' }, h('div', { class: 'sheet-grip' }), sheetTitle, iconButton('close', 'Chiudi', () => closeSheet(), 'ibtn small')),
+    h('div', { class: 'sheet-head' }, h('div', { class: 'sheet-grip' }), sheetTitle, iconButton('close', tx('Chiudi', 'Close', 'Fermer'), () => closeSheet(), 'ibtn small')),
     sheetBody,
   );
   root.appendChild(sheetEl);
@@ -91,5 +92,5 @@ export function toast(msg: string, kind = '') {
   setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 400); }, 4200);
 }
 
-export const fmtTime = (d: Date) => d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-export const fmtDate = (d: Date) => d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
+export const fmtTime = (d: Date) => d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
+export const fmtDate = (d: Date) => d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });

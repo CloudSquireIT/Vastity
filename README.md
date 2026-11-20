@@ -25,6 +25,12 @@ Web app (PWA) per esplorare il cielo in tempo reale e viaggiare nello spazio in 
 - La manetta va da 1 km/s fino a 0,9999 c con effetti relativistici reali: aberrazione, effetto Doppler e dilatazione del tempo. Oltre c'è un "motore a curvatura" fino a 10¹² volte la luce.
 - Il pilota automatico ("Vai a") porta verso qualsiasi oggetto. I pianeti sono procedurali (la Terra ha continenti, nuvole e luci delle città), Saturno ha gli anelli e le stelle vicine diventano veri soli.
 
+## Lingue
+
+L'interfaccia è in **italiano, inglese e francese**. La lingua si sceglie automaticamente da quella del dispositivo e si può cambiare in Impostazioni → Lingua. Sono tradotti anche i nomi di stelle, costellazioni e galassie, le descrizioni, gli eventi storici del "Viaggio della luce", missioni, badge e avvisi.
+
+Per aggiungere una lingua: estendi `Lang` in `src/i18n.ts` e aggiungi il testo nelle chiamate `tx(it, en, fr)`.
+
 ## Sviluppo
 
 ```bash

@@ -1,4 +1,5 @@
 // Caricamento dei cataloghi (stelle HYG, costellazioni, Messier) e utilità.
+import { lang, tx } from '../i18n';
 
 export const PC_IN_LY = 3.26156;
 export const PC_IN_KM = 3.0856775814913673e13;
@@ -21,7 +22,8 @@ export interface StarCatalog {
 
 export interface Constellation {
   id: string;
-  it: string;
+  /** Nome nella lingua dell'interfaccia. */
+  name: string;
   la: string;
   gen: string;
   rank: number;
@@ -42,6 +44,28 @@ export interface Messier {
 export function bvToTemp(bv: number) {
   return 4600 * (1 / (0.92 * bv + 1.7) + 1 / (0.92 * bv + 0.62));
 }
+
+/** Nomi propri delle stelle che cambiano da lingua a lingua (il catalogo usa l'inglese). */
+const STAR_NAMES: Record<string, Partial<Record<'it' | 'en' | 'fr', string>>> = {
+  Sol: { it: 'Sole', fr: 'Soleil', en: 'Sun' },
+  Polaris: { it: 'Stella Polare', fr: 'Étoile polaire' },
+  'Rigil Kentaurus': { it: 'Alfa Centauri', en: 'Alpha Centauri', fr: 'Alpha du Centaure' },
+  Toliman: { it: 'Alfa Centauri B', en: 'Alpha Centauri B', fr: 'Alpha du Centaure B' },
+  'Proxima Centauri': { fr: 'Proxima du Centaure' },
+  Sirius: { it: 'Sirio' },
+  Arcturus: { it: 'Arturo' },
+  Procyon: { it: 'Procione' },
+  Canopus: { it: 'Canopo' },
+  Regulus: { it: 'Regolo', fr: 'Régulus' },
+  Castor: { it: 'Castore' },
+  Pollux: { it: 'Polluce' },
+  Aldebaran: { fr: 'Aldébaran' },
+  Betelgeuse: { fr: 'Bételgeuse' },
+  Antares: { fr: 'Antarès' },
+  Deneb: { fr: 'Deneb' },
+  Fomalhaut: { fr: 'Fomalhaut' },
+  Spica: { fr: 'Spica' },
+};
 
 export let stars: StarCatalog;
 export let constellations: Constellation[] = [];
@@ -64,7 +88,7 @@ export async function loadCatalogs() {
     name: new Int32Array(n),
     con: new Array(n),
     distUnknown: new Uint8Array(n),
-    names: s.names,
+    names: s.names.map((n: [string, string, string, string]) => [STAR_NAMES[n[0]]?.[lang] ?? n[0], n[1], n[2], n[3]]),
   };
   rows.forEach((r, i) => {
     cat.pos[i * 3] = r[0];
@@ -78,7 +102,7 @@ export async function loadCatalogs() {
     cat.distUnknown[i] = r[7];
   });
   stars = cat;
-  constellations = Object.entries(c).map(([id, v]: [string, any]) => ({ id, ...v }));
+  constellations = Object.entries(c).map(([id, v]: [string, any]) => ({ id, name: v[lang] || v.la, la: v.la, gen: v.gen, rank: v.rank, c: v.c, lines: v.lines }));
   messier = m;
 }
 
@@ -138,57 +162,57 @@ export function radecToVec(raDeg: number, decDeg: number): [number, number, numb
 }
 
 export const MESSIER_TYPES: Record<string, string> = {
-  gc: 'Ammasso globulare',
-  oc: 'Ammasso aperto',
-  pn: 'Nebulosa planetaria',
-  en: 'Nebulosa a emissione',
-  rn: 'Nebulosa a riflessione',
-  bn: 'Nebulosa',
-  snr: 'Resto di supernova',
-  sg: 'Galassia spirale',
-  s0: 'Galassia lenticolare',
-  sd: 'Galassia spirale',
-  i: 'Galassia irregolare',
-  e: 'Galassia ellittica',
-  ds: 'Stella doppia',
-  ast: 'Asterismo',
-  pos: 'Gruppo di stelle',
+  gc: tx('Ammasso globulare', 'Globular cluster', 'Amas globulaire'),
+  oc: tx('Ammasso aperto', 'Open cluster', 'Amas ouvert'),
+  pn: tx('Nebulosa planetaria', 'Planetary nebula', 'Nébuleuse planétaire'),
+  en: tx('Nebulosa a emissione', 'Emission nebula', 'Nébuleuse en émission'),
+  rn: tx('Nebulosa a riflessione', 'Reflection nebula', 'Nébuleuse par réflexion'),
+  bn: tx('Nebulosa', 'Nebula', 'Nébuleuse'),
+  snr: tx('Resto di supernova', 'Supernova remnant', 'Rémanent de supernova'),
+  sg: tx('Galassia spirale', 'Spiral galaxy', 'Galaxie spirale'),
+  s0: tx('Galassia lenticolare', 'Lenticular galaxy', 'Galaxie lenticulaire'),
+  sd: tx('Galassia spirale', 'Spiral galaxy', 'Galaxie spirale'),
+  i: tx('Galassia irregolare', 'Irregular galaxy', 'Galaxie irrégulière'),
+  e: tx('Galassia ellittica', 'Elliptical galaxy', 'Galaxie elliptique'),
+  ds: tx('Stella doppia', 'Double star', 'Étoile double'),
+  ast: tx('Asterismo', 'Asterism', 'Astérisme'),
+  pos: tx('Gruppo di stelle', 'Star group', 'Groupe d\'étoiles'),
 };
 
-/** Distanze (anni luce) e nomi italiani degli oggetti di Messier più noti. */
-export const MESSIER_EXTRA: Record<string, { it?: string; ly: number }> = {
-  M1: { it: 'Nebulosa del Granchio', ly: 6500 },
-  M8: { it: 'Nebulosa Laguna', ly: 4100 },
-  M13: { it: 'Grande Ammasso di Ercole', ly: 22200 },
-  M16: { it: 'Nebulosa Aquila', ly: 7000 },
-  M17: { it: 'Nebulosa Omega', ly: 5500 },
-  M20: { it: 'Nebulosa Trifida', ly: 4100 },
-  M27: { it: 'Nebulosa Manubrio', ly: 1360 },
-  M31: { it: 'Galassia di Andromeda', ly: 2537000 },
-  M33: { it: 'Galassia del Triangolo', ly: 2730000 },
-  M42: { it: 'Nebulosa di Orione', ly: 1344 },
-  M44: { it: 'Presepe', ly: 577 },
-  M45: { it: 'Pleiadi', ly: 444 },
-  M51: { it: 'Galassia Vortice', ly: 23000000 },
-  M57: { it: 'Nebulosa Anello', ly: 2570 },
-  M81: { it: 'Galassia di Bode', ly: 11800000 },
-  M82: { it: 'Galassia Sigaro', ly: 11500000 },
-  M87: { it: 'Virgo A', ly: 53500000 },
-  M101: { it: 'Galassia Girandola', ly: 20900000 },
-  M104: { it: 'Galassia Sombrero', ly: 31100000 },
-  M6: { it: 'Ammasso Farfalla', ly: 1600 },
-  M7: { it: 'Ammasso di Tolomeo', ly: 980 },
+/** Distanze (anni luce) e nomi degli oggetti di Messier più noti. */
+export const MESSIER_EXTRA: Record<string, { name?: string; ly: number }> = {
+  M1: { name: tx('Nebulosa del Granchio', 'Crab Nebula', 'Nébuleuse du Crabe'), ly: 6500 },
+  M8: { name: tx('Nebulosa Laguna', 'Lagoon Nebula', 'Nébuleuse de la Lagune'), ly: 4100 },
+  M13: { name: tx('Grande Ammasso di Ercole', 'Great Hercules Cluster', 'Grand amas d\'Hercule'), ly: 22200 },
+  M16: { name: tx('Nebulosa Aquila', 'Eagle Nebula', 'Nébuleuse de l\'Aigle'), ly: 7000 },
+  M17: { name: tx('Nebulosa Omega', 'Omega Nebula', 'Nébuleuse Oméga'), ly: 5500 },
+  M20: { name: tx('Nebulosa Trifida', 'Trifid Nebula', 'Nébuleuse Trifide'), ly: 4100 },
+  M27: { name: tx('Nebulosa Manubrio', 'Dumbbell Nebula', 'Nébuleuse de l\'Haltère'), ly: 1360 },
+  M31: { name: tx('Galassia di Andromeda', 'Andromeda Galaxy', 'Galaxie d\'Andromède'), ly: 2537000 },
+  M33: { name: tx('Galassia del Triangolo', 'Triangulum Galaxy', 'Galaxie du Triangle'), ly: 2730000 },
+  M42: { name: tx('Nebulosa di Orione', 'Orion Nebula', 'Nébuleuse d\'Orion'), ly: 1344 },
+  M44: { name: tx('Presepe', 'Beehive Cluster', 'Amas de la Ruche'), ly: 577 },
+  M45: { name: tx('Pleiadi', 'Pleiades', 'Pléiades'), ly: 444 },
+  M51: { name: tx('Galassia Vortice', 'Whirlpool Galaxy', 'Galaxie du Tourbillon'), ly: 23000000 },
+  M57: { name: tx('Nebulosa Anello', 'Ring Nebula', 'Nébuleuse de l\'Anneau'), ly: 2570 },
+  M81: { name: tx('Galassia di Bode', 'Bode\'s Galaxy', 'Galaxie de Bode'), ly: 11800000 },
+  M82: { name: tx('Galassia Sigaro', 'Cigar Galaxy', 'Galaxie du Cigare'), ly: 11500000 },
+  M87: { name: 'Virgo A', ly: 53500000 },
+  M101: { name: tx('Galassia Girandola', 'Pinwheel Galaxy', 'Galaxie du Moulinet'), ly: 20900000 },
+  M104: { name: tx('Galassia Sombrero', 'Sombrero Galaxy', 'Galaxie du Sombrero'), ly: 31100000 },
+  M6: { name: tx('Ammasso Farfalla', 'Butterfly Cluster', 'Amas du Papillon'), ly: 1600 },
+  M7: { name: tx('Ammasso di Tolomeo', 'Ptolemy Cluster', 'Amas de Ptolémée'), ly: 980 },
   M22: { ly: 10600 },
   M3: { ly: 33900 },
   M5: { ly: 24500 },
   M92: { ly: 26700 },
-  M11: { it: 'Ammasso Anatra Selvatica', ly: 6200 },
+  M11: { name: tx('Ammasso Anatra Selvatica', 'Wild Duck Cluster', 'Amas du Canard sauvage'), ly: 6200 },
   M35: { ly: 2800 },
   M41: { ly: 2300 },
-  M64: { it: 'Galassia Occhio Nero', ly: 17300000 },
-  M97: { it: 'Nebulosa Civetta', ly: 2030 },
+  M64: { name: tx('Galassia Occhio Nero', 'Black Eye Galaxy', 'Galaxie de l\'Œil noir'), ly: 17300000 },
+  M97: { name: tx('Nebulosa Civetta', 'Owl Nebula', 'Nébuleuse du Hibou'), ly: 2030 },
 };
 
 export function messierName(m: Messier) {
-  return MESSIER_EXTRA[m.id]?.it ?? (m.alt || m.id);
+  return MESSIER_EXTRA[m.id]?.name ?? (m.alt || m.id);
 }

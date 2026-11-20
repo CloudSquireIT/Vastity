@@ -8,6 +8,7 @@ import { ALERT_TYPES, SkyEvent, computeEvents, downloadICS, fmtDay, notification
 import { PLACES, SkyFrame } from '../astro/astro';
 import { bus, saveSettings, setLocation, setTime, state } from '../state';
 import { azName } from '../features/iss';
+import { LANGS, lang, setLang, tx } from '../i18n';
 
 export interface AppApi {
   frame(): SkyFrame;
@@ -36,33 +37,40 @@ export function showInfo(ref: ObjRef) {
 
   const actions = h('div', { class: 'actions' });
   if (state.mode === 'sky') {
-    actions.append(h('button', { class: 'btn', onclick: () => { api.centerSky(ref); closeSheet(); } }, icon('target'), 'Centra'));
-    if (d.canFly) actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('ship'), 'Vola fin lì'));
+    actions.append(h('button', { class: 'btn', onclick: () => { api.centerSky(ref); closeSheet(); } }, icon('target'), tx('Centra', 'Centre', 'Centrer')));
+    if (d.canFly) actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('ship'), tx('Vola fin lì', 'Fly there', 'Y aller')));
   } else if (d.canFly) {
-    actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('fly'), 'Pilota automatico'));
-    actions.append(h('button', { class: 'btn', onclick: () => { closeSheet(); api.teleport(ref); } }, icon('place'), 'Teletrasporto'));
+    actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('fly'), tx('Pilota automatico', 'Autopilot', 'Pilote automatique')));
+    actions.append(h('button', { class: 'btn', onclick: () => { closeSheet(); api.teleport(ref); } }, icon('place'), tx('Teletrasporto', 'Teleport', 'Téléportation')));
   }
-  actions.append(h('button', { class: 'btn ghost', onclick: () => { logObservation(ref); toast(`${d.title} aggiunto al diario`); } }, icon('journal'), 'Diario'));
+  actions.append(h('button', { class: 'btn ghost', onclick: () => { logObservation(ref); toast(tx(`${d.title} aggiunto al diario`, `${d.title} added to your log`, `${d.title} ajouté au journal`)); } }, icon('journal'), tx('Diario', 'Log', 'Journal')));
   body.append(actions);
 
   // Idea 2: viaggio della luce
+  const LJ = tx('Viaggio della luce', 'Light\'s journey', 'Voyage de la lumière');
   if (d.lightYears && d.lightYears > 0.5) {
     const lj = lightJourney(d.lightYears, new Date(state.time));
     const pct = Math.max(2, lj.timeline * 100);
+    const close = Math.abs(lj.eventYear - lj.departureYear) <= 3;
+    const yr = close ? '' : ` (${formatYear(lj.eventYear)})`;
     body.append(h('div', { class: 'journey' },
-      h('div', { class: 'journey-k' }, 'Viaggio della luce'),
-      h('div', { class: 'journey-big' }, `La luce che vedi è partita ${lj.departureText}`),
-      h('p', {}, `${Math.abs(lj.eventYear - lj.departureYear) <= 3 ? 'In quel momento' : 'In quell\'epoca'} sulla Terra ${lj.event}${Math.abs(lj.eventYear - lj.departureYear) > 3 ? ` (${formatYear(lj.eventYear)})` : ''}.`),
+      h('div', { class: 'journey-k' }, LJ),
+      h('div', { class: 'journey-big' }, tx(`La luce che vedi è partita ${lj.departureText}`, `The light you see set off ${lj.departureText}`, `La lumière que vous voyez est partie ${lj.departureText}`)),
+      h('p', {}, close
+        ? tx(`In quel momento sulla Terra ${lj.event}.`, `At that moment on Earth, ${lj.event}.`, `À ce moment-là sur Terre, ${lj.event}.`)
+        : tx(`In quell'epoca sulla Terra ${lj.event}${yr}.`, `Around that time on Earth, ${lj.event}${yr}.`, `À cette époque sur Terre, ${lj.event}${yr}.`)),
       h('div', { class: 'timeline', 'aria-hidden': 'true' },
         h('div', { class: 'timeline-bar' }, h('div', { class: 'timeline-fill', style: { width: pct + '%' } })),
-        h('div', { class: 'timeline-labels' }, h('span', {}, 'oggi'), h('span', {}, 'Big Bang'))),
+        h('div', { class: 'timeline-labels' }, h('span', {}, tx('oggi', 'today', 'aujourd\'hui')), h('span', {}, 'Big Bang'))),
       h('p', { class: 'muted' }, lj.mirror),
     ));
   } else if (d.lightSeconds) {
+    const lt = formatLightTime(d.lightSeconds);
+    const ago = d.lightSeconds < 60 ? tx('un attimo', 'a moment', 'un instant') : lt;
     body.append(h('div', { class: 'journey' },
-      h('div', { class: 'journey-k' }, 'Viaggio della luce'),
-      h('div', { class: 'journey-big' }, `La sua luce impiega ${formatLightTime(d.lightSeconds)} per arrivare a te`),
-      h('p', { class: 'muted' }, `Quello che vedi è com'era ${d.lightSeconds < 60 ? 'un attimo' : formatLightTime(d.lightSeconds)} fa.`),
+      h('div', { class: 'journey-k' }, LJ),
+      h('div', { class: 'journey-big' }, tx(`La sua luce impiega ${lt} per arrivare a te`, `Its light takes ${lt} to reach you`, `Sa lumière met ${lt} à vous parvenir`)),
+      h('p', { class: 'muted' }, tx(`Quello che vedi è com'era ${ago} fa.`, `What you see is how it looked ${ago} ago.`, `Ce que vous voyez est son aspect d'il y a ${ago}.`)),
     ));
   }
 
@@ -75,10 +83,16 @@ export function showInfo(ref: ObjRef) {
 // ---------------------------------------------------------------------------
 // Ricerca
 // ---------------------------------------------------------------------------
+const QUICK: Record<string, string[]> = {
+  it: ['Luna', 'Giove', 'Saturno', 'Marte', 'Sirio', 'Betelgeuse', 'Orione', 'Andromeda', 'Pleiadi', 'Stella Polare', 'Proxima Centauri', 'ISS'],
+  en: ['Moon', 'Jupiter', 'Saturn', 'Mars', 'Sirius', 'Betelgeuse', 'Orion', 'Andromeda', 'Pleiades', 'Polaris', 'Proxima Centauri', 'ISS'],
+  fr: ['Lune', 'Jupiter', 'Saturne', 'Mars', 'Sirius', 'Bételgeuse', 'Orion', 'Andromède', 'Pléiades', 'Étoile polaire', 'Proxima du Centaure', 'ISS'],
+};
+
 export function openSearch(onPick?: (r: ObjRef) => void) {
-  const input = h('input', { class: 'search-input', type: 'search', placeholder: 'Pianeti, stelle, costellazioni, galassie…', autocomplete: 'off', spellcheck: 'false' }) as HTMLInputElement;
+  const input = h('input', { class: 'search-input', type: 'search', placeholder: tx('Pianeti, stelle, costellazioni, galassie…', 'Planets, stars, constellations, galaxies…', 'Planètes, étoiles, constellations, galaxies…'), autocomplete: 'off', spellcheck: 'false' }) as HTMLInputElement;
   const list = h('div', { class: 'list' });
-  const quick = ['Luna', 'Giove', 'Saturno', 'Marte', 'Sirio', 'Betelgeuse', 'Orione', 'Andromeda', 'Pleiadi', 'Stella Polare', 'Proxima Centauri', 'ISS'];
+  const quick = QUICK[lang];
   const pick = (r: ObjRef) => {
     closeSheet();
     if (onPick) return onPick(r);
@@ -93,13 +107,13 @@ export function openSearch(onPick?: (r: ObjRef) => void) {
       return;
     }
     const res = search(q);
-    if (!res.length) list.append(h('p', { class: 'muted pad' }, 'Nessun risultato.'));
+    if (!res.length) list.append(h('p', { class: 'muted pad' }, tx('Nessun risultato.', 'No results.', 'Aucun résultat.')));
     for (const it of res) list.append(h('button', { class: 'row', onclick: () => pick(it.ref) }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, it.name), h('div', { class: 'row-s' }, it.sub))));
   };
   input.addEventListener('input', render);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const r = search(input.value)[0]; if (r) pick(r.ref); } });
   render();
-  openSheet('search', state.mode === 'ship' ? 'Dove vuoi andare?' : 'Cerca nel cielo', h('div', {}, input, list));
+  openSheet('search', state.mode === 'ship' ? tx('Dove vuoi andare?', 'Where do you want to go?', 'Où voulez-vous aller ?') : tx('Cerca nel cielo', 'Search the sky', 'Chercher dans le ciel'), h('div', {}, input, list));
   setTimeout(() => input.focus(), 250);
 }
 
@@ -107,24 +121,24 @@ export function openSearch(onPick?: (r: ObjRef) => void) {
 // Idea 1: Stasera vale la pena?
 // ---------------------------------------------------------------------------
 export async function openTonight() {
-  const body = h('div', { class: 'tonight' }, h('div', { class: 'loading' }, 'Controllo meteo, Luna e cielo…'));
-  openSheet('tonight', 'Stasera vale la pena?', body, { wide: true });
+  const body = h('div', { class: 'tonight' }, h('div', { class: 'loading' }, tx('Controllo meteo, Luna e cielo…', 'Checking weather, Moon and sky…', 'Vérification de la météo, de la Lune et du ciel…')));
+  openSheet('tonight', tx('Stasera vale la pena?', 'Is tonight worth it?', 'Ce soir, ça vaut le coup ?'), body, { wide: true });
   try {
     const t = await computeTonight(new Date());
     if (!sheetOpen('tonight')) return;
     const ring = h('div', { class: 'score', style: { '--p': String(t.score) } as any },
       h('div', { class: 'score-n' }, String(t.score)), h('div', { class: 'score-of' }, '/100'));
     const head = h('div', { class: 'tonight-head' }, ring, h('div', {}, h('div', { class: 'tonight-label' }, t.label), h('p', { class: 'muted' }, t.summary),
-      h('div', { class: 'muted small' }, `Notte: ${fmtTime(t.start)} – ${fmtTime(t.end)} · ${state.location.name}`)));
+      h('div', { class: 'muted small' }, `${tx('Notte', 'Night', 'Nuit')}: ${fmtTime(t.start)} – ${fmtTime(t.end)} · ${state.location.name}`)));
     // andamento della notte (punteggio ogni mezz'ora)
     const maxS = Math.max(1, ...t.hours.map((x) => x.score));
-    const bars = h('div', { class: 'bars', role: 'img', 'aria-label': 'Punteggio della notte ora per ora' });
+    const bars = h('div', { class: 'bars', role: 'img', 'aria-label': tx('Punteggio della notte ora per ora', 'Hour-by-hour score for the night', 'Score de la nuit heure par heure') });
     for (const hs of t.hours) {
       const isBest = hs.t === t.best.getTime();
-      const label = `${fmtTime(new Date(hs.t))} · ${Math.round(hs.score)}/100${hs.cloud != null ? ` · nuvole ${Math.round(hs.cloud)}%` : ''}${hs.moonUp ? ' · Luna alta' : ''}`;
+      const label = `${fmtTime(new Date(hs.t))} · ${Math.round(hs.score)}/100${hs.cloud != null ? ` · ${tx('nuvole', 'clouds', 'nuages')} ${Math.round(hs.cloud)}%` : ''}${hs.moonUp ? ' · ' + tx('Luna alta', 'Moon up', 'Lune levée') : ''}`;
       bars.append(h('div', { class: 'bar' + (isBest ? ' best' : ''), title: label, 'data-tip': label, style: { height: `${Math.max(4, (hs.score / Math.max(maxS, 60)) * 100)}%` } }));
     }
-    const tip = h('div', { class: 'bars-tip muted small' }, `Migliore: ${fmtTime(t.best)} · tocca una barra per i dettagli`);
+    const tip = h('div', { class: 'bars-tip muted small' }, tx(`Migliore: ${fmtTime(t.best)} · tocca una barra per i dettagli`, `Best: ${fmtTime(t.best)} · tap a bar for details`, `Meilleur : ${fmtTime(t.best)} · touchez une barre pour les détails`));
     bars.addEventListener('pointermove', (e) => { const el = (e.target as HTMLElement).closest('.bar') as HTMLElement | null; if (el) tip.textContent = el.dataset.tip ?? ''; });
     bars.addEventListener('click', (e) => { const el = (e.target as HTMLElement).closest('.bar') as HTMLElement | null; if (el) tip.textContent = el.dataset.tip ?? ''; });
     const axis = h('div', { class: 'bars-axis muted small' }, h('span', {}, fmtTime(t.start)), h('span', {}, fmtTime(t.end)));
@@ -132,22 +146,23 @@ export async function openTonight() {
     const factors = h('div', { class: 'factors' }, ...t.factors.map((f) => h('div', { class: 'factor ' + (f.ok ? 'ok' : 'bad') }, h('span', { class: 'dot' }), h('span', { class: 'f-n' }, f.name), h('span', { class: 'f-v' }, f.value))));
 
     const sugg = h('div', { class: 'list' });
-    if (!t.suggestions.length) sugg.append(h('p', { class: 'muted' }, 'Niente di particolare in alto stasera.'));
+    if (!t.suggestions.length) sugg.append(h('p', { class: 'muted' }, tx('Niente di particolare in alto stasera.', 'Nothing special up high tonight.', 'Rien de particulier haut dans le ciel ce soir.')));
     for (const s of t.suggestions) {
       sugg.append(h('button', { class: 'row', onclick: () => { closeSheet(); setTime(s.when.getTime()); bus.emit('time-ui'); api.selectSky(s.ref); api.centerSky(s.ref); } },
         h('div', { class: 'row-ico' }, icon(s.icon === 'moon' ? 'tonight' : s.icon === 'planet' ? 'worlds' : s.icon === 'cons' ? 'light' : 'eye')),
-        h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, s.name), h('div', { class: 'row-s' }, `${fmtTime(s.when)} · ${Math.round(s.alt)}° verso ${azName(s.az)} · ${s.note}`))));
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, s.name), h('div', { class: 'row-s' }, `${fmtTime(s.when)} · ${Math.round(s.alt)}° ${tx('verso', 'towards', 'vers')} ${azName(s.az)} · ${s.note}`))));
     }
     for (const p of t.iss) {
       sugg.append(h('button', { class: 'row', onclick: () => { closeSheet(); setTime(p.peak.getTime()); bus.emit('time-ui'); api.selectSky({ kind: 'iss' }); api.centerSky({ kind: 'iss' }); } },
         h('div', { class: 'row-ico' }, icon('target')),
-        h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, 'Passaggio della ISS'), h('div', { class: 'row-s' }, `${fmtTime(p.start)}–${fmtTime(p.end)} · da ${azName(p.startAz)} a ${azName(p.endAz)} · max ${Math.round(p.maxAlt)}°`))));
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, tx('Passaggio della ISS', 'ISS pass', 'Passage de l\'ISS')),
+          h('div', { class: 'row-s' }, `${fmtTime(p.start)}–${fmtTime(p.end)} · ${tx(`da ${azName(p.startAz)} a ${azName(p.endAz)}`, `from ${azName(p.startAz)} to ${azName(p.endAz)}`, `de ${azName(p.startAz)} à ${azName(p.endAz)}`)} · max ${Math.round(p.maxAlt)}°`))));
     }
-    const moon = h('p', { class: 'muted small' }, `Luna: ${t.moon.phase} (${Math.round(t.moon.illum * 100)}%)${t.moon.rise ? ` · sorge ${fmtTime(t.moon.rise)}` : ''}${t.moon.set ? ` · tramonta ${fmtTime(t.moon.set)}` : ''}`);
-    const go = h('button', { class: 'btn primary block', onclick: () => { closeSheet(); setTime(t.best.getTime()); bus.emit('time-ui'); } }, icon('clock'), `Mostrami il cielo delle ${fmtTime(t.best)}`);
-    body.replaceChildren(head, h('div', { class: 'chart' }, bars, axis, tip), factors, h('h3', {}, 'Cosa guardare'), sugg, moon, go);
+    const moon = h('p', { class: 'muted small' }, `${tx('Luna', 'Moon', 'Lune')}: ${t.moon.phase} (${Math.round(t.moon.illum * 100)}%)${t.moon.rise ? ` · ${tx('sorge', 'rises', 'lever')} ${fmtTime(t.moon.rise)}` : ''}${t.moon.set ? ` · ${tx('tramonta', 'sets', 'coucher')} ${fmtTime(t.moon.set)}` : ''}`);
+    const go = h('button', { class: 'btn primary block', onclick: () => { closeSheet(); setTime(t.best.getTime()); bus.emit('time-ui'); } }, icon('clock'), tx(`Mostrami il cielo delle ${fmtTime(t.best)}`, `Show me the sky at ${fmtTime(t.best)}`, `Montrez-moi le ciel à ${fmtTime(t.best)}`));
+    body.replaceChildren(head, h('div', { class: 'chart' }, bars, axis, tip), factors, h('h3', {}, tx('Cosa guardare', 'What to look at', 'Quoi observer')), sugg, moon, go);
   } catch (e) {
-    body.replaceChildren(h('p', { class: 'muted' }, 'Non riesco a calcolare la serata in questo momento.'));
+    body.replaceChildren(h('p', { class: 'muted' }, tx('Non riesco a calcolare la serata in questo momento.', 'I can\'t work out tonight\'s conditions right now.', 'Impossible d\'évaluer la soirée pour le moment.')));
     console.error(e);
   }
 }
@@ -160,29 +175,35 @@ export function openMissions() {
   const r = rankOf(progress.xp);
   const body = h('div', { class: 'missions' });
   body.append(h('div', { class: 'rank' },
-    h('div', { class: 'rank-n' }, r.name), h('div', { class: 'muted small' }, `${progress.xp} XP${r.next ? ` · ${r.toNext} XP per diventare ${r.next}` : ''}`),
+    h('div', { class: 'rank-n' }, r.name),
+    h('div', { class: 'muted small' }, `${progress.xp} XP${r.next ? ' · ' + tx(`${r.toNext} XP per diventare ${r.next}`, `${r.toNext} XP to become ${r.next}`, `${r.toNext} XP pour devenir ${r.next}`) : ''}`),
     h('div', { class: 'progress' }, h('div', { style: { width: `${Math.round(r.progress * 100)}%` } }))));
-  body.append(h('h3', {}, 'Missioni di oggi'));
+  body.append(h('h3', {}, tx('Missioni di oggi', 'Today\'s missions', 'Missions du jour')));
   const list = h('div', { class: 'list' });
-  if (!ms.length) list.append(h('p', { class: 'muted' }, 'Nessuna missione disponibile oggi dalla tua posizione.'));
+  if (!ms.length) list.append(h('p', { class: 'muted' }, tx('Nessuna missione disponibile oggi dalla tua posizione.', 'No missions available today from your location.', 'Aucune mission disponible aujourd\'hui depuis votre position.')));
   for (const m of ms) {
     list.append(h('button', { class: 'row mission' + (m.done ? ' done' : ''), onclick: () => { if (m.done) return; closeSheet(); api.setMode('sky'); api.selectSky(m.ref); bus.emit('mission-focus'); } },
       h('div', { class: 'row-ico' }, m.done ? '✓' : icon('missions')),
-      h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, m.title), h('div', { class: 'row-s' }, m.done ? `Completata alle ${fmtTime(new Date(m.done))}` : m.hint)),
+      h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, m.title), h('div', { class: 'row-s' }, m.done ? tx(`Completata alle ${fmtTime(new Date(m.done))}`, `Completed at ${fmtTime(new Date(m.done))}`, `Accomplie à ${fmtTime(new Date(m.done))}`) : m.hint)),
       h('div', { class: 'xp' }, `+${m.xp}`)));
   }
-  body.append(list, h('p', { class: 'muted small' }, 'Tieni l\'oggetto nel mirino al centro per qualche istante. Con il giroscopio (cielo vero) ottieni il doppio dei punti.'));
+  body.append(list, h('p', { class: 'muted small' }, tx(
+    'Tieni l\'oggetto nel mirino al centro per qualche istante. Con il giroscopio (cielo vero) ottieni il doppio dei punti.',
+    'Keep the object in the central reticle for a moment. With the gyroscope (real sky) you earn double points.',
+    'Gardez l\'objet dans le viseur central quelques instants. Avec le gyroscope (vrai ciel), vous gagnez le double de points.')));
   body.append(h('h3', {}, 'Badge'));
   body.append(h('div', { class: 'badges' }, ...BADGES.map((b) => h('div', { class: 'badge' + (progress.badges[b.id] ? ' got' : ''), title: b.desc }, h('div', { class: 'badge-i' }, b.icon), h('div', { class: 'badge-n' }, b.name), h('div', { class: 'badge-d' }, b.desc)))));
-  body.append(h('h3', {}, 'Diario delle osservazioni'));
+  body.append(h('h3', {}, tx('Diario delle osservazioni', 'Observation log', 'Journal d\'observation')));
   const j = h('div', { class: 'list' });
-  if (!progress.journal.length) j.append(h('p', { class: 'muted' }, 'Ancora vuoto. Ogni oggetto trovato finisce qui.'));
+  if (!progress.journal.length) j.append(h('p', { class: 'muted' }, tx('Ancora vuoto. Ogni oggetto trovato finisce qui.', 'Still empty. Every object you find ends up here.', 'Encore vide. Chaque objet trouvé s\'ajoute ici.')));
   for (const e of progress.journal.slice(0, 60)) {
-    j.append(h('div', { class: 'row static' }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, e.name),
-      h('div', { class: 'row-s' }, `${fmtDate(new Date(e.t))} ${fmtTime(new Date(e.t))}${e.gyro ? ' · cielo vero' : ''}${e.place !== 'earth' ? ' · da ' + (PLACES.find((p) => p.id === e.place)?.it ?? '') : ''}${e.note ? ' · ' + e.note : ''}`))));
+    const note = e.note === 'mission' || e.note === 'Missione completata' ? tx('Missione completata', 'Mission complete', 'Mission accomplie') : e.note;
+    const from = e.place !== 'earth' ? ' · ' + tx('da', 'from', 'depuis') + ' ' + (PLACES.find((p) => p.id === e.place)?.name ?? '') : '';
+    j.append(h('div', { class: 'row static' }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, refName(e.ref)),
+      h('div', { class: 'row-s' }, `${fmtDate(new Date(e.t))} ${fmtTime(new Date(e.t))}${e.gyro ? ' · ' + tx('cielo vero', 'real sky', 'vrai ciel') : ''}${from}${note ? ' · ' + note : ''}`))));
   }
   body.append(j);
-  openSheet('missions', 'Caccia al tesoro celeste', body, { wide: true });
+  openSheet('missions', tx('Caccia al tesoro celeste', 'Celestial treasure hunt', 'Chasse au trésor céleste'), body, { wide: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -199,20 +220,20 @@ export async function refreshAlerts() {
 }
 
 export async function openAlerts() {
-  const body = h('div', { class: 'alerts' }, h('div', { class: 'loading' }, 'Calcolo gli eventi dei prossimi 30 giorni…'));
-  openSheet('alerts', 'Avvisi del cielo', body, { wide: true });
+  const body = h('div', { class: 'alerts' }, h('div', { class: 'loading' }, tx('Calcolo gli eventi dei prossimi 30 giorni…', 'Working out the events of the next 30 days…', 'Calcul des événements des 30 prochains jours…')));
+  openSheet('alerts', tx('Avvisi del cielo', 'Sky alerts', 'Alertes du ciel'), body, { wide: true });
   const ev = await refreshAlerts();
   if (!sheetOpen('alerts')) return;
   const notifBtn = h('button', { class: 'btn' + (notificationsEnabled() ? ' on' : ''), onclick: async () => {
     const ok = await requestNotifications();
-    toast(ok ? 'Notifiche attive mentre Vastity è aperta' : 'Notifiche non consentite dal browser');
+    toast(ok ? tx('Notifiche attive mentre Vastity è aperta', 'Notifications on while Vastity is open', 'Notifications actives tant que Vastity est ouverte') : tx('Notifiche non consentite dal browser', 'Notifications blocked by the browser', 'Notifications bloquées par le navigateur'));
     notifBtn.classList.toggle('on', ok);
     if (ok) scheduleNotifications(lastEvents);
-  } }, icon('bell'), notificationsEnabled() ? 'Notifiche attive' : 'Attiva notifiche');
-  const ics = h('button', { class: 'btn', onclick: () => downloadICS(ev.filter((e) => e.quality > 0)) }, icon('calendar'), 'Aggiungi tutti al calendario');
+  } }, icon('bell'), notificationsEnabled() ? tx('Notifiche attive', 'Notifications on', 'Notifications actives') : tx('Attiva notifiche', 'Turn on notifications', 'Activer les notifications'));
+  const ics = h('button', { class: 'btn', onclick: () => downloadICS(ev.filter((e) => e.quality > 0)) }, icon('calendar'), tx('Aggiungi tutti al calendario', 'Add all to calendar', 'Tout ajouter au calendrier'));
   const list = h('div', { class: 'list' });
-  if (!ev.length) list.append(h('p', { class: 'muted' }, 'Nessun evento nei prossimi giorni per i tipi selezionati.'));
-  const q = ['scarso', 'buono', 'ottimo'];
+  if (!ev.length) list.append(h('p', { class: 'muted' }, tx('Nessun evento nei prossimi giorni per i tipi selezionati.', 'No events in the coming days for the selected types.', 'Aucun événement dans les prochains jours pour les types choisis.')));
+  const q = [tx('scarso', 'poor', 'faible'), tx('buono', 'good', 'bon'), tx('ottimo', 'great', 'excellent')];
   for (const e of ev) {
     const row = h('div', { class: `event q${e.quality}` },
       h('div', { class: 'event-when' }, h('div', {}, fmtDay(e.date)), h('div', { class: 'muted small' }, fmtTime(e.date))),
@@ -221,15 +242,21 @@ export async function openAlerts() {
         h('div', { class: 'row-s' }, e.desc),
         e.weather ? h('div', { class: 'row-s weather' }, e.weather) : null,
         h('div', { class: 'event-actions' },
-          h('button', { class: 'link', onclick: () => { closeSheet(); api.setMode('sky'); setTime(e.date.getTime()); bus.emit('time-ui'); if (e.ref) { api.selectSky(e.ref); api.centerSky(e.ref); } } }, 'Mostra nel cielo'),
-          h('button', { class: 'link', onclick: () => downloadICS([e], `${e.id}.ics`) }, 'Promemoria'))));
+          h('button', { class: 'link', onclick: () => { closeSheet(); api.setMode('sky'); setTime(e.date.getTime()); bus.emit('time-ui'); if (e.ref) { api.selectSky(e.ref); api.centerSky(e.ref); } } }, tx('Mostra nel cielo', 'Show in the sky', 'Voir dans le ciel')),
+          h('button', { class: 'link', onclick: () => downloadICS([e], `${e.id}.ics`) }, tx('Promemoria', 'Reminder', 'Rappel')))));
     list.append(row);
   }
   const types = h('div', { class: 'toggles' }, ...ALERT_TYPES.map((t) => toggle(t.name, state.settings.alerts[t.id] !== false, (v) => { state.settings.alerts[t.id] = v; saveSettings(); openAlerts(); })));
   body.replaceChildren(
-    h('p', { class: 'muted' }, 'Eventi calcolati per la tua posizione e incrociati con il meteo: ti avvisiamo solo quando vale la pena guardare.'),
-    h('div', { class: 'actions' }, notifBtn, ics), list, h('h3', {}, 'Tipi di avviso'), types,
-    h('p', { class: 'muted small' }, 'Le notifiche funzionano mentre l\'app è aperta; il calendario ti avvisa sempre. Nella versione app (iOS/Android) diventeranno notifiche di sistema.'));
+    h('p', { class: 'muted' }, tx(
+      'Eventi calcolati per la tua posizione e incrociati con il meteo: ti avvisiamo solo quando vale la pena guardare.',
+      'Events worked out for your location and checked against the weather: we only alert you when it is worth looking up.',
+      'Événements calculés pour votre position et croisés avec la météo : on ne vous prévient que quand ça vaut le coup.')),
+    h('div', { class: 'actions' }, notifBtn, ics), list, h('h3', {}, tx('Tipi di avviso', 'Alert types', 'Types d\'alertes')), types,
+    h('p', { class: 'muted small' }, tx(
+      'Le notifiche funzionano mentre l\'app è aperta; il calendario ti avvisa sempre. Nella versione app (iOS/Android) diventeranno notifiche di sistema.',
+      'Notifications work while the app is open; the calendar always reminds you. In the iOS/Android app they will become system notifications.',
+      'Les notifications fonctionnent quand l\'app est ouverte ; le calendrier vous prévient toujours. Dans l\'app iOS/Android, elles deviendront des notifications système.')));
 }
 
 // ---------------------------------------------------------------------------
@@ -247,9 +274,12 @@ export function openWorlds() {
       if (p.note) toast(p.note);
     } },
     h('div', { class: 'world-dot', style: { background: `rgb(${p.ground.map((c) => Math.round(Math.min(1, c * 2.6 + 0.12) * 255)).join(',')})` } }),
-    h('div', { class: 'world-n' }, p.it), h('div', { class: 'world-s' }, p.sub)));
+    h('div', { class: 'world-n' }, p.name), h('div', { class: 'world-s' }, p.sub)));
   }
-  openSheet('worlds', 'Guarda il cielo da…', h('div', {}, h('p', { class: 'muted' }, 'Le stelle sono nelle loro vere posizioni in 3D: dagli esopianeti le costellazioni si deformano e il Sole diventa una stella tra le altre.'), grid), { wide: true });
+  openSheet('worlds', tx('Guarda il cielo da…', 'See the sky from…', 'Voir le ciel depuis…'), h('div', {}, h('p', { class: 'muted' }, tx(
+    'Le stelle sono nelle loro vere posizioni in 3D: dagli esopianeti le costellazioni si deformano e il Sole diventa una stella tra le altre.',
+    'Stars are in their true 3D positions: from exoplanets the constellations warp and the Sun becomes just another star.',
+    'Les étoiles sont à leur vraie position en 3D : depuis les exoplanètes, les constellations se déforment et le Soleil devient une étoile parmi d\'autres.')), grid), { wide: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -272,42 +302,51 @@ export function openSettings() {
   const bortle = h('input', { type: 'range', min: '1', max: '9', step: '1', value: String(st.bortle) }) as HTMLInputElement;
   const bortleLbl = h('span', { class: 'muted small' }, bortleName(st.bortle));
   bortle.addEventListener('input', () => { st.bortle = +bortle.value; bortleLbl.textContent = bortleName(st.bortle); saveSettings(); });
+  const langs = h('div', { class: 'chips' }, ...LANGS.map((l) => h('button', { class: 'chip' + (l.id === lang ? ' on' : ''), lang: l.id, onclick: () => { if (l.id !== lang) setLang(l.id); } }, l.name)));
   const body = h('div', { class: 'settings' },
-    h('h3', {}, 'Posizione'),
-    h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: () => locate(true) }, icon('place'), 'Usa il GPS')),
-    h('div', { class: 'grid2' }, h('label', {}, 'Latitudine', lat), h('label', {}, 'Longitudine', lon)),
-    h('label', { class: 'full' }, 'Nome del luogo', name),
-    h('button', { class: 'btn ghost', onclick: () => { setLocation({ lat: +lat.value, lon: +lon.value, height: 0, name: name.value || 'Personalizzata', source: 'manual' }); toast('Posizione aggiornata'); } }, 'Salva posizione'),
-    h('h3', {}, 'Cielo'),
-    toggle('Costellazioni e orbite', st.constellations, set('constellations')),
-    toggle('Nomi', st.labels, set('labels')),
-    toggle('Via Lattea', st.milkyWay, set('milkyWay')),
-    toggle('Terreno', st.ground, set('ground')),
-    toggle('Atmosfera e luce del giorno', st.atmosphere, set('atmosphere')),
-    toggle('Cielo realistico per la mia zona', st.realisticSky, set('realisticSky')),
-    h('label', { class: 'full' }, h('span', {}, 'Inquinamento luminoso (scala di Bortle) '), bortleLbl, bortle),
-    h('h3', {}, 'Immersione'),
-    toggle('Modalità notte (rossa, protegge la vista al buio)', st.nightMode, set('nightMode')),
-    toggle('Realtà aumentata con la fotocamera', api.ar(), async (v) => { const ok = await api.setAR(v); if (!ok && v) toast('Fotocamera non disponibile'); }),
+    h('h3', {}, tx('Lingua', 'Language', 'Langue')),
+    langs,
+    h('h3', {}, tx('Posizione', 'Location', 'Position')),
+    h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: () => locate(true) }, icon('place'), tx('Usa il GPS', 'Use GPS', 'Utiliser le GPS'))),
+    h('div', { class: 'grid2' }, h('label', {}, tx('Latitudine', 'Latitude', 'Latitude'), lat), h('label', {}, tx('Longitudine', 'Longitude', 'Longitude'), lon)),
+    h('label', { class: 'full' }, tx('Nome del luogo', 'Place name', 'Nom du lieu'), name),
+    h('button', { class: 'btn ghost', onclick: () => { setLocation({ lat: +lat.value, lon: +lon.value, height: 0, name: name.value || tx('Personalizzata', 'Custom', 'Personnalisée'), source: 'manual' }); toast(tx('Posizione aggiornata', 'Location updated', 'Position mise à jour')); } }, tx('Salva posizione', 'Save location', 'Enregistrer la position')),
+    h('h3', {}, tx('Cielo', 'Sky', 'Ciel')),
+    toggle(tx('Costellazioni e orbite', 'Constellations and orbits', 'Constellations et orbites'), st.constellations, set('constellations')),
+    toggle(tx('Nomi', 'Labels', 'Noms'), st.labels, set('labels')),
+    toggle(tx('Via Lattea', 'Milky Way', 'Voie lactée'), st.milkyWay, set('milkyWay')),
+    toggle(tx('Terreno', 'Ground', 'Sol'), st.ground, set('ground')),
+    toggle(tx('Atmosfera e luce del giorno', 'Atmosphere and daylight', 'Atmosphère et lumière du jour'), st.atmosphere, set('atmosphere')),
+    toggle(tx('Cielo realistico per la mia zona', 'Realistic sky for my area', 'Ciel réaliste pour ma zone'), st.realisticSky, set('realisticSky')),
+    h('label', { class: 'full' }, h('span', {}, tx('Inquinamento luminoso (scala di Bortle) ', 'Light pollution (Bortle scale) ', 'Pollution lumineuse (échelle de Bortle) ')), bortleLbl, bortle),
+    h('h3', {}, tx('Immersione', 'Immersion', 'Immersion')),
+    toggle(tx('Modalità notte (rossa, protegge la vista al buio)', 'Night mode (red, protects your dark vision)', 'Mode nuit (rouge, préserve la vision nocturne)'), st.nightMode, set('nightMode')),
+    toggle(tx('Realtà aumentata con la fotocamera', 'Augmented reality with the camera', 'Réalité augmentée avec la caméra'), api.ar(), async (v) => { const ok = await api.setAR(v); if (!ok && v) toast(tx('Fotocamera non disponibile', 'Camera unavailable', 'Caméra indisponible')); }),
     h('div', { class: 'actions' },
-      h('button', { class: 'btn', onclick: () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}); } }, icon('fullscreen'), 'Schermo intero'),
-      h('button', { class: 'btn', onclick: () => api.share() }, icon('share'), 'Condividi questa vista')),
-    h('h3', {}, 'Informazioni'),
-    h('p', { class: 'muted small' }, 'Vastity · catalogo stellare HYG v4.1 (CC BY-SA 4.0, astronexus), costellazioni e Messier da d3-celestial (BSD-3), calcoli con Astronomy Engine (MIT), meteo da Open-Meteo, orbita della ISS da CelesTrak.'),
+      h('button', { class: 'btn', onclick: () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}); } }, icon('fullscreen'), tx('Schermo intero', 'Full screen', 'Plein écran')),
+      h('button', { class: 'btn', onclick: () => api.share() }, icon('share'), tx('Condividi questa vista', 'Share this view', 'Partager cette vue'))),
+    h('h3', {}, tx('Informazioni', 'About', 'À propos')),
+    h('p', { class: 'muted small' }, tx(
+      'Vastity · catalogo stellare HYG v4.1 (CC BY-SA 4.0, astronexus), costellazioni e Messier da d3-celestial (BSD-3), calcoli con Astronomy Engine (MIT), meteo da Open-Meteo, orbita della ISS da CelesTrak.',
+      'Vastity · HYG v4.1 star catalogue (CC BY-SA 4.0, astronexus), constellations and Messier from d3-celestial (BSD-3), calculations by Astronomy Engine (MIT), weather from Open-Meteo, ISS orbit from CelesTrak.',
+      'Vastity · catalogue d\'étoiles HYG v4.1 (CC BY-SA 4.0, astronexus), constellations et Messier de d3-celestial (BSD-3), calculs avec Astronomy Engine (MIT), météo Open-Meteo, orbite de l\'ISS par CelesTrak.')),
   );
-  openSheet('settings', 'Impostazioni', body, { wide: true });
+  openSheet('settings', tx('Impostazioni', 'Settings', 'Réglages'), body, { wide: true });
 }
 
 function bortleName(b: number) {
-  return ['1 · cielo perfetto', '2 · cielo buio', '3 · campagna', '4 · campagna/periferia', '5 · periferia', '6 · periferia luminosa', '7 · periferia/città', '8 · città', '9 · centro città'][b - 1];
+  const it = ['cielo perfetto', 'cielo buio', 'campagna', 'campagna/periferia', 'periferia', 'periferia luminosa', 'periferia/città', 'città', 'centro città'];
+  const en = ['perfect sky', 'dark sky', 'countryside', 'rural/suburban', 'suburban', 'bright suburban', 'suburban/urban', 'city', 'inner city'];
+  const fr = ['ciel parfait', 'ciel noir', 'campagne', 'campagne/banlieue', 'banlieue', 'banlieue lumineuse', 'banlieue/ville', 'ville', 'centre-ville'];
+  return `${b} · ${tx(it[b - 1], en[b - 1], fr[b - 1])}`;
 }
 
 export function locate(verbose = false) {
-  if (!navigator.geolocation) { if (verbose) toast('Geolocalizzazione non disponibile'); return; }
+  if (!navigator.geolocation) { if (verbose) toast(tx('Geolocalizzazione non disponibile', 'Geolocation unavailable', 'Géolocalisation indisponible')); return; }
   navigator.geolocation.getCurrentPosition((p) => {
-    setLocation({ lat: p.coords.latitude, lon: p.coords.longitude, height: p.coords.altitude ?? 0, name: 'La tua posizione', source: 'gps' });
-    if (verbose) { toast('Posizione aggiornata'); if (sheetOpen('settings')) openSettings(); }
-  }, () => { if (verbose) toast('Non riesco a ottenere la posizione'); }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+    setLocation({ lat: p.coords.latitude, lon: p.coords.longitude, height: p.coords.altitude ?? 0, name: tx('La tua posizione', 'Your location', 'Votre position'), source: 'gps' });
+    if (verbose) { toast(tx('Posizione aggiornata', 'Location updated', 'Position mise à jour')); if (sheetOpen('settings')) openSettings(); }
+  }, () => { if (verbose) toast(tx('Non riesco a ottenere la posizione', 'Couldn\'t get your location', 'Impossible d\'obtenir votre position')); }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
 }
 
 // ---------------------------------------------------------------------------
@@ -319,20 +358,27 @@ export function openTime() {
   const dt = h('input', { type: 'datetime-local', value: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`, class: 'txt' }) as HTMLInputElement;
   dt.addEventListener('change', () => { const t = new Date(dt.value).getTime(); if (!isNaN(t)) { setTime(t); bus.emit('time-ui'); } });
   const step = (ms: number) => () => { setTime(state.time + ms); bus.emit('time-ui'); };
-  const rates: [string, number][] = [['Pausa', 0], ['Reale', 1], ['1 min/s', 60], ['1 ora/s', 3600], ['1 giorno/s', 86400], ['−1 ora/s', -3600]];
+  const hr = tx('ora', 'hour', 'heure'), day = tx('giorno', 'day', 'jour');
+  const rates: [string, number][] = [
+    [tx('Pausa', 'Pause', 'Pause'), 0], [tx('Reale', 'Real time', 'Temps réel'), 1], ['1 min/s', 60],
+    [`1 ${hr}/s`, 3600], [`1 ${day}/s`, 86400], [`−1 ${hr}/s`, -3600],
+  ];
   const chips = h('div', { class: 'chips' }, ...rates.map(([l, r]) => h('button', { class: 'chip' + (!state.live && state.timeRate === r ? ' on' : ''), onclick: () => {
-    if (r === 1) { state.live = false; state.timeRate = 1; } else { state.live = false; state.timeRate = r; }
+    state.live = false; state.timeRate = r;
     bus.emit('time-ui'); openTime();
   } }, l)));
   const body = h('div', { class: 'time' },
     h('div', { class: 'actions' },
-      iconButton('back', '−1 giorno', step(-86400e3), 'btn'), iconButton('back', '−1 ora', step(-3600e3), 'btn'),
-      h('button', { class: 'btn primary', onclick: () => { setTime(Date.now(), true); bus.emit('time-ui'); closeSheet(); } }, 'Adesso'),
-      iconButton('fwd', '+1 ora', step(3600e3), 'btn'), iconButton('fwd', '+1 giorno', step(86400e3), 'btn')),
-    h('label', { class: 'full' }, 'Data e ora', dt),
-    h('h3', {}, 'Velocità del tempo'), chips,
-    h('p', { class: 'muted small' }, 'Suggerimento: trascina la barra del tempo in basso verso destra o sinistra per scorrere il cielo come un film.'));
-  openSheet('time', 'Macchina del tempo', body, { compact: true });
+      iconButton('back', `−1 ${day}`, step(-86400e3), 'btn'), iconButton('back', `−1 ${hr}`, step(-3600e3), 'btn'),
+      h('button', { class: 'btn primary', onclick: () => { setTime(Date.now(), true); bus.emit('time-ui'); closeSheet(); } }, tx('Adesso', 'Now', 'Maintenant')),
+      iconButton('fwd', `+1 ${hr}`, step(3600e3), 'btn'), iconButton('fwd', `+1 ${day}`, step(86400e3), 'btn')),
+    h('label', { class: 'full' }, tx('Data e ora', 'Date and time', 'Date et heure'), dt),
+    h('h3', {}, tx('Velocità del tempo', 'Time speed', 'Vitesse du temps')), chips,
+    h('p', { class: 'muted small' }, tx(
+      'Suggerimento: trascina la barra del tempo in basso verso destra o sinistra per scorrere il cielo come un film.',
+      'Tip: drag the time pill at the bottom left or right to play the sky like a film.',
+      'Astuce : faites glisser la barre du temps en bas vers la droite ou la gauche pour dérouler le ciel comme un film.')));
+  openSheet('time', tx('Macchina del tempo', 'Time machine', 'Machine à remonter le temps'), body, { compact: true });
 }
 
 // ---------------------------------------------------------------------------

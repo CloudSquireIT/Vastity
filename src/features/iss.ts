@@ -4,6 +4,7 @@ import * as satImpl from '../vendor/satellite';
 const sat = satImpl as unknown as typeof satTypes;
 import * as A from 'astronomy-engine';
 import { state } from '../state';
+import { lang } from '../i18n';
 
 const KEY = 'vastity.iss.tle';
 let satrec: satTypes.SatRec | null = null;
@@ -93,5 +94,5 @@ export function issPasses(from: Date, days = 3): IssPass[] {
   return passes;
 }
 
-const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+const DIRS = lang === 'en' ? ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] : ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
 export function azName(az: number) { return DIRS[Math.round(((az % 360) + 360) % 360 / 45) % 8]; }

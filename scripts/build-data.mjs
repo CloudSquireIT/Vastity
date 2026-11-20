@@ -49,13 +49,6 @@ function parseCSVLine(line) {
 }
 
 const GREEK = { Alp: 'α', Bet: 'β', Gam: 'γ', Del: 'δ', Eps: 'ε', Zet: 'ζ', Eta: 'η', The: 'θ', Iot: 'ι', Kap: 'κ', Lam: 'λ', Mu: 'μ', Nu: 'ν', Xi: 'ξ', Omi: 'ο', Pi: 'π', Rho: 'ρ', Sig: 'σ', Tau: 'τ', Ups: 'υ', Phi: 'φ', Chi: 'χ', Psi: 'ψ', Ome: 'ω' };
-// Nomi italiani dove differiscono dall'uso internazionale
-const IT_NAMES = {
-  Polaris: 'Stella Polare', Sol: 'Sole', 'Rigil Kentaurus': 'Alfa Centauri', Toliman: 'Alfa Centauri B', Sirius: 'Sirio',
-  Arcturus: 'Arturo', Procyon: 'Procione', Canopus: 'Canopo', Regulus: 'Regolo', Castor: 'Castore', Pollux: 'Polluce',
-  Spica: 'Spica', Altair: 'Altair', Vega: 'Vega', Capella: 'Capella', Hadar: 'Hadar', Acrux: 'Acrux', Mizar: 'Mizar',
-  Alcor: 'Alcor', Thuban: 'Thuban', Algol: 'Algol', Fomalhaut: 'Fomalhaut', Achernar: 'Achernar', Mira: 'Mira',
-};
 
 const lines = fs.readFileSync(hygFile, 'utf8').split(/\r?\n/);
 const header = parseCSVLine(lines[0]);
@@ -90,7 +83,7 @@ for (let li = 2; li < lines.length; li++) { // salta il Sole (riga 1)
   let nameIdx = -1;
   if (proper || desig) {
     nameIdx = names.length;
-    names.push([IT_NAMES[proper] ?? proper ?? '', desig, f[idx.hip] || '', f[idx.spect] || '']);
+    names.push([proper ?? '', desig, f[idx.hip] || '', f[idx.spect] || '']);
   }
   rows.push([
     +x.toFixed(4), +y.toFixed(4), +z.toFixed(4),
@@ -113,7 +106,7 @@ const cLines = celData('constellations.lines.json');
 const cInfo = celData('constellations.json');
 const cons = {};
 for (const ft of cInfo.features) {
-  cons[ft.id] = { it: ft.properties.it || ft.properties.name, la: ft.properties.name, gen: ft.properties.gen, rank: +ft.properties.rank, c: ft.geometry.coordinates.map((v) => +(+v).toFixed(2)), lines: [] };
+  cons[ft.id] = { it: ft.properties.it || ft.properties.name, en: ft.properties.name, fr: ft.properties.fr || ft.properties.name, la: ft.properties.name, gen: ft.properties.gen, rank: +ft.properties.rank, c: ft.geometry.coordinates.map((v) => +(+v).toFixed(2)), lines: [] };
 }
 for (const ft of cLines.features) {
   if (!cons[ft.id]) continue;

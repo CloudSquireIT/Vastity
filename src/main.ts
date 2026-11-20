@@ -13,9 +13,22 @@ import { AppApi, initPanels, locate, openAlerts, openMissions, openSearch, openS
 import { ObjRef, refName, sameRef, search } from './features/objects';
 import { activeMissions, ensureDailyMissions, flag, tryComplete } from './features/missions';
 import { loadISS } from './features/iss';
-import { AU_IN_KM, C_KMS } from './data/catalog';
+import { AU_IN_KM, C_KMS, stars } from './data/catalog';
+import { LOCALE, num, tx } from './i18n';
 
 const app = document.getElementById('app')!;
+const loaderSub = document.querySelector('.loader-s');
+if (loaderSub) loaderSub.textContent = tx('Accendo le stelle…', 'Lighting up the stars…', 'J\'allume les étoiles…');
+
+function findHip(hip: string) {
+  for (let i = 0; i < stars.count; i++) {
+    const ni = stars.name[i];
+    if (ni >= 0 && stars.names[ni][2] === hip) return i;
+  }
+  return -1;
+}
+const routeTo = (r: ObjRef) => tx(`Rotta verso ${refName(r)}`, `Course set for ${refName(r)}`, `Cap sur ${refName(r)}`);
+const LYS = tx('anni luce', 'light years', 'années-lumière');
 const loader = document.getElementById('loader');
 
 async function main() {
@@ -81,26 +94,26 @@ async function main() {
   // ------------------------------------------------------------------ HUD
   const placeLbl = h('button', { class: 'place-lbl', onclick: () => openWorlds() });
   const brand = h('div', { class: 'brand' }, h('span', { class: 'brand-n' }, 'Vastity'), placeLbl);
-  const modeBtn = iconButton('ship', 'Navicella', () => setMode(state.mode === 'sky' ? 'ship' : 'sky'), 'ibtn');
-  const gyroBtn = iconButton('compass', 'Punta il telefono', async () => {
+  const modeBtn = iconButton('ship', tx('Navicella', 'Spaceship', 'Vaisseau'), () => setMode(state.mode === 'sky' ? 'ship' : 'sky'), 'ibtn');
+  const gyroBtn = iconButton('compass', tx('Punta il telefono', 'Point your phone', 'Pointez votre téléphone'), async () => {
     const ok = await sky.setGyro(!state.gyro);
-    if (!ok) toast('Sensori di orientamento non disponibili su questo dispositivo');
+    if (!ok) toast(tx('Sensori di orientamento non disponibili su questo dispositivo', 'Orientation sensors are not available on this device', 'Capteurs d\'orientation indisponibles sur cet appareil'));
   });
-  const top = h('div', { class: 'top' }, brand, h('div', { class: 'top-r' }, modeBtn, gyroBtn, iconButton('settings', 'Impostazioni', () => openSettings())));
+  const top = h('div', { class: 'top' }, brand, h('div', { class: 'top-r' }, modeBtn, gyroBtn, iconButton('settings', tx('Impostazioni', 'Settings', 'Réglages'), () => openSettings())));
 
   const timePill = h('button', { class: 'time-pill' }, h('span', { class: 'tp-dot' }), h('span', { class: 'tp-t' }));
   const dockSky = h('nav', { class: 'dock' },
-    iconButton('tonight', 'Stasera', () => openTonight(), 'dbtn'),
-    iconButton('missions', 'Missioni', () => openMissions(), 'dbtn'),
-    iconButton('search', 'Cerca', () => openSearch(), 'dbtn main'),
-    iconButton('worlds', 'Mondi', () => openWorlds(), 'dbtn'),
-    iconButton('bell', 'Avvisi', () => openAlerts(), 'dbtn'),
+    iconButton('tonight', tx('Stasera', 'Tonight', 'Ce soir'), () => openTonight(), 'dbtn'),
+    iconButton('missions', tx('Missioni', 'Missions', 'Missions'), () => openMissions(), 'dbtn'),
+    iconButton('search', tx('Cerca', 'Search', 'Chercher'), () => openSearch(), 'dbtn main'),
+    iconButton('worlds', tx('Mondi', 'Worlds', 'Mondes'), () => openWorlds(), 'dbtn'),
+    iconButton('bell', tx('Avvisi', 'Alerts', 'Alertes'), () => openAlerts(), 'dbtn'),
   );
   const dockShip = h('nav', { class: 'dock ship' },
-    iconButton('search', 'Vai a', () => openSearch((r) => { ship.goTo(r); toast(`Rotta verso ${refName(r)}`); }), 'dbtn main'),
-    iconButton('place', 'Posiziona', () => openPlacePanel(), 'dbtn'),
-    iconButton('stop', 'Ferma', () => ship.stop(), 'dbtn'),
-    iconButton('sky', 'Atterra', () => setMode('sky'), 'dbtn'),
+    iconButton('search', tx('Vai a', 'Go to', 'Aller à'), () => openSearch((r) => { ship.goTo(r); toast(routeTo(r)); }), 'dbtn main'),
+    iconButton('place', tx('Posiziona', 'Place', 'Placer'), () => openPlacePanel(), 'dbtn'),
+    iconButton('stop', tx('Ferma', 'Stop', 'Stop'), () => ship.stop(), 'dbtn'),
+    iconButton('sky', tx('Atterra', 'Land', 'Atterrir'), () => setMode('sky'), 'dbtn'),
   );
   const bottom = h('div', { class: 'bottom' }, timePill, dockSky, dockShip);
 
@@ -112,8 +125,8 @@ async function main() {
   const tSub = h('div', { class: 'tm-sub' });
   const tTarget = h('div', { class: 'tm-target' });
   const telemetry = h('div', { class: 'telemetry' }, tSpeed, tSub, tTarget);
-  const throttle = h('input', { type: 'range', min: '0', max: '1', step: '0.001', value: '0', class: 'throttle', 'aria-label': 'Manetta' }) as HTMLInputElement;
-  const throttleMarks = h('div', { class: 'throttle-marks' }, h('span', { style: { bottom: '100%' } }, '10¹² c'), h('span', { style: { bottom: '55%' } }, 'luce'), h('span', { style: { bottom: '35%' } }, '0,1 c'), h('span', { style: { bottom: '2%' } }, '0'));
+  const throttle = h('input', { type: 'range', min: '0', max: '1', step: '0.001', value: '0', class: 'throttle', 'aria-label': tx('Manetta', 'Throttle', 'Manette des gaz') }) as HTMLInputElement;
+  const throttleMarks = h('div', { class: 'throttle-marks' }, h('span', { style: { bottom: '100%' } }, '10¹² c'), h('span', { style: { bottom: '55%' } }, tx('luce', 'light', 'lumière')), h('span', { style: { bottom: '35%' } }, `${num(0.1, 1, 1)} c`), h('span', { style: { bottom: '2%' } }, '0'));
   const throttleWrap = h('div', { class: 'throttle-wrap' }, throttleMarks, throttle);
   let throttleActive = false;
   throttle.addEventListener('pointerdown', () => { throttleActive = true; });
@@ -135,7 +148,8 @@ async function main() {
           ship.placeAt(pos, v3.add(pos, v3.scale(dir, 1e6)), up);
           ship.target = null; ship.arrived = null;
         } else if (sky.place.exo) {
-          const r = search(sky.place.exo.starName)[0];
+          const i = sky.place.exo.hip ? findHip(sky.place.exo.hip) : -1;
+          const r = i >= 0 ? { ref: { kind: 'star', index: i } as ObjRef } : search(sky.place.exo.starName)[0];
           if (r) ship.placeNear(r.ref);
         } else if (sky.place.body) {
           ship.placeNear({ kind: 'body', id: sky.place.id });
@@ -161,37 +175,37 @@ async function main() {
   function flyTo(r: ObjRef) {
     if (state.mode === 'sky') {
       setMode('ship');
-      setTimeout(() => { ship.goTo(r); toast(`Rotta verso ${refName(r)}`); }, 700);
+      setTimeout(() => { ship.goTo(r); toast(routeTo(r)); }, 700);
     } else {
       ship.goTo(r);
-      toast(`Rotta verso ${refName(r)}`);
+      toast(routeTo(r));
     }
   }
 
   function openPlacePanel() {
     const presets: [string, string, () => void][] = [
-      ['Orbita terrestre', 'Terra', () => ship.placeNear({ kind: 'body', id: 'earth' })],
-      ['Luna', '384.400 km', () => ship.placeNear({ kind: 'body', id: 'moon' })],
-      ['Marte', 'Pianeta rosso', () => ship.placeNear({ kind: 'body', id: 'mars' })],
-      ['Giove', 'Gigante gassoso', () => ship.placeNear({ kind: 'body', id: 'jupiter' })],
-      ['Saturno', 'Anelli', () => ship.placeNear({ kind: 'body', id: 'saturn' })],
-      ['Plutone', 'Fascia di Kuiper', () => ship.placeNear({ kind: 'body', id: 'pluto' })],
-      ['Vicino al Sole', 'La nostra stella', () => ship.placeNear({ kind: 'body', id: 'sun' })],
-      ['Proxima Centauri', '4,2 anni luce', () => byName('Proxima Centauri')],
-      ['Sirio', '8,6 anni luce', () => byName('Sirio') || byName('Sirius')],
-      ['Betelgeuse', 'Supergigante rossa', () => byName('Betelgeuse')],
-      ['Pleiadi', '444 anni luce', () => ship.placeNear({ kind: 'messier', id: 'M45' })],
-      ['Nebulosa di Orione', '1.344 anni luce', () => ship.placeNear({ kind: 'messier', id: 'M42' })],
-      ['Sopra la Via Lattea', 'Vista dall\'esterno', () => ship.aboveGalaxy()],
-      ['Andromeda', '2,5 milioni di anni luce', () => ship.placeNear({ kind: 'messier', id: 'M31' })],
+      [tx('Orbita terrestre', 'Earth orbit', 'Orbite terrestre'), tx('Terra', 'Earth', 'Terre'), () => ship.placeNear({ kind: 'body', id: 'earth' })],
+      [tx('Luna', 'Moon', 'Lune'), `${num(384400)} km`, () => ship.placeNear({ kind: 'body', id: 'moon' })],
+      [tx('Marte', 'Mars', 'Mars'), tx('Pianeta rosso', 'The red planet', 'La planète rouge'), () => ship.placeNear({ kind: 'body', id: 'mars' })],
+      [tx('Giove', 'Jupiter', 'Jupiter'), tx('Gigante gassoso', 'Gas giant', 'Géante gazeuse'), () => ship.placeNear({ kind: 'body', id: 'jupiter' })],
+      [tx('Saturno', 'Saturn', 'Saturne'), tx('Anelli', 'Rings', 'Anneaux'), () => ship.placeNear({ kind: 'body', id: 'saturn' })],
+      [tx('Plutone', 'Pluto', 'Pluton'), tx('Fascia di Kuiper', 'Kuiper belt', 'Ceinture de Kuiper'), () => ship.placeNear({ kind: 'body', id: 'pluto' })],
+      [tx('Vicino al Sole', 'Near the Sun', 'Près du Soleil'), tx('La nostra stella', 'Our star', 'Notre étoile'), () => ship.placeNear({ kind: 'body', id: 'sun' })],
+      [tx('Proxima Centauri', 'Proxima Centauri', 'Proxima du Centaure'), `${num(4.2, 1, 1)} ${LYS}`, () => byHip('70890')],
+      [tx('Sirio', 'Sirius', 'Sirius'), `${num(8.6, 1, 1)} ${LYS}`, () => byHip('32349')],
+      [tx('Betelgeuse', 'Betelgeuse', 'Bételgeuse'), tx('Supergigante rossa', 'Red supergiant', 'Supergéante rouge'), () => byHip('27989')],
+      [tx('Pleiadi', 'Pleiades', 'Pléiades'), `444 ${LYS}`, () => ship.placeNear({ kind: 'messier', id: 'M45' })],
+      [tx('Nebulosa di Orione', 'Orion Nebula', 'Nébuleuse d\'Orion'), `${num(1344)} ${LYS}`, () => ship.placeNear({ kind: 'messier', id: 'M42' })],
+      [tx('Sopra la Via Lattea', 'Above the Milky Way', 'Au-dessus de la Voie lactée'), tx('Vista dall\'esterno', 'Seen from outside', 'Vue de l\'extérieur'), () => ship.aboveGalaxy()],
+      [tx('Andromeda', 'Andromeda', 'Andromède'), tx(`${num(2.5, 1, 1)} milioni di anni luce`, `${num(2.5, 1, 1)} million light years`, `${num(2.5, 1, 1)} millions d'années-lumière`), () => ship.placeNear({ kind: 'messier', id: 'M31' })],
     ];
     const grid = h('div', { class: 'worlds' }, ...presets.map(([n, s, f]) => h('button', { class: 'world', onclick: () => { closeSheet(); fade.classList.add('on'); setTimeout(() => { f(); fade.classList.remove('on'); }, 300); } }, h('div', { class: 'world-n' }, n), h('div', { class: 'world-s' }, s))));
-    openSheet('place', 'Posiziona la navicella', h('div', {}, h('p', { class: 'muted' }, 'Teletrasportati ovunque, poi pilota liberamente: trascina per girare, usa la manetta a destra per accelerare (fino a e oltre la velocità della luce).'), grid), { wide: true });
+    openSheet('place', tx('Posiziona la navicella', 'Place the spaceship', 'Placer le vaisseau'), h('div', {}, h('p', { class: 'muted' }, tx('Teletrasportati ovunque, poi pilota liberamente: trascina per girare, usa la manetta a destra per accelerare (fino a e oltre la velocità della luce).', 'Teleport anywhere, then fly freely: drag to turn and use the throttle on the right to accelerate (up to and beyond the speed of light).', 'Téléportez-vous n\'importe où, puis pilotez librement : glissez pour tourner, utilisez la manette à droite pour accélérer (jusqu\'à la vitesse de la lumière et au-delà).')), grid), { wide: true });
   }
-  function byName(n: string) {
-    const r = search(n)[0];
-    if (r && r.ref.kind === 'star') { ship.placeNear(r.ref); return true; }
-    return false;
+  function byHip(hip: string) {
+    const i = findHip(hip);
+    if (i >= 0) ship.placeNear({ kind: 'star', index: i });
+    return i >= 0;
   }
 
   // ------------------------------------------------------------------ input
@@ -199,7 +213,7 @@ async function main() {
   bus.on('select', (r: ObjRef | null) => { if (r && state.mode === 'sky') showInfo(r); });
   bus.on('ship-select', (r: ObjRef) => { ship.target = r; showInfo(r); });
   bus.on('arrived', (r: ObjRef) => {
-    toast(`Arrivato: ${refName(r)}`);
+    toast(`${tx('Arrivato', 'Arrived', 'Arrivé')}: ${refName(r)}`);
     if (r.kind === 'star') flag('star');
     if (r.kind === 'messier' && r.id === 'M31') flag('andromeda');
   });
@@ -244,13 +258,13 @@ async function main() {
     const d = simDate();
     const tt = timePill.querySelector('.tp-t')!;
     const sameDay = new Date().toDateString() === d.toDateString();
-    tt.textContent = (sameDay ? '' : d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: Math.abs(d.getFullYear() - new Date().getFullYear()) > 0 ? 'numeric' : undefined }) + ' · ') +
-      d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) +
-      (state.live ? '' : state.timeRate === 0 ? ' · pausa' : state.timeRate === 1 ? '' : ` · ${rateLabel(state.timeRate)}`);
+    tt.textContent = (sameDay ? '' : d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: Math.abs(d.getFullYear() - new Date().getFullYear()) > 0 ? 'numeric' : undefined }) + ' · ') +
+      d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }) +
+      (state.live ? '' : state.timeRate === 0 ? ' · ' + tx('pausa', 'paused', 'pause') : state.timeRate === 1 ? '' : ` · ${rateLabel(state.timeRate)}`);
     timePill.classList.toggle('live', state.live);
-    placeLbl.textContent = state.mode === 'ship' ? 'Navicella' : sky.place.id === 'earth' ? state.location.name : `da ${sky.place.it}`;
-    modeBtn.replaceChildren(icon(state.mode === 'sky' ? 'ship' : 'sky'), h('span', { class: 'ibtn-label' }, state.mode === 'sky' ? 'Navicella' : 'Cielo'));
-    modeBtn.setAttribute('aria-label', state.mode === 'sky' ? 'Passa alla navicella' : 'Torna al cielo');
+    placeLbl.textContent = state.mode === 'ship' ? tx('Navicella', 'Spaceship', 'Vaisseau') : sky.place.id === 'earth' ? state.location.name : `${tx('da', 'from', 'depuis')} ${sky.place.name}`;
+    modeBtn.replaceChildren(icon(state.mode === 'sky' ? 'ship' : 'sky'), h('span', { class: 'ibtn-label' }, state.mode === 'sky' ? tx('Navicella', 'Spaceship', 'Vaisseau') : tx('Cielo', 'Sky', 'Ciel')));
+    modeBtn.setAttribute('aria-label', state.mode === 'sky' ? tx('Passa alla navicella', 'Switch to the spaceship', 'Passer au vaisseau') : tx('Torna al cielo', 'Back to the sky', 'Retour au ciel'));
     const m = activeMissions()[0];
     missionChip.textContent = m && state.mode === 'sky' ? `◎ ${m.title}` : '';
     missionChip.style.display = m && state.mode === 'sky' ? '' : 'none';
@@ -259,21 +273,21 @@ async function main() {
     const a = Math.abs(r), s = r < 0 ? '−' : '';
     if (a < 60) return `${s}${Math.round(a)}×`;
     if (a < 3600) return `${s}${Math.round(a / 60)} min/s`;
-    if (a < 86400) return `${s}${Math.round(a / 3600)} ore/s`;
-    return `${s}${Math.round(a / 86400)} giorni/s`;
+    if (a < 86400) return `${s}${Math.round(a / 3600)} ${tx('ore', 'h', 'h')}/s`;
+    return `${s}${Math.round(a / 86400)} ${tx('giorni', 'days', 'jours')}/s`;
   }
 
   function updateShipHud() {
     const t = ship.telemetry();
     tSpeed.textContent = formatSpeed(t.speed);
     const parts: string[] = [];
-    if (t.beta > 0.05 && t.beta < 1) parts.push(`γ ${t.gamma.toFixed(t.gamma < 10 ? 2 : 0).replace('.', ',')} · a bordo il tempo scorre ${t.gamma.toFixed(1).replace('.', ',')}× più lento`);
-    if (t.speed >= C_KMS * 0.99995) parts.push('Motore a curvatura');
-    parts.push(t.nearest ? `${t.where} · vicino a ${t.nearest} (${t.nearestDist})` : t.where);
+    if (t.beta > 0.05 && t.beta < 1) { const g = num(t.gamma, t.gamma < 10 ? 2 : 0), g1 = num(t.gamma, 1, 1); parts.push(`γ ${g} · ` + tx(`a bordo il tempo scorre ${g1}× più lento`, `time on board runs ${g1}× slower`, `à bord, le temps s'écoule ${g1}× plus lentement`)); }
+    if (t.speed >= C_KMS * 0.99995) parts.push(tx('Motore a curvatura', 'Warp drive', 'Moteur de distorsion'));
+    parts.push(t.nearest ? `${t.where} · ${tx('vicino a', 'near', 'près de')} ${t.nearest} (${t.nearestDist})` : t.where);
     tSub.textContent = parts.join(' · ');
-    if (t.target) tTarget.textContent = `◎ ${t.target}${t.targetDist ? ' · ' + t.targetDist : ''}${t.eta ? ' · arrivo tra ' + t.eta : ''}${t.autopilot ? ' · pilota automatico' : ''}`;
-    else if (t.speed > 1) tTarget.textContent = `Alla velocità attuale: Luna in ${formatDuration(384400 / t.speed)} · Proxima Centauri in ${formatDuration(4.0e13 / t.speed)}`;
-    else tTarget.textContent = 'Trascina per orientarti · alza la manetta per partire';
+    if (t.target) tTarget.textContent = `◎ ${t.target}${t.targetDist ? ' · ' + t.targetDist : ''}${t.eta ? ' · ' + tx('arrivo tra', 'arriving in', 'arrivée dans') + ' ' + t.eta : ''}${t.autopilot ? ' · ' + tx('pilota automatico', 'autopilot', 'pilote automatique') : ''}`;
+    else if (t.speed > 1) tTarget.textContent = tx(`Alla velocità attuale: Luna in ${formatDuration(384400 / t.speed)} · Proxima Centauri in ${formatDuration(4.0e13 / t.speed)}`, `At this speed: Moon in ${formatDuration(384400 / t.speed)} · Proxima Centauri in ${formatDuration(4.0e13 / t.speed)}`, `À cette vitesse : la Lune en ${formatDuration(384400 / t.speed)} · Proxima du Centaure en ${formatDuration(4.0e13 / t.speed)}`);
+    else tTarget.textContent = tx('Trascina per orientarti · alza la manetta per partire', 'Drag to look around · push the throttle to go', 'Glissez pour vous orienter · poussez la manette pour partir');
     if (!throttleActive) throttle.value = String(speedToThrottle(t.speed));
     if (t.beta >= 0.99 && t.beta < 1) flag('light');
   }
@@ -297,7 +311,7 @@ async function main() {
     if (hit && holdT > 1.5) {
       holdT = 0;
       if (state.live && sky.place.id === 'earth') { tryComplete(hit.ref); updateHud(); }
-      else if (!warnedLive) { warnedLive = true; toast('Per completare le missioni torna al tempo reale dalla Terra'); }
+      else if (!warnedLive) { warnedLive = true; toast(tx('Per completare le missioni torna al tempo reale dalla Terra', 'To complete missions, return to real time on Earth', 'Pour accomplir les missions, revenez au temps réel depuis la Terre')); }
     }
   }
 
@@ -308,15 +322,15 @@ async function main() {
       lat: state.location.lat.toFixed(3), lon: state.location.lon.toFixed(3), place: state.placeId,
     });
     const url = `${location.origin}${location.pathname}#${p.toString()}`;
-    if (navigator.share) navigator.share({ title: 'Vastity', text: 'Guarda questo cielo con me', url }).catch(() => {});
-    else navigator.clipboard?.writeText(url).then(() => toast('Link copiato: chi lo apre vede lo stesso cielo'));
+    if (navigator.share) navigator.share({ title: 'Vastity', text: tx('Guarda questo cielo con me', 'Look at this sky with me', 'Regarde ce ciel avec moi'), url }).catch(() => {});
+    else navigator.clipboard?.writeText(url).then(() => toast(tx('Link copiato: chi lo apre vede lo stesso cielo', 'Link copied: whoever opens it sees the same sky', 'Lien copié : qui l\'ouvre voit le même ciel')));
   }
   function readHash() {
     if (!location.hash) return;
     const p = new URLSearchParams(location.hash.slice(1));
     if (p.get('place')) sky.setPlace(p.get('place')!);
     if (p.get('t')) setTime(+p.get('t')!);
-    if (p.get('lat') && p.get('lon')) state.location = { ...state.location, lat: +p.get('lat')!, lon: +p.get('lon')!, name: 'Vista condivisa', source: 'manual' };
+    if (p.get('lat') && p.get('lon')) state.location = { ...state.location, lat: +p.get('lat')!, lon: +p.get('lon')!, name: tx('Vista condivisa', 'Shared view', 'Vue partagée'), source: 'manual' };
     if (p.get('az')) sky.setView(+p.get('az')!, +(p.get('alt') ?? 30), 60);
     state.timeRate = 0;
   }
@@ -365,7 +379,7 @@ async function main() {
     const today = ev.filter((e) => e.quality > 0 && e.date.getTime() - Date.now() < 12 * 3600e3 && e.date.getTime() > Date.now());
     if (today.length && !sessionStorage.getItem('vastity.greeted')) {
       sessionStorage.setItem('vastity.greeted', '1');
-      toast(`Stanotte: ${today[0].title} alle ${today[0].date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`, 'alert');
+      { const hh = today[0].date.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }); toast(tx(`Stanotte: ${today[0].title} alle ${hh}`, `Tonight: ${today[0].title} at ${hh}`, `Cette nuit : ${today[0].title} à ${hh}`), 'alert'); }
     }
   });
 
@@ -375,5 +389,5 @@ async function main() {
 
 main().catch((e) => {
   console.error(e);
-  if (loader) loader.textContent = 'Impossibile avviare Vastity: ' + (e?.message ?? e);
+  if (loader) loader.textContent = tx('Impossibile avviare Vastity: ', 'Vastity could not start: ', 'Impossible de démarrer Vastity : ') + (e?.message ?? e);
 });

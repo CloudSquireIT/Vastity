@@ -10,6 +10,7 @@ import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, messier, radecToVec, starName, sta
 import { ObjRef, formatDistanceKm, refName, refPosPc } from '../features/objects';
 import { bus, simDate, state } from '../state';
 import { LabelLayer } from '../ui/labels';
+import { num, tx } from '../i18n';
 import { PointerHandlers } from '../ui/pointer';
 
 const D2R = Math.PI / 180;
@@ -65,15 +66,16 @@ export function speedToThrottle(v: number): number {
 }
 
 export function formatSpeed(v: number): string {
-  if (v < 1) return 'ferma';
-  if (v < 1000) return `${v.toFixed(v < 10 ? 1 : 0).replace('.', ',')} km/s`;
-  if (v < 0.01 * C_KMS) return `${Math.round(v).toLocaleString('it-IT')} km/s`;
-  if (v < C_KMS * 0.99995) return `${(v / C_KMS).toFixed(v / C_KMS > 0.99 ? 4 : 2).replace('.', ',')} c`;
+  const light = tx('luce', 'light', 'lumière');
+  if (v < 1) return tx('ferma', 'stationary', 'à l\'arrêt');
+  if (v < 1000) return `${num(v, v < 10 ? 1 : 0)} km/s`;
+  if (v < 0.01 * C_KMS) return `${num(Math.round(v))} km/s`;
+  if (v < C_KMS * 0.99995) { const d = v / C_KMS > 0.99 ? 4 : 2; return `${num(v / C_KMS, d, d)} c`; }
   const w = v / C_KMS;
-  if (w < 1000) return `${w.toFixed(w < 10 ? 1 : 0).replace('.', ',')} × luce`;
+  if (w < 1000) return `${num(w, w < 10 ? 1 : 0)} × ${light}`;
   const e = Math.floor(Math.log10(w));
   const m = w / Math.pow(10, e);
-  return `${m.toFixed(1).replace('.', ',')}·10${sup(e)} × luce`;
+  return `${num(m, 1, 1)}·10${sup(e)} × ${light}`;
 }
 const sup = (n: number) => String(n).split('').map((c) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+c]).join('');
 
@@ -81,11 +83,11 @@ export function formatDuration(s: number): string {
   if (!isFinite(s)) return '—';
   if (s < 60) return `${Math.round(s)} s`;
   if (s < 3600) return `${Math.round(s / 60)} min`;
-  if (s < 86400 * 2) return `${(s / 3600).toFixed(1).replace('.', ',')} ore`;
-  if (s < 86400 * 365 * 2) return `${Math.round(s / 86400)} giorni`;
+  if (s < 86400 * 2) return `${num(s / 3600, 1)} ${tx('ore', 'hours', 'heures')}`;
+  if (s < 86400 * 365 * 2) return `${Math.round(s / 86400)} ${tx('giorni', 'days', 'jours')}`;
   const y = s / (86400 * 365.25);
-  if (y < 1e6) return `${Math.round(y).toLocaleString('it-IT')} anni`;
-  return `${(y / 1e6).toFixed(1).replace('.', ',')} milioni di anni`;
+  if (y < 1e6) return `${num(Math.round(y))} ${tx('anni', 'years', 'ans')}`;
+  return `${num(y / 1e6, 1)} ${tx('milioni di anni', 'million years', 'millions d\'années')}`;
 }
 
 export class ShipView {
@@ -255,7 +257,7 @@ export class ShipView {
     const pos = v3.add(c, v3.add(v3.scale(ngp, 26000 * PC_IN_KM), v3.scale(v3.norm(v3.scale(c, -1)), 12000 * PC_IN_KM)));
     this.placeAt(pos, c, v3.norm(v3.scale(c, -1)));
     this.target = null;
-    this.arrived = 'Sopra la Via Lattea';
+    this.arrived = tx('Sopra la Via Lattea', 'Above the Milky Way', 'Au-dessus de la Voie lactée');
   }
 
   lookAt(p: V3, up: V3 = [0, 0, 1]) {
@@ -591,13 +593,13 @@ export class ShipView {
       if (t) put(v3.sub(t.pos, this.pos), '◎ ' + refName(this.target), 'target', true);
     }
     if (state.settings.labels) {
-      if (sunDist > 2000 * AU_IN_KM) put(v3.scale(this.pos, -1), 'Sole', 'body sun-far', true);
+      if (sunDist > 2000 * AU_IN_KM) put(v3.scale(this.pos, -1), tx('Sole', 'Sun', 'Soleil'), 'body sun-far', true);
       for (const p of this.planets) {
         const rel = v3.sub(p.pos, this.pos);
         const d = v3.len(rel);
         const show = p.info.id === 'sun' ? sunDist < 2000 * AU_IN_KM : (p.info.id === 'moon' ? d < 3e7 : sunDist < 200 * AU_IN_KM);
         const isTarget = this.target?.kind === 'body' && this.target.id === p.info.id;
-        if (show && !isTarget) put(rel, p.info.it, p.info.id === 'sun' ? 'body star' : 'body', true);
+        if (show && !isTarget) put(rel, p.info.name, p.info.id === 'sun' ? 'body star' : 'body', true);
       }
       // stelle più luminose dalla posizione attuale
       this.labelScanT -= 1;
@@ -621,7 +623,7 @@ export class ShipView {
         put(rel, starName(i) + near, 'star');
       }
       if (sunDist > 3000 * PC_IN_KM) {
-        put(v3.sub(GALACTIC_CENTER_PC as V3, obs), 'Centro galattico', 'dso');
+        put(v3.sub(GALACTIC_CENTER_PC as V3, obs), tx('Centro galattico', 'Galactic centre', 'Centre galactique'), 'dso');
       }
       for (const m of messier) {
         if (!['M31', 'M33', 'M42', 'M45', 'M13', 'M44', 'M1'].includes(m.id)) continue;
@@ -632,10 +634,10 @@ export class ShipView {
   }
 
   telemetry(): Telemetry {
-    let nearest = 'Sole', nd = v3.len(this.pos);
+    let nearest = tx('Sole', 'Sun', 'Soleil'), nd = v3.len(this.pos);
     for (const p of this.planets) {
       const d = v3.len(v3.sub(p.pos, this.pos)) - p.info.radiusKm;
-      if (d < nd) { nd = d; nearest = p.info.it; }
+      if (d < nd) { nd = d; nearest = p.info.name; }
     }
     for (const n of this.near) {
       const i = n.index;
@@ -656,7 +658,7 @@ export class ShipView {
       }
     }
     const sd = v3.len(this.pos);
-    const where = sd < 50 * AU_IN_KM ? 'Sistema Solare' : sd < 0.5 * LY_IN_KM ? 'Nube di Oort' : `a ${formatDistanceKm(sd)} dal Sole`;
+    const where = sd < 50 * AU_IN_KM ? tx('Sistema Solare', 'Solar System', 'Système solaire') : sd < 0.5 * LY_IN_KM ? tx('Nube di Oort', 'Oort cloud', 'Nuage d\'Oort') : tx(`a ${formatDistanceKm(sd)} dal Sole`, `${formatDistanceKm(sd)} from the Sun`, `à ${formatDistanceKm(sd)} du Soleil`);
     if (nd > 0.3 * LY_IN_KM) nearest = '';
     return {
       speed: this.speed, beta, warp: this.speed / C_KMS, gamma: beta < 1 ? 1 / Math.sqrt(1 - beta * beta) : Infinity,

@@ -1,4 +1,5 @@
 // Stato condiviso dell'app + un piccolo sistema di eventi.
+import { tx } from './i18n';
 
 export type Mode = 'sky' | 'ship';
 
@@ -75,7 +76,7 @@ export const state = {
   timeRate: 1,
   /** true quando il tempo segue l'orologio reale. */
   live: true,
-  location: load<Location>(LOCATION_KEY, { lat: 41.9028, lon: 12.4964, height: 30, name: 'Roma', source: 'default' }),
+  location: load<Location>(LOCATION_KEY, { lat: 41.9028, lon: 12.4964, height: 30, name: tx('Roma', 'Rome', 'Rome'), source: 'default' }),
   settings: load<Settings>(SETTINGS_KEY, defaultSettings),
   /** Luogo da cui si osserva il cielo (id di places.ts). */
   placeId: 'earth',

@@ -5,6 +5,12 @@ import { rng } from '../render/background';
 import { ObjRef, refName, sameRef } from './objects';
 import { issPasses } from './iss';
 import { bus, save, state } from '../state';
+import { LOCALE, lang, tx } from '../i18n';
+
+function issHint(t: Date) {
+  const h = t.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
+  return tx(`Passa alle ${h}: inquadrala mentre attraversa il cielo.`, `It passes at ${h}: frame it as it crosses the sky.`, `Elle passe à ${h} : cadrez-la pendant qu'elle traverse le ciel.`);
+}
 
 export interface Mission { id: string; ref: ObjRef; title: string; hint: string; xp: number; done?: number }
 export interface JournalEntry { t: number; ref: ObjRef; name: string; live: boolean; gyro: boolean; place: string; lat: number; lon: number; note?: string }
@@ -24,23 +30,23 @@ interface Progress {
 const KEY = 'vastity.missions.v1';
 
 export const BADGES: Badge[] = [
-  { id: 'first', name: 'Prima luce', desc: 'Completa la tua prima missione', icon: '✦' },
-  { id: 'planets', name: 'Cacciatore di pianeti', desc: 'Osserva 5 pianeti diversi', icon: '◐' },
-  { id: 'moon', name: 'Lunatico', desc: 'Osserva la Luna in 4 fasi diverse', icon: '☾' },
-  { id: 'iss', name: 'Stazione in vista', desc: 'Osserva un passaggio della ISS', icon: '⌁' },
-  { id: 'deep', name: 'Profondo cielo', desc: 'Osserva 5 oggetti di Messier', icon: '✺' },
-  { id: 'cons', name: 'Cartografo del cielo', desc: 'Trova 12 costellazioni', icon: '✧' },
-  { id: 'owl', name: 'Gufo notturno', desc: 'Osserva qualcosa tra mezzanotte e le 4', icon: '◉' },
-  { id: 'streak3', name: 'Costanza', desc: 'Osserva per 3 giorni di fila', icon: '③' },
-  { id: 'streak7', name: 'Una settimana di stelle', desc: 'Osserva per 7 giorni di fila', icon: '⑦' },
-  { id: 'worlds', name: 'Turista cosmico', desc: 'Guarda il cielo da 5 mondi diversi', icon: '⊕' },
-  { id: 'light', name: 'Quasi luce', desc: 'Raggiungi il 99% della velocità della luce', icon: 'c' },
-  { id: 'star', name: 'Interstellare', desc: 'Arriva con la navicella a un\'altra stella', icon: '✶' },
-  { id: 'andromeda', name: 'Fuori dalla galassia', desc: 'Raggiungi la Galassia di Andromeda', icon: '◎' },
+  { id: 'first', name: tx('Prima luce', 'First light', 'Première lumière'), desc: tx('Completa la tua prima missione', 'Complete your first mission', 'Accomplissez votre première mission'), icon: '✦' },
+  { id: 'planets', name: tx('Cacciatore di pianeti', 'Planet hunter', 'Chasseur de planètes'), desc: tx('Osserva 5 pianeti diversi', 'Observe 5 different planets', 'Observez 5 planètes différentes'), icon: '◐' },
+  { id: 'moon', name: tx('Lunatico', 'Moonstruck', 'Lunatique'), desc: tx('Osserva la Luna in 4 fasi diverse', 'Observe the Moon in 4 different phases', 'Observez la Lune dans 4 phases différentes'), icon: '☾' },
+  { id: 'iss', name: tx('Stazione in vista', 'Station in sight', 'Station en vue'), desc: tx('Osserva un passaggio della ISS', 'Watch an ISS pass', 'Observez un passage de l\'ISS'), icon: '⌁' },
+  { id: 'deep', name: tx('Profondo cielo', 'Deep sky', 'Ciel profond'), desc: tx('Osserva 5 oggetti di Messier', 'Observe 5 Messier objects', 'Observez 5 objets de Messier'), icon: '✺' },
+  { id: 'cons', name: tx('Cartografo del cielo', 'Sky cartographer', 'Cartographe du ciel'), desc: tx('Trova 12 costellazioni', 'Find 12 constellations', 'Trouvez 12 constellations'), icon: '✧' },
+  { id: 'owl', name: tx('Gufo notturno', 'Night owl', 'Oiseau de nuit'), desc: tx('Osserva qualcosa tra mezzanotte e le 4', 'Observe something between midnight and 4 am', 'Observez quelque chose entre minuit et 4 h'), icon: '◉' },
+  { id: 'streak3', name: tx('Costanza', 'Consistency', 'Persévérance'), desc: tx('Osserva per 3 giorni di fila', 'Observe 3 days in a row', 'Observez 3 jours de suite'), icon: '③' },
+  { id: 'streak7', name: tx('Una settimana di stelle', 'A week of stars', 'Une semaine d\'étoiles'), desc: tx('Osserva per 7 giorni di fila', 'Observe 7 days in a row', 'Observez 7 jours de suite'), icon: '⑦' },
+  { id: 'worlds', name: tx('Turista cosmico', 'Cosmic tourist', 'Touriste cosmique'), desc: tx('Guarda il cielo da 5 mondi diversi', 'View the sky from 5 different worlds', 'Regardez le ciel depuis 5 mondes différents'), icon: '⊕' },
+  { id: 'light', name: tx('Quasi luce', 'Almost light', 'Presque la lumière'), desc: tx('Raggiungi il 99% della velocità della luce', 'Reach 99% of the speed of light', 'Atteignez 99 % de la vitesse de la lumière'), icon: 'c' },
+  { id: 'star', name: tx('Interstellare', 'Interstellar', 'Interstellaire'), desc: tx('Arriva con la navicella a un\'altra stella', 'Fly the spaceship to another star', 'Rejoignez une autre étoile avec le vaisseau'), icon: '✶' },
+  { id: 'andromeda', name: tx('Fuori dalla galassia', 'Beyond the galaxy', 'Hors de la galaxie'), desc: tx('Raggiungi la Galassia di Andromeda', 'Reach the Andromeda Galaxy', 'Atteignez la galaxie d\'Andromède'), icon: '◎' },
 ];
 
 export const RANKS: [number, string][] = [
-  [0, 'Curioso'], [100, 'Osservatore'], [300, 'Astrofilo'], [700, 'Astronomo'], [1500, 'Esploratore stellare'], [3000, 'Navigatore cosmico'],
+  [0, tx('Curioso', 'Curious', 'Curieux')], [100, tx('Osservatore', 'Observer', 'Observateur')], [300, tx('Astrofilo', 'Stargazer', 'Astronome amateur')], [700, tx('Astronomo', 'Astronomer', 'Astronome')], [1500, tx('Esploratore stellare', 'Star explorer', 'Explorateur stellaire')], [3000, tx('Navigatore cosmico', 'Cosmic navigator', 'Navigateur cosmique')],
 ];
 
 export function rankOf(xp: number) {
@@ -73,7 +79,7 @@ function eveningTime() {
 }
 
 export function ensureDailyMissions() {
-  const key = dayKey();
+  const key = dayKey() + '-' + lang;
   if (progress.day === key && progress.missions.length) return progress.missions;
   const t = eveningTime();
   const seed = key.split('-').reduce((a, b) => a * 31 + +b, 7) + Math.round(state.location.lat * 10);
@@ -89,7 +95,7 @@ export function ensureDailyMissions() {
   });
   if (planets.length) {
     const p = pickFrom(planets);
-    out.push({ id: `${key}-p`, ref: { kind: 'body', id: p.id }, title: `Trova ${p.it}`, hint: p.id === 'moon' ? 'Facile: inquadrala e tienila al centro.' : 'Sembra una stella che non brilla a intermittenza.', xp: p.id === 'moon' ? 10 : 30 });
+    out.push({ id: `${key}-p`, ref: { kind: 'body', id: p.id }, title: tx(`Trova ${p.name}`, `Find ${p.name}`, `Trouvez ${p.name}`), hint: p.id === 'moon' ? tx('Facile: inquadrala e tienila al centro.', 'Easy: frame it and keep it in the centre.', 'Facile : cadrez-la et gardez-la au centre.') : tx('Sembra una stella che non brilla a intermittenza.', 'It looks like a star that does not twinkle.', 'On dirait une étoile qui ne scintille pas.'), xp: p.id === 'moon' ? 10 : 30 });
   }
   const brightStars: number[] = [];
   for (let i = 0; i < 120 && i < stars.count; i++) {
@@ -101,20 +107,20 @@ export function ensureDailyMissions() {
   }
   if (brightStars.length) {
     const s = pickFrom(brightStars.slice(0, 25));
-    out.push({ id: `${key}-s`, ref: { kind: 'star', index: s }, title: `Trova ${refName({ kind: 'star', index: s })}`, hint: 'Usa la ricerca o segui la freccia ai bordi dello schermo.', xp: 20 });
+    out.push({ id: `${key}-s`, ref: { kind: 'star', index: s }, title: tx(`Trova ${refName({ kind: 'star', index: s })}`, `Find ${refName({ kind: 'star', index: s })}`, `Trouvez ${refName({ kind: 'star', index: s })}`), hint: tx('Usa la ricerca o segui la freccia ai bordi dello schermo.', 'Use search or follow the arrow at the edge of the screen.', "Utilisez la recherche ou suivez la flèche au bord de l'écran."), xp: 20 });
   }
   const cons = constellations.filter((c) => c.rank <= 2 && up(radecToVec(c.c[0], c.c[1]), 25));
   if (cons.length) {
     const c = pickFrom(cons);
-    out.push({ id: `${key}-c`, ref: { kind: 'constellation', id: c.id }, title: `Riconosci ${c.it}`, hint: 'Centra la costellazione nel mirino.', xp: 25 });
+    out.push({ id: `${key}-c`, ref: { kind: 'constellation', id: c.id }, title: tx(`Riconosci ${c.name}`, `Recognise ${c.name}`, `Reconnaissez ${c.name}`), hint: tx('Centra la costellazione nel mirino.', 'Centre the constellation in the reticle.', 'Centrez la constellation dans le viseur.'), xp: 25 });
   }
   const dsos = messier.filter((m) => m.mag < 6.5 && up(radecToVec(m.ra, m.dec), 25));
   if (dsos.length) {
     const m = pickFrom(dsos);
-    out.push({ id: `${key}-m`, ref: { kind: 'messier', id: m.id }, title: `Scova ${refName({ kind: 'messier', id: m.id })}`, hint: 'Oggetto del profondo cielo: con un binocolo è ancora meglio.', xp: 40 });
+    out.push({ id: `${key}-m`, ref: { kind: 'messier', id: m.id }, title: tx(`Scova ${refName({ kind: 'messier', id: m.id })}`, `Track down ${refName({ kind: 'messier', id: m.id })}`, `Dénichez ${refName({ kind: 'messier', id: m.id })}`), hint: tx('Oggetto del profondo cielo: con un binocolo è ancora meglio.', 'A deep-sky object: even better with binoculars.', 'Objet du ciel profond : encore mieux aux jumelles.'), xp: 40 });
   }
   const pass = issPasses(new Date(), 1).find((p) => p.visible && p.maxAlt > 20);
-  if (pass) out.push({ id: `${key}-iss`, ref: { kind: 'iss' }, title: 'Avvista la Stazione Spaziale', hint: `Passa alle ${pass.peak.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}: inquadrala mentre attraversa il cielo.`, xp: 60 });
+  if (pass) out.push({ id: `${key}-iss`, ref: { kind: 'iss' }, title: tx('Avvista la Stazione Spaziale', 'Spot the Space Station', 'Repérez la Station spatiale'), hint: issHint(pass.peak), xp: 60 });
 
   progress.day = key;
   progress.missions = out;
@@ -128,7 +134,7 @@ function award(id: string) {
   if (progress.badges[id]) return;
   progress.badges[id] = Date.now();
   const b = BADGES.find((x) => x.id === id);
-  if (b) bus.emit('toast', `Nuovo badge: ${b.icon} ${b.name}`, 'badge');
+  if (b) bus.emit('toast', `${tx('Nuovo badge', 'New badge', 'Nouveau badge')}: ${b.icon} ${b.name}`, 'badge');
 }
 
 function checkBadges() {
@@ -175,8 +181,8 @@ export function tryComplete(ref: ObjRef): Mission | null {
   m.done = Date.now();
   const mult = state.gyro ? 2 : 1;
   progress.xp += m.xp * mult;
-  logObservation(ref, 'Missione completata');
-  bus.emit('toast', `Missione completata: ${m.title} · +${m.xp * mult} XP${mult > 1 ? ' (cielo vero ×2)' : ''}`, 'mission');
+  logObservation(ref, 'mission');
+  bus.emit('toast', `${tx('Missione completata', 'Mission complete', 'Mission accomplie')}: ${m.title} · +${m.xp * mult} XP${mult > 1 ? tx(' (cielo vero ×2)', ' (real sky ×2)', ' (vrai ciel ×2)') : ''}`, 'mission');
   bus.emit('progress');
   return m;
 }
