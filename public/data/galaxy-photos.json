@@ -17,7 +17,7 @@
  },
  "m87g": {
   "kind": "face",
-  "q": 0.949,
+  "q": 0.952,
   "file": "Messier 87 Hubble WikiSky.jpg",
   "license": "Public domain",
   "credit": "en:NASA , en:STScI , en:WikiSky",
@@ -25,11 +25,11 @@
  },
  "c38g": {
   "kind": "edge",
-  "q": 0.264,
-  "file": "Needle Wide.png",
-  "license": "CC0",
-  "credit": "Chuck Ayoub",
-  "source": "https://commons.wikimedia.org/wiki/File:Needle_Wide.png"
+  "q": 0.157,
+  "file": "NGC 4565.jpg",
+  "license": "CC BY 3.0",
+  "credit": "ESO",
+  "source": "https://commons.wikimedia.org/wiki/File:NGC_4565.jpg"
  },
  "m51g": {
   "kind": "face",
@@ -367,14 +367,6 @@
   "credit": "NASA, ESA, A. Aloisi (STScI/ESA), and The Hubble Heritage (STScI/AURA)-ESA/Hubble Collaboration",
   "source": "https://commons.wikimedia.org/wiki/File:Starburst_in_NGC_4449_(captured_by_the_Hubble_Space_Telescope).jpg"
  },
- "c23g": {
-  "kind": "edge",
-  "q": 0.279,
-  "file": "NGC 891 Hubble north part.jpg",
-  "license": "Public domain",
-  "credit": "en:NASA , en:STScI , en:WikiSky",
-  "source": "https://commons.wikimedia.org/wiki/File:NGC_891_Hubble_north_part.jpg"
- },
  "c24g": {
   "kind": "face",
   "q": 0.622,
@@ -406,14 +398,6 @@
   "license": "CC BY 3.0",
   "credit": "Ngc1535",
   "source": "https://commons.wikimedia.org/wiki/File:NGC_7331_Acquired_with_the_Schulman_Telescope_at_the_Mount_Lemmon_SkyCenter.jpg"
- },
- "c32g": {
-  "kind": "edge",
-  "q": 0.203,
-  "file": "Caldwell 32.jpg",
-  "license": "CC BY 2.0",
-  "credit": "NASA Hubble",
-  "source": "https://commons.wikimedia.org/wiki/File:Caldwell_32.jpg"
  },
  "c35g": {
   "kind": "face",
@@ -526,5 +510,13 @@
   "license": "CC BY 3.0",
   "credit": "ESO",
   "source": "https://commons.wikimedia.org/wiki/File:Wide_Field_Imager_view_of_a_Milky_Way_look-alike_NGC_6744.jpg"
+ },
+ "c32g": {
+  "kind": "edge",
+  "q": 0.203,
+  "file": "Caldwell 32.jpg",
+  "license": "CC BY 2.0",
+  "credit": "NASA Hubble",
+  "source": "https://commons.wikimedia.org/wiki/File:Caldwell_32.jpg"
  }
 }

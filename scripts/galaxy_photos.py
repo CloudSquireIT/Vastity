@@ -37,7 +37,12 @@ OVERRIDE = {
     'm101g': 'M101 hires STScI-PRC2006-10a.jpg',
     'm83g': 'The Outskirts of the Southern Pinwheel Galaxy (noirlab2429a).jpg',
     'ngc1300': 'Hubble2005-01-barred-spiral-galaxy-NGC1300.jpg',
+    'c38g': 'NGC 4565.jpg',
 }
+# galassie principali: texture in alta risoluzione (2048 px)
+FLAGSHIP = {'m31g', 'm33g', 'm51g', 'm81g', 'm101g', 'm104g', 'lmc', 'smc', 'ngc253', 'cena', 'm82g', 'm87g'}
+# foto scartate al controllo visivo (oggetto sbagliato, collage, galassia tagliata)
+REJECT = {'Auv0175.png', 'Messier 65 through the years.jpg', 'NGC 891 Hubble north part.jpg', 'NGC 4631 Hubble mosaic.jpg'}
 SKIP_NAME = re.compile(r'(map|chart|diagram|locator|location|finder|sketch|drawing|plot|spectrum|logo|auv\d|stamp|comparison|annotated|labeled|labelled)', re.I)
 
 
@@ -109,11 +114,13 @@ def file_info(fname):
     }
 
 
-def download(fname, w):
+def download(fname, w, big=False):
     n = fname.replace(' ', '_')
     h = hashlib.md5(n.encode()).hexdigest()
     q = urllib.parse.quote(n)
-    if w >= 1280: url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/{h[0]}/{h[:2]}/{q}/1280px-{q}'
+    if big and w >= 2560: url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/{h[0]}/{h[:2]}/{q}/2560px-{q}'
+    elif big and w > 1280: url = f'https://upload.wikimedia.org/wikipedia/commons/{h[0]}/{h[:2]}/{q}'
+    elif w >= 1280: url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/{h[0]}/{h[:2]}/{q}/1280px-{q}'
     elif w >= 960: url = f'https://upload.wikimedia.org/wikipedia/commons/thumb/{h[0]}/{h[:2]}/{q}/960px-{q}'
     else: url = f'https://upload.wikimedia.org/wikipedia/commons/{h[0]}/{h[:2]}/{q}'
     if n.lower().endswith(('.tif', '.tiff')): url += '.jpg' if 'thumb' in url else ''
@@ -177,7 +184,7 @@ def measure(a):
     return (mx / S, my / S), float(ang), float(max(A, 6) / S), q
 
 
-def make(a, centre, ang, A, q):
+def make(a, centre, ang, A, q, S=1024):
     img = Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8))
     W, H = img.size
     pad = int(2 * A + 10)
@@ -201,17 +208,17 @@ def make(a, centre, ang, A, q):
     if q >= 0.28:
         # vista di fronte: si "raddrizza" l'ellisse in un cerchio (deproiezione)
         b = A * q
-        face = rot.crop((int(cx - A), int(cy - b), int(cx + A), int(cy + b))).resize((1024, 1024), Image.LANCZOS)
+        face = rot.crop((int(cx - A), int(cy - b), int(cx + A), int(cy + b))).resize((S, S), Image.LANCZOS)
         t = np.asarray(face).astype(np.float32) / 255
-        r = np.hypot(*np.meshgrid(np.linspace(-1, 1, 1024), np.linspace(-1, 1, 1024)))
+        r = np.hypot(*np.meshgrid(np.linspace(-1, 1, S), np.linspace(-1, 1, S)))
         fade = np.clip((1.0 - r) / 0.3, 0, 1) ** 1.6
         kind = 'face'
     else:
         # di taglio: profilo orizzontale 1024×358 (coordinate dello strato di taglio: ±1.2 R × ±0.42 R)
         R = A / 1.05
-        face = rot.crop((int(cx - 1.2 * R), int(cy - 0.42 * R), int(cx + 1.2 * R), int(cy + 0.42 * R))).resize((1024, 358), Image.LANCZOS)
+        face = rot.crop((int(cx - 1.2 * R), int(cy - 0.42 * R), int(cx + 1.2 * R), int(cy + 0.42 * R))).resize((2048, 716), Image.LANCZOS)
         t = np.asarray(face).astype(np.float32) / 255
-        X, Y = np.meshgrid(np.linspace(-1.2, 1.2, 1024), np.linspace(-0.42, 0.42, 358))
+        X, Y = np.meshgrid(np.linspace(-1.2, 1.2, 2048), np.linspace(-0.42, 0.42, 716))
         fade = (np.clip((1.18 - np.abs(X)) / 0.3, 0, 1) * np.clip((0.42 - np.abs(Y)) / 0.14, 0, 1)) ** 1.4
         kind = 'edge'
     t = t * fade[..., None]
@@ -227,6 +234,10 @@ def fix_credits():
         if info: c['credit'] = info['credit']
         print(gid, '→', c['credit'])
     json.dump(credits, open(out_json, 'w'), indent=1, ensure_ascii=False)
+
+
+def kind_hint(q):
+    return q < 0.28
 
 
 def main():
@@ -245,7 +256,7 @@ def main():
         cands = ([OVERRIDE[gid]] if gid in OVERRIDE else []) + candidate_images(title)
         fname, info = None, None
         for f in cands[:8]:
-            if SKIP_NAME.search(f): continue
+            if SKIP_NAME.search(f) or f in REJECT: continue
             inf = file_info(f)
             if not inf: continue
             lic = inf['license'].lower()
@@ -258,8 +269,16 @@ def main():
         if im is None: print(gid, '— download fallito', fname); continue
         a = destar(im)
         centre, ang, A, q = measure(a)
-        tex, kind = make(a, centre, ang, A, q)
-        for folder, scale in (('2k', 1), ('1k', 0.5)):
+        q0 = q
+        flagship = gid in FLAGSHIP
+        if (q < 0.28 or flagship) and info['w'] > 1400:
+            # di taglio: serve più risoluzione sul profilo sottile
+            im2 = download(fname, info['w'], big=True)
+            if im2 is not None:
+                a = destar(im2)
+                centre, ang, A, q = measure(a)
+        tex, kind = make(a, centre, ang, A, min(q, 0.279) if q0 < 0.28 else max(q, 0.28), 2048 if flagship else 1024)
+        for folder, scale in (('2k', 1), ('1k', 0.5)) if kind == 'face' else (('2k', 1), ('1k', 0.5)):
             p = os.path.join(ROOT, 'public/textures', folder, f'gal_{gid}.webp')
             tex.resize((int(tex.size[0] * scale), int(tex.size[1] * scale)), Image.LANCZOS).save(p, quality=84, method=6)
         credits[gid] = {'kind': kind, 'q': round(q, 3), 'file': fname, 'license': info['license'], 'credit': info['credit'],

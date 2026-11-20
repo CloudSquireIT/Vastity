@@ -60,7 +60,7 @@ for (let li = 2; li < lines.length; li++) { // salta il Sole (riga 1)
   const f = parseCSVLine(lines[li]);
   const mag = parseFloat(f[idx.mag]);
   let dist = parseFloat(f[idx.dist]);
-  if (!(mag <= 6.8 || dist < 25)) continue;
+  if (!(mag <= 9.0 || dist < 25)) continue;
   const unknown = !(dist > 0) || dist >= 100000;
   const ra = parseFloat(f[idx.rarad]);
   const dec = parseFloat(f[idx.decrad]);
@@ -80,6 +80,8 @@ for (let li = 2; li < lines.length; li++) { // salta il Sole (riga 1)
     const m = bayer.match(/^([A-Za-z]+)(-?\d*)$/);
     desig = (GREEK[m?.[1]] ?? bayer) + (m?.[2] ? m[2].replace('-', '') : '') + ' ' + con;
   } else if (flam) desig = flam + ' ' + con;
+  // ogni stella ha almeno una designazione di catalogo cercabile (HD, HIP o Gliese)
+  if (!desig) desig = f[idx.hd] ? 'HD ' + f[idx.hd] : f[idx.hip] ? 'HIP ' + f[idx.hip] : f[idx.gl] ? f[idx.gl].replace(/^Gl\s*/, 'Gliese ') : '';
   let nameIdx = -1;
   if (proper || desig) {
     nameIdx = names.length;
@@ -91,10 +93,24 @@ for (let li = 2; li < lines.length; li++) { // salta il Sole (riga 1)
   ]);
 }
 // Ordina per magnitudine apparente (le più luminose prima: utile per le etichette)
-rows.sort((a, b) => {
-  const da = Math.hypot(a[0], a[1], a[2]); const db = Math.hypot(b[0], b[1], b[2]);
-  return (a[3] + 5 * Math.log10(da) - 5) - (b[3] + 5 * Math.log10(db) - 5);
-});
+const appMag = (r) => r[3] + 5 * Math.log10(Math.max(Math.hypot(r[0], r[1], r[2]), 1e-6)) - 5;
+rows.sort((a, b) => appMag(a) - appMag(b));
+// le 50.000 stelle più luminose, più tutte le stelle vicine (entro 25 pc)
+const MAX_STARS = 50000;
+const near = rows.slice(MAX_STARS).filter((r) => Math.hypot(r[0], r[1], r[2]) < 25);
+rows.splice(MAX_STARS);
+rows.push(...near);
+// rinumera i nomi usati dalle stelle tenute
+const used = [];
+const remap = new Map();
+for (const r of rows) {
+  if (r[5] < 0) continue;
+  if (!remap.has(r[5])) { remap.set(r[5], used.length); used.push(names[r[5]]); }
+  r[5] = remap.get(r[5]);
+}
+names.length = 0;
+names.push(...used);
+for (const r of rows) { r[0] = +r[0].toFixed(3); r[1] = +r[1].toFixed(3); r[2] = +r[2].toFixed(3); }
 fs.writeFileSync(path.join(out, 'stars.json'), JSON.stringify({
   fields: ['x_pc', 'y_pc', 'z_pc', 'absmag', 'ci', 'name', 'con', 'distUnknown'],
   names, rows,

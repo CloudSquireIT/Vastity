@@ -62,7 +62,10 @@ void main() {
     c = mix(c, vec3(l) * vec3(1.05, 0.95, 0.82), lent * 0.75);
     c *= mix(vec3(1.0), uTint, 0.5 * (1.0 - uPhoto));
     // esposizione morbida: colori della foto senza bruciare il nucleo
-    c = 1.0 - exp(-c * mix(1.35, 1.75, uPhoto));
+    // foto reali: un po' più di saturazione e contrasto, come nei render astronomici
+    float lp = dot(c, vec3(0.3, 0.55, 0.15));
+    c = mix(c, max(mix(vec3(lp), c, 1.25), 0.0), uPhoto);
+    c = 1.0 - exp(-c * mix(1.35, 1.9, uPhoto));
     float edge = 1.0 - smoothstep(1.0, 1.2, r);
     gl_FragColor = vec4(c * edge * uK * uBright, 1.0);
     return;
@@ -322,7 +325,7 @@ export class DeepRenderer {
         const R = o.radiusLy * LY_PC;
         // foto reale: l'inclinazione è quella misurata sulla foto, così da Terra il render coincide con la foto
         const photo = o.id === 'milkyway' ? undefined : galaxyPhotos[o.id];
-        const inclPhoto = photo?.kind === 'face' ? Math.min(74, (Math.acos(Math.max(0.28, Math.min(1, photo.q))) * 180) / Math.PI) : undefined;
+        const inclPhoto = photo?.kind === 'face' ? Math.min(74, (Math.acos(Math.max(0.28, Math.min(1, photo.q))) * 180) / Math.PI) : photo?.kind === 'edge' ? 87 : undefined;
         const { a, b } = diskBasis(o, o.id === 'milkyway' ? mwPlane : undefined, inclPhoto);
         const g = o.galaxy;
         const tint = new THREE.Color(...(g.tint ?? [1, 1, 1]));
@@ -412,12 +415,13 @@ export class DeepRenderer {
       const k = far * visible * dim * (g.obj.bright ?? 1);
       // quanto è "di taglio": il disco piatto lascia il posto allo strato con spessore e polveri
       const cosv = Math.abs(this.tmp.normalize().dot(g.normal));
-      const edgeK = g.edge ? smooth(0.5, 0.12, cosv) : 0;
+      const edgeK = g.edge ? smooth((g.edge.material as THREE.ShaderMaterial).uniforms.uUseMap.value > 0.5 ? 0.6 : 0.5, 0.12, cosv) : 0;
       if (g.edge) {
-        (g.edge.material as THREE.ShaderMaterial).uniforms.uK.value = k * edgeK * 0.9;
+        (g.edge.material as THREE.ShaderMaterial).uniforms.uK.value = k * edgeK * ((g.edge.material as THREE.ShaderMaterial).uniforms.uUseMap.value > 0.5 ? 1.15 : 0.9);
         g.edge.visible = k * edgeK > 0.005;
       }
-      (g.disk.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.95 * (1 - 0.75 * edgeK);
+      const edgePhoto = !!g.edge && (g.edge.material as THREE.ShaderMaterial).uniforms.uUseMap.value > 0.5;
+      (g.disk.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.95 * (1 - (edgePhoto ? 1 : 0.75) * edgeK);
       (g.disk.material as THREE.ShaderMaterial).uniforms.uSpin.value = g.obj.id === 'milkyway' ? -spin : 0;
       (g.core.material as THREE.ShaderMaterial).uniforms.uK.value = k * 0.8 * (1 - 0.45 * edgeK) * ((g.disk.material as THREE.ShaderMaterial).uniforms.uUseMap.value ? 0.35 : 1);
       g.disk.visible = g.core.visible = k > 0.005;

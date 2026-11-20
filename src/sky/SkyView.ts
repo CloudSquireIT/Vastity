@@ -352,7 +352,7 @@ export class SkyView {
       consider({ kind: 'body', id: b.id }, b.dir, 12 + 14 * wide, b.angRadius * pxPerRad);
     }
     if (this.issDir) consider({ kind: 'iss' }, this.issDir, 8);
-    const lim = this.magLimit();
+    const lim = Math.max(this.magLimit(), this.dayFactor() > 0.3 ? 2.0 : -99);
     const o = this.frame.observerPc;
     for (let i = 0; i < stars.count; i++) {
       const dx = stars.pos[i * 3] - o[0], dy = stars.pos[i * 3 + 1] - o[1], dz = stars.pos[i * 3 + 2] - o[2];
@@ -491,7 +491,7 @@ export class SkyView {
     this.bg.update({
       obsPc: this.obsV.set(...this.frame.observerPc), beta: this.zeroV, magLimit: this.magLimit(), spikes: this.hasAtmosphere() ? 0.45 : 0.9,
       pixelScale: dpr * Math.pow(Math.max(1, 60 / this.fov), 0.12), pixPerRad, dim: 1, galaxyDim: galDim,
-      linesOpacity: st.constellations ? 0.28 * (1 - day) * (1 - day) : 0,
+      linesOpacity: st.constellations ? Math.max(0.28 * (1 - day) * (1 - day), 0.09 * day) : 0,
       twinkle: this.hasAtmosphere() ? 1 : 0, time: this.time, nearCutPc: 0.002, below,
     });
 
@@ -673,15 +673,22 @@ export class SkyView {
       }
       if (this.issDir) put(this.issDir, 'ISS', 'pill iss', true, { kind: 'iss' });
       if (this.place.exo) put(v3.norm(v3.scale(this.frame.observerPc, -1)), tx('Sole ☉', 'Sun ☉', 'Soleil ☉'), 'body sun-far', true, { kind: 'body', id: 'sun' });
-      if (day < 0.7) {
-        const lim = this.magLimit();
-        for (const i of this.brightNamed) {
-          if (starAppMag(i) > lim) continue;
-          put(this.starDir(i), starName(i), 'star', false, { kind: 'star', index: i });
-        }
-        if (st.constellations) for (const c of this.consCenters) put(c.dir, c.name.toUpperCase(), 'cons', false, { kind: 'constellation', id: c.id });
-        if (this.fov < 35) for (const m of messier) if (m.mag < 7.5 && !deepForMessier(m.id)) put(radecToVec(m.ra, m.dec), messierName(m), 'dso', false, { kind: 'messier', id: m.id });
-        if (this.fov < 35) for (const o of deepObjects()) { if (o.id === 'milkyway') continue; const r: ObjRef = { kind: 'deep', id: o.id }; const d = refDirection(r, this.frame); if (d) put(d, o.name, 'dso', false, r, (o.radiusLy / o.ly) * pxPerRad * (o.type === 'galaxy' ? 0.55 : 1)); }
+      // di notte: tutto con la sua luce; di giorno: solo i nomi (tenui) degli oggetti più famosi, comunque toccabili
+      const daytime = day >= 0.7;
+      const dc = daytime ? ' day' : '';
+      const lim = daytime ? 1.6 : this.magLimit();
+      for (const i of this.brightNamed) {
+        if (starAppMag(i) > lim) continue;
+        put(this.starDir(i), starName(i), 'star' + dc, false, { kind: 'star', index: i });
+      }
+      if (st.constellations) for (const c of this.consCenters) put(c.dir, c.name.toUpperCase(), 'cons' + dc, false, { kind: 'constellation', id: c.id });
+      const fovLim = daytime ? 70 : 35;
+      if (this.fov < fovLim) for (const m of messier) if (m.mag < (daytime ? 6 : 7.5) && !deepForMessier(m.id)) put(radecToVec(m.ra, m.dec), messierName(m), 'dso' + dc, false, { kind: 'messier', id: m.id });
+      if (this.fov < fovLim) for (const o of deepObjects()) {
+        if (o.id === 'milkyway') continue;
+        if (daytime && !((messier.find((m) => m.id === o.messier)?.mag ?? 99) < 6 || ['lmc', 'smc', 'omegacen', 'sgra'].includes(o.id))) continue;
+        const r: ObjRef = { kind: 'deep', id: o.id }; const d = refDirection(r, this.frame);
+        if (d) put(d, o.name, 'dso' + dc, false, r, (o.radiusLy / o.ly) * pxPerRad * (o.type === 'galaxy' ? 0.55 : 1));
       }
     }
     L.end();

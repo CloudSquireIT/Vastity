@@ -1,7 +1,7 @@
 // Pannelli dell'interfaccia: scheda oggetto, ricerca, Stasera, Missioni, Avvisi, Mondi, Impostazioni, Macchina del tempo.
 import { closeSheet, fmtDate, fmtTime, h, icon, iconButton, openSheet, sheetOpen, toast } from './dom';
 import { galaxyPhotos } from '../data/catalog';
-import { Category, ObjRef, SearchItem, categories, filterItems, info, refName, search } from '../features/objects';
+import { Category, ObjRef, SearchItem, SortKey, categories, filterItems, sortItems, info, refName, search } from '../features/objects';
 import { formatLightTime, formatYear, lightJourney } from '../features/history';
 import { computeTonight } from '../features/tonight';
 import { BADGES, activeMissions, ensureDailyMissions, logObservation, progress, rankOf, visitPlace } from '../features/missions';
@@ -110,19 +110,34 @@ export function openSearch(onPick?: (r: ObjRef) => void) {
   };
   let cat: Category | null = null;
   let shown = 60;
-  const row = (it: SearchItem) => h('button', { class: 'row', onclick: () => pick(it.ref) }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, it.name), h('div', { class: 'row-s' }, it.sub)));
+  let sortKey: SortKey = 'name';
+  const sortCache = new Map<string, SearchItem[]>();
+  const sorted = (c: Category) => {
+    const k = c.id + ':' + sortKey;
+    if (!sortCache.has(k)) sortCache.set(k, sortItems(c.items, sortKey));
+    return sortCache.get(k)!;
+  };
+  const SORTS: [SortKey, string][] = [
+    ['name', tx('A–Z', 'A–Z', 'A–Z')], ['dist', tx('Distanza', 'Distance', 'Distance')],
+    ['mag', tx('Luminosità', 'Brightness', 'Luminosité')], ['size', tx('Dimensione', 'Size', 'Taille')],
+  ];
+  const row = (it: SearchItem, extra = '') => h('button', { class: 'row', onclick: () => pick(it.ref) }, h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, it.name), h('div', { class: 'row-s' }, it.sub)), extra ? h('span', { class: 'row-x' }, extra) : null);
+  const fmtLy = (ly: number) => ly < 0.01 ? `${num(ly * 63241, ly * 63241 < 10 ? 2 : 0)} ${tx('UA', 'AU', 'UA')}` : ly < 1000 ? `${num(ly, ly < 10 ? 1 : 0)} ${tx('al', 'ly', 'al')}` : ly < 1e6 ? `${num(ly / 1000, 1)} ${tx('mila al', 'kly', 'k al')}` : `${num(ly / 1e6, 1)} ${tx('mln al', 'Mly', 'M al')}`;
   const render = () => {
     const q = input.value;
     list.replaceChildren();
     if (cat) {
       // dentro una categoria: elenco completo, filtrabile, caricato a blocchi
       const c = cat;
-      const items = filterItems(c.items, q);
+      const items = filterItems(sorted(c), q);
+      const extra = (it: SearchItem) => sortKey === 'dist' && it.dist != null ? fmtLy(it.dist) : sortKey === 'mag' && it.mag != null ? `mag ${num(it.mag, 1, 1)}` : sortKey === 'size' && it.size != null ? `⌀ ${fmtLy(it.size * 2)}` : '';
       list.append(h('div', { class: 'cat-head' },
         h('button', { class: 'chip', onclick: () => { cat = null; input.value = ''; input.placeholder = basePh; render(); } }, '‹ ' + tx('Categorie', 'Categories', 'Catégories')),
         h('span', { class: 'cat-title' }, `${c.name} · ${num(items.length)}`)));
+      list.append(h('div', { class: 'chips sort' }, h('span', { class: 'sort-l' }, tx('Ordina per', 'Sort by', 'Trier par')),
+        ...SORTS.map(([k, l]) => h('button', { class: 'chip' + (sortKey === k ? ' on' : ''), onclick: () => { sortKey = k; shown = 60; render(); } }, l))));
       if (!items.length) list.append(h('p', { class: 'muted pad' }, tx('Nessun risultato.', 'No results.', 'Aucun résultat.')));
-      for (const it of items.slice(0, shown)) list.append(row(it));
+      for (const it of items.slice(0, shown)) list.append(row(it, extra(it)));
       if (items.length > shown) list.append(h('button', { class: 'btn more', onclick: () => { shown += 120; render(); } }, tx(`Mostra altri (${num(items.length - shown)})`, `Show more (${num(items.length - shown)})`, `Afficher plus (${num(items.length - shown)})`)));
       return;
     }

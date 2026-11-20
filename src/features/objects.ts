@@ -59,7 +59,13 @@ export function refDirection(r: ObjRef, frame: SkyFrame, issDir?: V3 | null): V3
   return p ? v3.norm(v3.sub(p, frame.observerPc)) : null;
 }
 
-export interface SearchItem { ref: ObjRef; name: string; sub: string; key: string; rank: number }
+export interface SearchItem {
+  ref: ObjRef; name: string; sub: string; key: string; rank: number;
+  /** Per ordinare: distanza dal Sole (anni luce), magnitudine apparente, raggio (anni luce). */
+  dist?: number; mag?: number; size?: number;
+}
+const KM_LY = 1 / 9.4607e12;
+const BODY_MAG: Record<string, number> = { sun: -26.7, moon: -12.7, venus: -4.4, jupiter: -2.7, mars: -1.5, mercury: -0.4, saturn: 0.5, uranus: 5.7, neptune: 7.8, pluto: 14.4 };
 
 let index: SearchItem[] | null = null;
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -68,17 +74,22 @@ export function searchIndex(): SearchItem[] {
   if (index) return index;
   const items: SearchItem[] = [];
   for (const b of BODIES) {
-    items.push({ ref: { kind: 'body', id: b.id }, name: b.name, sub: kindName(b.kind, false), key: norm(b.name + ' ' + b.id), rank: 0 });
+    const au = b.id === 'sun' ? 0 : b.id === 'moon' ? 1 : Math.pow((b.period ?? 365.25) / 365.25, 2 / 3);
+    items.push({ ref: { kind: 'body', id: b.id }, name: b.name, sub: kindName(b.kind, false), key: norm(b.name + ' ' + b.id), rank: 0,
+      dist: au * AU_IN_KM * KM_LY, mag: BODY_MAG[b.id], size: b.radiusKm * KM_LY });
   }
-  for (const o of deepObjects()) items.push({ ref: { kind: 'deep', id: o.id }, name: o.name, sub: DEEP_TYPE_NAME(o.type, o.galaxy), key: norm(o.name + ' ' + o.id + ' ' + (o.messier ?? '') + ' ' + (messier.find((m) => m.id === o.messier)?.ngc ?? '') + ' ' + (messier.find((m) => m.id === o.messier)?.ngc ?? '').replace(' ', '') + ' ' + DEEP_TYPE_NAME(o.type, o.galaxy) + (o.id === 'milkyway' ? ' milky way voie lactee via lattea' : '')), rank: o.id === 'milkyway' ? 0.2 : 1.2 });
+  for (const o of deepObjects()) items.push({ ref: { kind: 'deep', id: o.id }, name: o.name, sub: DEEP_TYPE_NAME(o.type, o.galaxy), key: norm(o.name + ' ' + o.id + ' ' + (o.messier ?? '') + ' ' + (messier.find((m) => m.id === o.messier)?.ngc ?? '') + ' ' + (messier.find((m) => m.id === o.messier)?.ngc ?? '').replace(' ', '') + ' ' + DEEP_TYPE_NAME(o.type, o.galaxy) + (o.id === 'milkyway' ? ' milky way voie lactee via lattea' : '')), rank: o.id === 'milkyway' ? 0.2 : 1.2,
+    dist: o.id === 'milkyway' ? 26000 : o.ly, size: o.radiusLy, mag: messier.find((m) => m.id === o.messier)?.mag });
   items.push({ ref: { kind: 'iss' }, name: tx('Stazione Spaziale (ISS)', 'Space Station (ISS)', 'Station spatiale (ISS)'), sub: tx('Satellite', 'Satellite', 'Satellite'), key: 'iss stazione spaziale internazionale space station station spatiale', rank: 0 });
   for (const c of constellations) items.push({ ref: { kind: 'constellation', id: c.id }, name: c.name, sub: `${tx('Costellazione', 'Constellation', 'Constellation')} · ${c.la}`, key: norm(c.name + ' ' + c.la + ' ' + c.id), rank: 1 + c.rank * 0.1 });
-  for (const m of messier) if (!deepForMessier(m.id)) items.push({ ref: { kind: 'messier', id: m.id }, name: messierName(m), sub: `${m.id} · ${MESSIER_TYPES[m.type] ?? tx('Oggetto', 'Object', 'Objet')}`, key: norm(messierName(m) + ' ' + m.id + ' ' + m.alt + ' ' + (m.ngc ?? '') + ' ' + (m.ngc ?? '').replace(' ', '')), rank: (m.id[0] === 'C' ? 2.3 : 2) + Math.min(m.mag, 15) * 0.01 });
+  for (const m of messier) if (!deepForMessier(m.id)) items.push({ ref: { kind: 'messier', id: m.id }, name: messierName(m), sub: `${m.id} · ${MESSIER_TYPES[m.type] ?? tx('Oggetto', 'Object', 'Objet')}`, key: norm(messierName(m) + ' ' + m.id + ' ' + m.alt + ' ' + (m.ngc ?? '') + ' ' + (m.ngc ?? '').replace(' ', '')), rank: (m.id[0] === 'C' ? 2.3 : 2) + Math.min(m.mag, 15) * 0.01,
+    dist: MESSIER_EXTRA[m.id]?.ly, mag: m.mag < 50 ? m.mag : undefined });
   for (let i = 0; i < stars.count; i++) {
     const ni = stars.name[i];
     if (ni < 0) continue;
     const [proper, desig, hip] = stars.names[ni];
-    items.push({ ref: { kind: 'star', index: i }, name: proper || desig, sub: `${tx('Stella', 'Star', 'Étoile')}${proper && desig ? ' · ' + desig : ''} · mag ${num(starAppMag(i), 1, 1)}`, key: norm(`${proper} ${desig} hip${hip}`), rank: (proper ? 1.5 : 4) + starAppMag(i) * 0.05 });
+    items.push({ ref: { kind: 'star', index: i }, name: proper || desig, sub: `${tx('Stella', 'Star', 'Étoile')}${proper && desig ? ' · ' + desig : ''} · mag ${num(starAppMag(i), 1, 1)}`, key: norm(`${proper} ${desig} hip${hip}`), rank: (proper ? 1.5 : 4) + starAppMag(i) * 0.05,
+      dist: stars.distUnknown[i] ? undefined : starDistPc(i) * 3.26156, mag: starAppMag(i), size: starPhysical(i).R * 696340 * KM_LY });
   }
   index = items;
   return items;
@@ -130,15 +141,28 @@ export function categories(): Category[] {
     const d = deepForMessier(m.id);
     const ref: ObjRef = d ? { kind: 'deep', id: d.id } : { kind: 'messier', id: m.id };
     const name = d ? d.name : messierName(m);
-    const item: SearchItem = { ref, name: name === m.id ? m.id : `${m.id} · ${name}`, sub: `${MESSIER_TYPES[m.type] ?? ''}${m.ngc ? ' · ' + m.ngc : ''}`, key: norm(`${m.id} ${name} ${m.ngc ?? ''}`), rank: +m.id.slice(1) };
+    const item: SearchItem = { ref, name: name === m.id ? m.id : `${m.id} · ${name}`, sub: `${MESSIER_TYPES[m.type] ?? ''}${m.ngc ? ' · ' + m.ngc : ''}`, key: norm(`${m.id} ${name} ${m.ngc ?? ''}`), rank: +m.id.slice(1),
+      dist: d ? d.ly : MESSIER_EXTRA[m.id]?.ly, mag: m.mag < 50 ? m.mag : undefined, size: d?.radiusLy };
     (m.id[0] === 'C' ? by.caldwell : by.messier).items.push(item);
   }
-  by.stars.items.sort((a, b) => a.rank - b.rank);
-  by.solar.items.sort((a, b) => a.rank - b.rank);
-  for (const c of [by.constellations, by.galaxies, by.nebulae, by.clusters, by.exotic]) c.items.sort((a, b) => a.name.localeCompare(b.name));
-  for (const c of [by.messier, by.caldwell]) c.items.sort((a, b) => a.rank - b.rank);
+  for (const c of list) c.items = sortItems(c.items, 'name');
   cats = list;
   return list;
+}
+
+export type SortKey = 'name' | 'dist' | 'mag' | 'size';
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+/** Ordina: nome (A→Z, numeri in ordine naturale), distanza crescente, luminosità (magnitudine crescente), dimensione decrescente. */
+export function sortItems(items: SearchItem[], key: SortKey): SearchItem[] {
+  const v = (it: SearchItem) => (key === 'dist' ? it.dist : key === 'mag' ? it.mag : key === 'size' ? it.size : undefined);
+  return [...items].sort((a, b) => {
+    if (key === 'name') return collator.compare(a.name, b.name);
+    const va = v(a), vb = v(b);
+    if (va == null && vb == null) return collator.compare(a.name, b.name);
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    return key === 'size' ? vb - va : va - vb;
+  });
 }
 
 export function filterItems(items: SearchItem[], q: string) {
@@ -146,16 +170,18 @@ export function filterItems(items: SearchItem[], q: string) {
   return nq ? items.filter((it) => it.key.includes(nq) || norm(it.name).includes(nq)) : items;
 }
 
-export function search(q: string, limit = 30): SearchItem[] {
+export function search(q: string, limit = 80): SearchItem[] {
   const nq = norm(q.trim());
   if (!nq) return [];
-  const res: { it: SearchItem; s: number }[] = [];
+  const exact: SearchItem[] = [], rest: SearchItem[] = [];
   for (const it of searchIndex()) {
-    const p = it.key.indexOf(nq);
-    if (p < 0) continue;
-    res.push({ it, s: it.rank + (p === 0 ? 0 : 1) + (norm(it.name) === nq ? -2 : 0) });
+    if (!it.key.includes(nq)) continue;
+    (norm(it.name) === nq ? exact : rest).push(it);
   }
-  return res.sort((a, b) => a.s - b.s).slice(0, limit).map((r) => r.it);
+  // corrispondenze esatte in cima, poi tutto in ordine alfabetico (con tantissimi risultati, prima chi inizia per la ricerca)
+  let pool = rest;
+  if (pool.length > 3000) { const pre = pool.filter((it) => norm(it.name).startsWith(nq)); pool = pre.length >= limit ? pre : pool.slice(0, 3000); }
+  return [...exact, ...sortItems(pool, 'name')].slice(0, limit);
 }
 
 // ---------------------------------------------------------------------------

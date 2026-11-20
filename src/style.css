@@ -585,3 +585,9 @@ body[data-mode="sky"] .bottom { flex-direction: row; justify-content: flex-end; 
 .credits summary { cursor: pointer; color: #cbd5e1; font-size: 13px; }
 .credits ul { padding-left: 18px; margin: 8px 0; line-height: 1.5; }
 .credits a { color: #9cc2ff; word-break: break-all; }
+.chips.sort { align-items: center; margin: 4px 0 8px; }
+.sort-l { font: 500 11px/1 var(--f-mono); color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-right: 4px; }
+.row-x { margin-left: auto; padding-left: 10px; font: 500 12px/1.2 var(--f-mono); color: #38bdf8; white-space: nowrap; }
+/* di giorno: solo il nome, tenue ma leggibile sul cielo chiaro */
+.label.day { color: rgba(240, 246, 255, 0.82) !important; text-shadow: 0 0 6px rgba(20, 40, 90, 0.75), 0 1px 2px rgba(0, 0, 0, .45); }
+.label.cons.day { color: rgba(230, 240, 255, 0.7) !important; }
