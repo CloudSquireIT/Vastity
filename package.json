@@ -1,7 +1,7 @@
 {
   "name": "vastity",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Vastity \u2014 esplora il cielo e lo spazio in full immersion",
   "scripts": {
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "data": "node scripts/build-data.mjs",
     "test:devices": "node tests/device-check.mjs",
-    "cap:sync": "npm run build && npx cap sync"
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:assets": "capacitor-assets generate --iconBackgroundColor '#03050c' --iconBackgroundColorDark '#03050c' --splashBackgroundColor '#03050c' --splashBackgroundColorDark '#03050c' --android --ios"
   },
   "dependencies": {
     "@capacitor/core": "^7.6.10",
@@ -25,7 +26,10 @@
     "three": "^0.187.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.6.10",
+    "@capacitor/assets": "^4.0.0",
     "@capacitor/cli": "^7.6.10",
+    "@capacitor/ios": "^7.6.10",
     "@types/three": "^0.187.0",
     "typescript": "5.9",
     "vite": "^8.3.8"
