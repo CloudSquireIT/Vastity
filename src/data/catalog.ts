@@ -108,7 +108,7 @@ export async function loadCatalogs() {
   const prog = { v: 0 };
   const json = async (url: string, w: number) => JSON.parse(new TextDecoder().decode(await fetchBuffer(url, w, prog)));
   const [bin, meta, c, m, wiki] = await Promise.all([
-    fetchBuffer('data/stars.bin.json', 0.45, prog),
+    fetchBuffer('data/stars.wasm', 0.45, prog),
     json('data/stars-meta.json', 0.3),
     json('data/constellations.json', 0.05),
     json('data/messier.json', 0.02),
