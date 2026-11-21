@@ -545,6 +545,8 @@ export function openCredits() {
     [tx('Texture planetarie e Via Lattea', 'Planet textures and Milky Way', 'Textures planétaires et Voie lactée'), 'Solar System Scope (NASA/ESO)', 'CC BY 4.0'],
     [tx('Illustrazione della Via Lattea', 'Milky Way illustration', 'Illustration de la Voie lactée'), 'NASA/JPL-Caltech/R. Hurt', 'NASA/JPL'],
     [tx('Distanze Messier, catalogo Caldwell', 'Messier distances, Caldwell catalogue', 'Distances Messier, catalogue Caldwell'), 'Wikipedia', 'CC BY-SA 4.0'],
+    [tx('Modelli 3D di ISS, Hubble, James Webb e Voyager', '3D models of the ISS, Hubble, James Webb and Voyager', 'Modèles 3D de l\'ISS, Hubble, James Webb et Voyager'), 'NASA 3D Resources', tx('pubblico dominio', 'public domain', 'domaine public')],
+    [tx('Orbite di lune e sonde', 'Orbits of moons and probes', 'Orbites des lunes et des sondes'), 'NASA/JPL Horizons', tx('pubblico dominio', 'public domain', 'domaine public')],
     ['Inter, Space Grotesk, JetBrains Mono', 'Rasmus Andersson, Florian Karsten, JetBrains', 'SIL OFL 1.1'],
   ];
   const body = h('div', { class: 'credits-page' },

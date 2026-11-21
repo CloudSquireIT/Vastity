@@ -973,22 +973,20 @@ body[data-mode="ship"] .throttle-wrap { top: calc(50% + 30px); height: min(46vh,
   .wl-start { padding: 11px 18px; }
 }
 
-/* ================================================================ marcatore: triangolo che ruota */
-@keyframes tri-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
-@keyframes tri-in { from { opacity: 0; } }
-.sel-ring.ticks { left: 0; top: 0; width: 0; height: 0; border: 0; box-shadow: none; animation: none; border-radius: 0; --s: 36px; pointer-events: none; }
-.sel-ring.ticks i, .ship-target i { display: none; }
-.tri { position: absolute; left: 0; top: 0; width: calc(var(--s) * 2 + 10px); height: calc(var(--s) * 2 + 10px); transform: translate(-50%, -50%); overflow: visible; pointer-events: none;
-  animation: tri-spin 18s linear infinite, tri-in .5s ease-out; transition: width .35s var(--ease-out, ease), height .35s var(--ease-out, ease); }
-.tri path { fill: none; stroke-linecap: square; vector-effect: non-scaling-stroke; }
-.tri .tri-glow { display: none; }
-.tri .tri-line { stroke: rgba(235, 242, 255, .9); stroke-width: 1.2px; }
-.ship-target.locked .tri .tri-line { stroke: #ffffff; }
-
-.ship-target.locked .tri { animation-duration: 7s; }
-.ship-target span { top: calc(var(--s) + 12px); }
-.ship-target.top span { top: calc(var(--s) * -1 - 38px); }
-@media (prefers-reduced-motion: reduce) { .tri { animation: none; } }
+/* ================================================================ marcatore: angoli minimali */
+.sel-ring.ticks { left: 0; top: 0; width: 0; height: 0; border: 0; box-shadow: none; animation: none; border-radius: 0; --s: 40px; pointer-events: none; }
+.sel-ring.ticks i.cn, .ship-target i.cn {
+  display: block; position: absolute; width: 9px; height: 9px; border: 0 solid rgba(236, 242, 255, .88) !important; border-radius: 1.5px !important;
+  background: none !important; box-shadow: none !important; animation: cn-in .35s ease-out both; transform: none;
+}
+.sel-ring.ticks i.cn:nth-child(1), .ship-target i.cn:nth-child(1) { left: calc(var(--s) / -2); top: calc(var(--s) / -2); border-left-width: 1px !important; border-top-width: 1px !important; }
+.sel-ring.ticks i.cn:nth-child(2), .ship-target i.cn:nth-child(2) { left: calc(var(--s) / 2 - 9px); top: calc(var(--s) / -2); border-right-width: 1px !important; border-top-width: 1px !important; }
+.sel-ring.ticks i.cn:nth-child(3), .ship-target i.cn:nth-child(3) { left: calc(var(--s) / -2); top: calc(var(--s) / 2 - 9px); border-left-width: 1px !important; border-bottom-width: 1px !important; }
+.sel-ring.ticks i.cn:nth-child(4), .ship-target i.cn:nth-child(4) { left: calc(var(--s) / 2 - 9px); top: calc(var(--s) / 2 - 9px); border-right-width: 1px !important; border-bottom-width: 1px !important; }
+.ship-target.locked i.cn { border-color: #ffffff !important; }
+@keyframes cn-in { from { opacity: 0; transform: scale(1.25); } }
+.ship-target span { top: calc(var(--s) / 2 + 10px); }
+.ship-target.top span { top: calc(var(--s) / -2 - 38px); }
 
 /* ================================================================ disegni sopra il cielo */
 .sky-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
@@ -1015,7 +1013,6 @@ body.night .sky-overlay { filter: grayscale(1) sepia(1) hue-rotate(-50deg) satur
   transform: translateX(var(--lx, 0px)) scale(.6); opacity: 0; transition: opacity .18s ease, transform .18s ease; }
 .dock-lens.on { opacity: 1; transform: translateX(var(--lx, 0px)) scale(var(--ls, 1.14)); transition: opacity .15s ease; }
 .dock.pressing { transform: scale(1.025); transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
-body.native-dock .bottom .dock { visibility: hidden; }
 .icon-pick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .icon-opt { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border-radius: 16px; font-size: 12px; color: var(--ink-2); }
 .icon-opt img { width: 56px; height: 56px; border-radius: 13px; box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
@@ -1038,8 +1035,7 @@ body.native-dock .bottom .dock { visibility: hidden; }
 
 /* tutorial: sempre sopra tutto, scheda ferma; durante il tutorial il dock HTML sostituisce quello nativo */
 .tour { z-index: 200 !important; }
-.tour-card { z-index: 201; transition: none !important; max-height: calc(100vh - 140px); overflow: auto; }
-body.native-dock.touring .bottom .dock { visibility: visible; }
+.tour-card { z-index: 201; transition: none !important; width: min(560px, calc(100vw - 48px)) !important; }
 .sky-overlay .sat-pt.deep rect { fill: #ffb27a; }
 .sky-overlay .sat-pt.deep text { fill: #ffcf9f; }
 
@@ -1076,3 +1072,17 @@ input, textarea, [contenteditable] { -webkit-user-select: text; user-select: tex
   .wl-txt span { display: none; }
   .wl-row { padding: 5px 10px; }
 }
+
+/* tutorial: sopra a tutto, anche al dock; la scheda non scorre mai (testo più compatto sugli schermi bassi) */
+.ui .tour { z-index: 500 !important; }
+@media (max-height: 430px) { .tour-card { padding: 14px 16px 12px; } .tour-title { font-size: 18px !important; } .tour-text { font-size: 13.5px !important; line-height: 1.42 !important; } .tour-gesture { display: none; } }
+/* con un pannello aperto il dock sfuma via (e torna alla chiusura): niente più comandi sopra la ricerca */
+.bottom { transition: opacity .3s ease, transform .3s ease; }
+body.sheet-open .bottom { opacity: 0; transform: translateY(12px); pointer-events: none; }
+
+/* caricamento: la scritta V A S T I T Y grande, centrata, entro i margini sicuri; nessun effetto per lettera */
+#loader .loader-n { font-size: min(calc((100vw - 2 * max(28px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))) / 7.3), 15vh) !important;
+  letter-spacing: .42em !important; text-indent: .42em !important; font-weight: 300 !important; line-height: 1 !important; color: rgba(240, 244, 255, .94) !important; }
+#loader .loader-n span { animation: none !important; filter: none !important; opacity: 1 !important; transform: none !important; text-shadow: none !important; }
+#loader .mini-bh { width: 22px; height: 22px; }
+#loader { gap: 26px; }

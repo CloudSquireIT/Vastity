@@ -2,6 +2,15 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.5.3
+
+- Modelli 3D ufficiali NASA (pubblico dominio) per ISS, Hubble, James Webb e Voyager, in scala reale.
+- Tesla Roadster con Starman: nuovo modello 3D (carrozzeria sagomata, vernice lucida, ruote), che ruota lentamente.
+- Marcatore di selezione: di nuovo i quattro angoli del riquadro, più sottili e minimali.
+- Caricamento: scritta V A S T I T Y grande e centrata entro i margini sicuri, senza effetti per lettera; menu nascosti.
+- Dock: torna in vetro HTML su tutti i dispositivi (reagisce allo sfondo) e sfuma via quando si apre un pannello;
+  il tutorial sta sempre sopra a tutto e la sua scheda non scorre più.
+
 ## 0.5.2
 
 - Triangolo di selezione bianco e sottile, come il riquadro di prima.

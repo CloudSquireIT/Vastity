@@ -29,8 +29,6 @@ import { Prologue, startPrologue } from './ui/prologue';
 import { startFirstTrip } from './features/firstTrip';
 import { showWelcome } from './ui/welcome';
 import { liquidDock } from './ui/liquidDock';
-import { native } from './core/native';
-import { GlassDock } from './core/native';
 import { initTours, openTours } from './features/tours';
 import { LOCALE, num, tx } from './i18n';
 
@@ -193,33 +191,9 @@ async function main() {
   const bottom = h('div', { class: 'bottom' }, dockSky, dockShip);
   liquidDock(dockSky);
   liquidDock(dockShip);
-  // iPhone: il dock è nativo, in vero vetro liquido (iOS 26); i suoi tocchi azionano gli stessi comandi
-  if (native.isNative && native.platform === 'ios') {
-    const L = (it: string, en: string, fr: string) => tx(it, en, fr);
-    const items = {
-      sky: [['moon.stars', L('Stasera', 'Tonight', 'Ce soir')], ['scope', L('Missioni', 'Missions', 'Missions')], ['paperplane.fill', L('Navicella', 'Spaceship', 'Vaisseau')], ['globe.europe.africa', L('Mondi', 'Worlds', 'Mondes')], ['bell', L('Avvisi', 'Alerts', 'Alertes')]],
-      ship: [['magnifyingglass', L('Vai a', 'Go to', 'Aller à')], ['mappin.and.ellipse', L('Posiziona', 'Place', 'Placer')], ['stop.circle', L('Ferma', 'Stop', 'Stop')], ['arrow.down.to.line', L('Atterra', 'Land', 'Atterrir')]],
-    };
-    const showDock = () => {
-      const m = state.mode === 'ship' ? 'ship' : 'sky';
-      GlassDock.show({ items: items[m].map(([symbol, title], i) => ({ id: `${m}:${i}`, title, symbol, accent: (m === 'sky' && i === 2) || (m === 'ship' && i === 0) })) })
-        .then(() => document.body.classList.add('native-dock')).catch(() => document.body.classList.remove('native-dock'));
-    };
-    GlassDock.addListener('tap', ({ id }) => {
-      const [m, i] = id.split(':');
-      const btn = (m === 'ship' ? dockShip : dockSky).querySelectorAll('.dbtn')[+i] as HTMLElement | undefined;
-      btn?.click();
-    }).catch(() => {});
-    bus.on('loaded', showDock);
-    bus.on('mode', () => { if (!document.body.classList.contains('loading')) showDock(); });
-    let lastVis = true;
-    const syncDock = () => {
-      const b = document.body.classList;
-      const vis = !(b.contains('loading') || b.contains('ui-hidden') || b.contains('prologue-on') || b.contains('idle') || b.contains('welcome-on') || b.contains('touring'));
-      if (vis !== lastVis) { lastVis = vis; GlassDock.setVisible({ visible: vis }).catch(() => {}); }
-    };
-    new MutationObserver(syncDock).observe(document.body, { attributes: true, attributeFilter: ['class'], childList: true });
-  }
+  // il dock è HTML anche su iPhone: vetro che reagisce allo sfondo come il resto dell'interfaccia,
+  // sempre sotto tutorial e pannelli (una vista nativa starebbe sopra a tutto)
+
   // il pulsante del pannello aperto appare "attivo"; nessuno è evidenziato di default
   const dockIds: [HTMLElement, string][] = [
     [dockSky.children[0] as HTMLElement, 'tonight'], [dockSky.children[1] as HTMLElement, 'missions'],

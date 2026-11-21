@@ -1,5 +1,5 @@
 import { SkyOverlay } from './skyOverlay';
-import { TRIANGLE_SVG } from '../ui/marker';
+import { CORNERS_HTML } from '../ui/marker';
 // Vista "Cielo": planetario in tempo reale dalla Terra o da altri mondi.
 import * as THREE from 'three';
 import { Background } from '../render/background';
@@ -173,7 +173,7 @@ export class SkyView {
     this.skyOverlay.onPick = (r) => this.select(r);
     this.ring = document.createElement('div');
     this.ring.className = 'sel-ring ticks';
-    this.ring.innerHTML = TRIANGLE_SVG;
+    this.ring.innerHTML = CORNERS_HTML;
     this.arrow = document.createElement('div');
     this.arrow.className = 'sel-arrow';
     this.arrow.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3l7 12h-14z"/></svg><span></span>';

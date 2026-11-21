@@ -8,6 +8,24 @@ import { AU_IN_KM } from '../data/catalog';
 import { CRAFT, Craft, allMoons, craftHelioKm, leoTrackKm, moonOffsetKm, moonOrbitKm, MoonEl } from '../data/ephem';
 import { PT, bodySphere, planetMaterial } from '../render/planet';
 import type { ObjRef } from '../features/objects';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+
+// modelli 3D ufficiali NASA (NASA 3D Resources, pubblico dominio), compressi con meshopt
+const GLB: Record<string, { file: string; sizeM: number }> = {
+  iss: { file: 'models/iss.glb', sizeM: 109 },
+  hubble: { file: 'models/hubble.glb', sizeM: 13.2 },
+  jwst: { file: 'models/jwst.glb', sizeM: 21.2 },
+  voyager1: { file: 'models/voyager.glb', sizeM: 13 },
+  voyager2: { file: 'models/voyager.glb', sizeM: 13 },
+};
+let gltf: GLTFLoader | null = null;
+const glbCache = new Map<string, Promise<THREE.Group>>();
+function loadGlb(file: string) {
+  if (!gltf) { gltf = new GLTFLoader(); gltf.setMeshoptDecoder(MeshoptDecoder); }
+  if (!glbCache.has(file)) glbCache.set(file, gltf.loadAsync(file).then((g) => g.scene));
+  return glbCache.get(file)!;
+}
 
 const MOON_LOOK: Record<string, { color?: number; map?: string; gas?: boolean }> = {
   io: { color: 0xe0c45c }, europa: { color: 0xdccdb2 }, ganymede: { map: 'moon', color: 0xb8a990 }, callisto: { map: 'moon', color: 0x8a7a68 },
@@ -61,6 +79,20 @@ export class SmallBodies {
     }
     for (const c of CRAFT) {
       const model = buildModel(c.id);
+      // se c'è il modello NASA, sostituisce quello procedurale appena è scaricato (centrato e in scala reale)
+      const g = GLB[c.id];
+      if (g) loadGlb(g.file).then((scene) => {
+        const m = scene.clone(true);
+        const box = new THREE.Box3().setFromObject(m);
+        const size = box.getSize(new THREE.Vector3());
+        const k = (g.sizeM / 1000) / Math.max(size.x, size.y, size.z);
+        const c0 = box.getCenter(new THREE.Vector3());
+        m.position.copy(c0).multiplyScalar(-k);
+        m.scale.setScalar(k);
+        m.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh) { me.frustumCulled = false; const mt = me.material as THREE.MeshStandardMaterial; if (mt && 'metalness' in mt) mt.metalness = Math.min(mt.metalness, 0.6); } });
+        model.clear();
+        model.add(m);
+      }).catch(() => { /* resta il modello procedurale */ });
       model.visible = false;
       this.group.add(model);
       const o: CraftObj = { c, model, pos: null };
@@ -139,6 +171,9 @@ export class SmallBodies {
         // orientamento: pannelli verso il Sole, asse lungo la direzione del moto
         const g = v3.sub(o.pos, earth);
         o.model.lookAt(o.model.position.x - g[0], o.model.position.y - g[1], o.model.position.z - g[2]);
+      } else if (o.c.id === 'tesla') {
+        // la Roadster fluttua ruotando lentamente su se stessa, come nelle immagini di Starman
+        o.model.rotation.set(0.35 + Math.sin(t / 47000) * 0.25, (t / 26000) % (Math.PI * 2), 0.18);
       } else o.model.lookAt(o.model.position.x - o.pos[0], o.model.position.y - o.pos[1], o.model.position.z - o.pos[2]);
       const nearEarth = v3.len(v3.sub(earth, shipPos)) < 3e5;
       const show = o.c.kind === 'leo' ? nearEarth || isTarget : dist < 0.6 * AU_IN_KM || isTarget;
@@ -223,14 +258,38 @@ function buildModel(id: string): THREE.Group {
     (shield.material as THREE.Material).side = THREE.DoubleSide;
     g.add(at(shield, 0, -1.5, 0, -Math.PI / 2, 0, 0));
   } else if (id === 'tesla') {
-    const red = mat(0xc8202a, 0.55);
-    g.add(at(box(3.9, 0.7, 1.8, red), 0, 0, 0));
-    g.add(at(box(1.6, 0.35, 1.5, dark), -0.2, 0.5, 0));
-    // Starman al volante
-    const suit = mat(0xf2f2f2, 0.2);
-    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.16 * M, 12, 8), suit), -0.1, 1.05, 0.35));
-    g.add(at(cyl(0.18, 0.55, suit, 10), -0.1, 0.75, 0.35));
-    for (const sx of [-1.25, 1.25]) for (const sz of [-0.9, 0.9]) g.add(at(cyl(0.34, 0.25, dark, 14), sx, -0.3, sz, Math.PI / 2, 0, 0));
+    // Tesla Roadster (2008) con Starman: profilo estruso e smussato, vernice lucida, vetri, ruote e manichino
+    const paint = new THREE.MeshPhysicalMaterial({ color: 0xb3121c, metalness: 0.45, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
+    const glass = new THREE.MeshPhysicalMaterial({ color: 0x0c1118, metalness: 0.2, roughness: 0.05, transparent: true, opacity: 0.55 });
+    const tire = mat(0x15171c, 0.1), rim = mat(0xbfc4cc, 0.9);
+    const prof = new THREE.Shape();
+    // lato della carrozzeria (metri: lunghezza 3,95, altezza 1,13), muso a sinistra
+    prof.moveTo(-1.97, 0.18); prof.lineTo(-1.97, 0.42); prof.quadraticCurveTo(-1.9, 0.62, -1.4, 0.68);
+    prof.lineTo(-0.55, 0.74); prof.quadraticCurveTo(0.6, 0.86, 1.55, 0.78); prof.quadraticCurveTo(1.95, 0.72, 1.97, 0.5);
+    prof.lineTo(1.97, 0.2); prof.lineTo(1.45, 0.18); prof.absarc(1.25, 0.18, 0.36, 0, Math.PI, false); prof.lineTo(-0.85, 0.18);
+    prof.absarc(-1.25, 0.18, 0.36, 0, Math.PI, false); prof.lineTo(-1.97, 0.18);
+    const body = new THREE.ExtrudeGeometry(prof, { depth: 1.5, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.1, bevelSegments: 4, curveSegments: 18 });
+    body.translate(0, 0, -0.75);
+    body.scale(M, M, M);
+    g.add(new THREE.Mesh(body, paint));
+    // abitacolo aperto, parabrezza e roll bar
+    g.add(at(box(1.3, 0.25, 1.25, dark), -0.25, 0.82, 0));
+    const ws = new THREE.Mesh(new THREE.PlaneGeometry(1.25 * M, 0.42 * M), glass);
+    ws.material.side = THREE.DoubleSide;
+    g.add(at(ws, -0.92, 0.98, 0, 0, Math.PI / 2, -0.95));
+    for (const z of [-0.62, 0.62]) g.add(at(cyl(0.05, 1.0, rim, 8), 0.35, 1.18, z * 0.6, 0, 0, Math.PI / 2));
+    // ruote
+    for (const x of [-1.25, 1.25]) for (const z of [-0.78, 0.78]) {
+      g.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.27 * M, 0.08 * M, 10, 24), tire), x, 0.2, z));
+      g.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.22 * M, 18), rim), x, 0.2, z + Math.sign(z) * 0.06, 0, z > 0 ? 0 : Math.PI, 0));
+    }
+    // Starman: tuta bianca, casco con visiera scura, braccio sul volante
+    const suit = mat(0xf2f2f2, 0.15), visor = new THREE.MeshPhysicalMaterial({ color: 0x0a0d14, metalness: 0.9, roughness: 0.1, clearcoat: 1 });
+    g.add(at(new THREE.Mesh(new THREE.CapsuleGeometry(0.2 * M, 0.42 * M, 6, 12), suit), -0.05, 1.12, 0.32, 0, 0, -0.25));
+    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.16 * M, 18, 12), suit), -0.14, 1.52, 0.32));
+    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.115 * M, 16, 10, 0, Math.PI, 0, Math.PI), visor), -0.2, 1.53, 0.32, 0, -Math.PI / 2, 0));
+    g.add(at(new THREE.Mesh(new THREE.CapsuleGeometry(0.06 * M, 0.42 * M, 4, 8), suit), -0.42, 1.08, 0.48, 0, 0, 1.15));
+    g.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.17 * M, 0.025 * M, 8, 20), dark), -0.62, 1.0, 0.32, 0, Math.PI / 2, 0.3));
   } else {
     // sonde: antenna parabolica e bracci
     const dish = new THREE.Mesh(new THREE.SphereGeometry(1.85 * M, 24, 8, 0, Math.PI * 2, 0, 0.5), white);
