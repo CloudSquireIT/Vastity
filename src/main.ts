@@ -27,6 +27,7 @@ import { checkDataUpdates } from './core/remote';
 import { startTutorial } from './ui/tutorial';
 import { Prologue, startPrologue } from './ui/prologue';
 import { startFirstTrip } from './features/firstTrip';
+import { showWelcome } from './ui/welcome';
 import { initTours, openTours } from './features/tours';
 import { LOCALE, num, tx } from './i18n';
 
@@ -538,7 +539,7 @@ async function main() {
   }
   window.addEventListener('resize', resize);
   resize();
-  if (state.location.source === 'default') locate(false);
+  if (state.location.source === 'default' && state.settings.welcomeDone) locate(false);
   readHash();
   sky.setView(180, 25, 75);
   if (location.hash) readHash();
@@ -604,11 +605,18 @@ async function main() {
   setTimeout(() => bg.drawConstellations(), 500);
   loader?.classList.add('done');
   setTimeout(() => document.body.classList.remove('intro'), 1600);
+  // dopo il filmato: tutorial dell'interfaccia (saltabile), poi la prima missione e il suo tutorial
   const afterOpening = () => {
-    if (!state.settings.tutorialDone) setTimeout(() => startTutorial(ui), 1400);
-    setTimeout(() => startFirstTrip(ui), state.settings.tutorialDone ? 900 : 1800);
+    const missions = () => {
+      startFirstTrip(ui);
+      if (!state.settings.missionTutorialDone) setTimeout(() => startTutorial(ui, 'missions'), 1100);
+    };
+    if (!state.settings.tutorialDone) setTimeout(() => startTutorial(ui, 'ui', () => setTimeout(missions, 400)), 1400);
+    else setTimeout(missions, 900);
   };
-  if (!state.settings.prologueDone && !location.hash) playOpening(afterOpening);
+  if (!location.hash && !state.settings.welcomeDone) {
+    showWelcome({ root: app, locate: () => locate(false), motion: () => sky.requestMotion(), onStart: () => playOpening(afterOpening) });
+  } else if (!state.settings.prologueDone && !location.hash) playOpening(afterOpening);
   else if (!location.hash) afterOpening();
   setTimeout(() => loader?.remove(), 1300);
 

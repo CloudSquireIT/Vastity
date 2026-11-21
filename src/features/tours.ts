@@ -98,7 +98,7 @@ export function playTour(t: Tour) {
   const stops = t.stops.map((s) => ({ ref: resolve(s.ref), text: L(s.text) })).filter((s) => s.ref) as { ref: ObjRef; text: string }[];
   let i = -1;
   let arrived = false;
-  const el = h('div', { class: 'tour-card', role: 'dialog', 'aria-label': L(t.name) });
+  const el = h('div', { class: 'ntour-card', role: 'dialog', 'aria-label': L(t.name) });
   card = el;
   host.root.appendChild(el);
   const off = bus.on('arrived', (r: ObjRef) => { if (i >= 0 && sameRef(r, stops[i].ref)) { arrived = true; render(); } });

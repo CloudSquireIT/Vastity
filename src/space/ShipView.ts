@@ -786,23 +786,25 @@ export class ShipView {
   }
 
   private pick(x: number, y: number): ObjRef | null {
-    // gerarchia: dentro il disco di un oggetto grande vince l'oggetto grande; gli oggetti
-    // piccoli e deboli vicino al dito vincono solo se si tocca proprio loro
-    let best: ObjRef | null = null;
-    let bs = Infinity;
-    const c = (ref: ObjRef, rel: V3, radiusPx: number, weight = 0) => {
+    // tocchi "procedurali": per ogni oggetto si calcola distanza dal dito e raggio apparente.
+    // 1) un tocco preciso su un oggetto piccolo (puntiforme) vince sempre, anche se sta "dentro"
+    //    il disco di un oggetto più grande; 2) altrimenti, tra i dischi che contengono il dito,
+    //    vince l'oggetto fisicamente più vicino; 3) altrimenti il punto più vicino al dito.
+    //    Un oggetto che ci contiene (la Via Lattea vista da dentro) non si sceglie toccando.
+    type C = { ref: ObjRef; d: number; R: number; dist: number; w: number };
+    const cand: C[] = [];
+    const c = (ref: ObjRef, rel: V3, radiusPx: number, weight = 0, distKm = v3.len(rel)) => {
       const p = this.project(rel);
       if (!p.front) return;
       const d = Math.hypot(p.x - x, p.y - y);
-      const lim = Math.max(26 + weight, radiusPx + 12);
-      if (d > lim) return;
-      const score = d - Math.min(radiusPx, d + radiusPx * 0.25) - weight;
-      if (score < bs) { bs = score; best = ref; }
+      if (d > Math.max(30 + weight, radiusPx + 14)) return;
+      cand.push({ ref, d, R: radiusPx, dist: distKm, w: weight });
     };
     for (const p of this.planets) {
       const rel = v3.sub(p.pos, this.pos);
-      c({ kind: 'body', id: p.info.id }, rel, this.discPxCss(p.info.radiusKm * (p.info.rings ? 2.3 : 1), v3.len(rel)), 10);
+      c({ kind: 'body', id: p.info.id }, rel, this.discPxCss(p.info.radiusKm * (p.info.rings ? 2.3 : 1), v3.len(rel)), 12);
     }
+    for (const sat of this.satPickables()) c(sat.ref, sat.rel, sat.radiusPx, 10);
     const obs = v3.scale(this.pos, 1 / PC_IN_KM);
     for (let i = 0; i < stars.count; i++) {
       const dx = stars.pos[i * 3] - obs[0], dy = stars.pos[i * 3 + 1] - obs[1], dz = stars.pos[i * 3 + 2] - obs[2];
@@ -810,20 +812,32 @@ export class ShipView {
       const m = stars.absmag[i] + 5 * Math.log10(d) - 5;
       if (m > 5.5) continue;
       const R = Math.min(1500, starPhysical(i).R) * 696340;
-      c({ kind: 'star', index: i }, [dx, dy, dz], this.discPxCss(R, d * PC_IN_KM), (2.5 - m) * 3);
+      c({ kind: 'star', index: i }, [dx * PC_IN_KM, dy * PC_IN_KM, dz * PC_IN_KM], this.discPxCss(R, d * PC_IN_KM), (2.5 - m) * 3);
     }
     for (const m of messier) {
       if (deepForMessier(m.id)) continue;
       const p = refPosPc({ kind: 'messier', id: m.id })!;
-      c({ kind: 'messier', id: m.id }, v3.sub(p, obs), 0, -4);
+      const rel = v3.sub(p, obs);
+      c({ kind: 'messier', id: m.id }, v3.scale(rel, PC_IN_KM), 0, -4);
     }
     for (const o of deepObjects()) {
       const ref: ObjRef = { kind: 'deep', id: o.id };
       const rel = v3.sub(refPosPc(ref)!, obs);
-      c(ref, rel, this.discPxCss(o.radiusLy / 3.26156, v3.len(rel)), o.type === 'galaxy' || o.type === 'blackhole' ? 6 : 0);
+      const rPc = o.radiusLy / 3.26156;
+      if (v3.len(rel) < rPc * 1.1) continue; // ci siamo dentro
+      c(ref, v3.scale(rel, PC_IN_KM), this.discPxCss(rPc, v3.len(rel)), o.type === 'galaxy' || o.type === 'blackhole' ? 6 : 0);
     }
     for (const v of this.exo.visible) c({ kind: 'exo', index: v.index }, v.rel, this.discPxCss(v.radiusKm, v3.len(v.rel)), 10);
-    return best;
+    if (!cand.length) return null;
+    // 1) colpo preciso su un oggetto piccolo
+    const precise = cand.filter((k) => k.R < 14 && k.d <= Math.max(10, k.R + 6)).sort((a, b) => (a.d - a.w * 0.4) - (b.d - b.w * 0.4));
+    if (precise.length) return precise[0].ref;
+    // 2) dischi che contengono il dito: il più vicino a noi
+    const inside = cand.filter((k) => k.R >= 14 && k.d <= k.R + 8).sort((a, b) => a.dist - b.dist);
+    if (inside.length) return inside[0].ref;
+    // 3) il più vicino al dito, pesato per importanza
+    cand.sort((a, b) => (a.d - a.w) - (b.d - b.w));
+    return cand[0].ref;
   }
 
   updateOverlay() {

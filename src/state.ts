@@ -36,6 +36,10 @@ export interface Settings {
   sound?: boolean;
   /** Musica ambientale (con il suono attivo). */
   music?: boolean;
+  /** Tutorial delle missioni già visto. */
+  missionTutorialDone?: boolean;
+  /** Benvenuto e permessi già mostrati. */
+  welcomeDone?: boolean;
   /** Apertura cinematografica già vista. */
   prologueDone?: boolean;
   /** Prima missione guidata: passo raggiunto (3 = completata). */

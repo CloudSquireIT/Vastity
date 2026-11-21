@@ -321,6 +321,14 @@ export class SkyView {
 
   /** Accende/spegne "punta il telefono". La richiesta di permesso di iOS deve essere la prima
    *  cosa fatta dentro il tocco dell'utente, quindi niente await prima. */
+  /** Chiede soltanto il permesso dei sensori (iOS), senza accendere la bussola. */
+  async requestMotion(): Promise<boolean> {
+    const DOE = (window as any).DeviceOrientationEvent;
+    if (!DOE) return false;
+    if (typeof DOE.requestPermission !== 'function') return true;
+    try { return (await DOE.requestPermission()) === 'granted'; } catch { return false; }
+  }
+
   async setGyro(on: boolean): Promise<boolean> {
     const w: any = window;
     if (on) {

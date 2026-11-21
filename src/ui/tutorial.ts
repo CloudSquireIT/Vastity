@@ -8,7 +8,7 @@ interface Step { target?: string; title: string; text: string; gesture?: boolean
 function steps(): Step[] {
   return [
     {
-      title: tx('Benvenuto in Vastity', 'Welcome to Vastity', 'Bienvenue dans Vastity'),
+      title: tx('Il cielo è tuo', 'The sky is yours', 'Le ciel est à vous'),
       text: tx('Questo è il cielo di adesso, sopra di te. Trascina con un dito per guardarti intorno e allarga due dita per avvicinarti.',
         'This is the sky above you right now. Drag with one finger to look around and spread two fingers to zoom in.',
         'Voici le ciel au-dessus de vous en ce moment. Glissez un doigt pour regarder autour et écartez deux doigts pour zoomer.'),
@@ -78,11 +78,37 @@ function steps(): Step[] {
   ];
 }
 
+function missionSteps(): Step[] {
+  return [
+    {
+      target: '.trip-card',
+      title: tx('Il tuo primo viaggio', 'Your first voyage', 'Votre premier voyage'),
+      text: tx('Questa è la tua prima missione guidata: tre tappe, dalla Luna fino a fuori dalla galassia. Il riquadro ti dice sempre cosa fare; quando completi una tappa passa alla successiva.',
+        'This is your first guided mission: three stops, from the Moon to beyond the galaxy. The card always tells you what to do; when you complete a stop it moves on to the next.',
+        'Voici votre première mission guidée : trois étapes, de la Lune jusqu\'au-delà de la galaxie. Le cadre vous dit toujours quoi faire ; chaque étape réussie mène à la suivante.'),
+    },
+    {
+      target: '.mission-chip',
+      title: tx('Le missioni di oggi', 'Today\'s missions', 'Les missions du jour'),
+      text: tx('Ogni giorno nuove sfide in base al cielo di stanotte. Trova l\'oggetto e tienilo nel mirino al centro per qualche istante: con la bussola attiva i punti valgono doppio.',
+        'New challenges every day, based on tonight\'s sky. Find the object and keep it in the central reticle for a moment: with the compass on, points count double.',
+        'Chaque jour de nouveaux défis selon le ciel de ce soir. Trouvez l\'objet et gardez-le dans le viseur central quelques instants : avec la boussole, les points comptent double.'),
+    },
+    {
+      target: '.dock:not(.ship) .dbtn:nth-child(2)', round: true,
+      title: tx('Badge, livelli e tour', 'Badges, ranks and tours', 'Badges, niveaux et visites'),
+      text: tx('Qui trovi i tuoi progressi, i badge da sbloccare e i tour guidati con la navicella, con un racconto per ogni tappa.',
+        'Here you find your progress, badges to unlock and guided spaceship tours, with a story at every stop.',
+        'Ici, vos progrès, les badges à débloquer et les visites guidées en vaisseau, avec une histoire à chaque étape.'),
+    },
+  ];
+}
+
 let active: HTMLElement | null = null;
 
-export function startTutorial(root: HTMLElement) {
-  if (active) return;
-  const list = steps();
+export function startTutorial(root: HTMLElement, kind: 'ui' | 'missions' = 'ui', onDone?: () => void) {
+  if (active) { onDone?.(); return; }
+  const list = (kind === 'ui' ? steps() : missionSteps()).filter((s) => !s.target || document.querySelector(s.target));
   let i = 0;
   const hole = h('div', { class: 'tour-hole none' });
   const stepEl = h('div', { class: 'tour-step' });
@@ -134,8 +160,10 @@ export function startTutorial(root: HTMLElement) {
     active = null;
     document.body.classList.remove('touring');
     window.removeEventListener('resize', place);
-    state.settings.tutorialDone = true;
+    if (kind === 'ui') state.settings.tutorialDone = true;
+    else state.settings.missionTutorialDone = true;
     saveSettings();
+    onDone?.();
   }
 
   window.addEventListener('resize', place);

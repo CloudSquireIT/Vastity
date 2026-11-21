@@ -1,3 +1,4 @@
+import { native } from '../core/native';
 import { openTours } from '../features/tours';
 import { story } from '../data/stories';
 // Pannelli dell'interfaccia: scheda oggetto, ricerca, Stasera, Missioni, Avvisi, Mondi, Impostazioni, Macchina del tempo.
@@ -574,12 +575,13 @@ function bortleName(b: number) {
   return `${b} · ${tx(it[b - 1], en[b - 1], fr[b - 1])}`;
 }
 
-export function locate(verbose = false) {
-  if (!navigator.geolocation) { if (verbose) toast(tx('Geolocalizzazione non disponibile', 'Geolocation unavailable', 'Géolocalisation indisponible')); return; }
-  navigator.geolocation.getCurrentPosition((p) => {
-    setLocation({ lat: p.coords.latitude, lon: p.coords.longitude, height: p.coords.altitude ?? 0, name: tx('La tua posizione', 'Your location', 'Votre position'), source: 'gps' });
+export async function locate(verbose = false) {
+  const p = await native.position();
+  if (p) {
+    setLocation({ lat: p.lat, lon: p.lon, height: p.alt, name: tx('La tua posizione', 'Your location', 'Votre position'), source: 'gps' });
     if (verbose) { toast(tx('Posizione aggiornata', 'Location updated', 'Position mise à jour')); if (sheetOpen('settings')) openSettings(); }
-  }, () => { if (verbose) toast(tx('Non riesco a ottenere la posizione', 'Couldn\'t get your location', 'Impossible d\'obtenir votre position')); }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
+  } else if (verbose) toast(tx('Non riesco a ottenere la posizione: controlla il permesso nelle impostazioni del telefono', 'Couldn\'t get your location: check the permission in your phone settings', 'Impossible d\'obtenir votre position : vérifiez l\'autorisation dans les réglages du téléphone'));
+  return !!p;
 }
 
 // ---------------------------------------------------------------------------
