@@ -1,6 +1,22 @@
 # Changelog
 
-## 1.1.0
+Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
+
+## 0.5.0
+
+- Benvenuto al primo avvio con i permessi spiegati uno alla volta (posizione nativa: niente più richiesta «localhost»).
+- Corretto il blocco dopo il filmato su iPhone (tutorial invisibile che catturava i tocchi); dopo il filmato: tutorial
+  dell'interfaccia saltabile e poi tutorial delle missioni.
+- Caricamento con la scritta V A S T I T Y sempre leggibile.
+- Marcatore a lineette rotanti, eclittica tratteggiata, lune dei pianeti con orbite e scie, satelliti col loro percorso.
+- In navicella: lune in 3D con le orbite reali (JPL), ISS, Tiangong, Hubble, James Webb, Tesla Roadster, Voyager 1 e 2,
+  New Horizons in tempo reale; la navicella accompagna gli oggetti in movimento (si può "visitare" la ISS).
+- Tocchi più precisi: un oggetto piccolo toccato con precisione vince, altrimenti il disco più vicino; mai la Via Lattea da dentro.
+- Icona ufficiale (Saturno a linea) in quattro stili, cambiabile dalle impostazioni su iPhone; ingranaggio nuovo.
+- Dock in vero vetro liquido su iOS 26 (tieni premuto e trascina); effetto lente anche su web e Android.
+- Modulo «Segnala un problema o suggerisci un'idea».
+
+## Build provvisorie ritirate (1.1.0)
 
 - Bussola e giroscopio corretti su iPhone, anche nell'app nativa e con il telefono in orizzontale.
 - Apertura cinematografica al primo avvio, dallo spazio profondo al cielo di casa tua (rivedibile dalle impostazioni).
@@ -14,7 +30,7 @@
 - Aggiornamento mensile dei dati senza server; testi dei permessi iOS in it/en/fr; VoiceOver e TalkBack.
 - Meteo: la posizione inviata è arrotondata a circa 10 km.
 
-## 1.0.0 — prima release
+## Build provvisorie ritirate (1.0.0)
 
 - Cielo in tempo reale da qualsiasi luogo della Terra e da altri mondi, con 52.000 stelle, 88 costellazioni,
   Via Lattea fotografica, pianeti 3D, giorno/notte e cielo notturno sotto l'orizzonte.
