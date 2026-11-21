@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100.0 100.0" width="100" height="100"><defs>
+  <radialGradient id="vxGlow" cx="50%" cy="50%" r="50%"><stop offset=".55" stop-color="#ffd9a0" stop-opacity=".0"/><stop offset=".66" stop-color="#ffcf8a" stop-opacity=".55"/><stop offset="1" stop-color="#ff9e4a" stop-opacity="0"/></radialGradient>
+  <linearGradient id="vxDisk" x1="0" x2="1"><stop offset="0" stop-color="#ff8a3d" stop-opacity=".15"/><stop offset=".3" stop-color="#ffd08a"/><stop offset=".5" stop-color="#fff4e0"/><stop offset=".7" stop-color="#ffd08a"/><stop offset="1" stop-color="#ff8a3d" stop-opacity=".15"/></linearGradient>
+  <linearGradient id="vxBack" x1="0" x2="1"><stop offset="0" stop-color="#ffb46a" stop-opacity="0"/><stop offset=".5" stop-color="#ffd9a6" stop-opacity=".8"/><stop offset="1" stop-color="#ffb46a" stop-opacity="0"/></linearGradient>
+  <linearGradient id="vxLens" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff0d2"/><stop offset=".7" stop-color="#ffc27a" stop-opacity=".75"/><stop offset="1" stop-color="#ff9a4a" stop-opacity=".1"/></linearGradient>
+</defs>
+<circle cx="50" cy="50" r="31" fill="url(#vxGlow)"/>
+<path d="M10 51 C 22 45, 78 45, 90 51" fill="none" stroke="url(#vxBack)" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M25.5 52 C 24 21, 76 21, 74.5 52" fill="none" stroke="url(#vxLens)" stroke-width="2.6" stroke-linecap="round"/>
+<circle cx="50" cy="50" r="19" fill="#000"/>
+<circle cx="50" cy="50" r="19.6" fill="none" stroke="#fff1d6" stroke-width="1.6"/>
+<path d="M6 50 C 16 61, 84 61, 94 50" fill="none" stroke="url(#vxDisk)" stroke-width="3.4" stroke-linecap="round"/></svg>
