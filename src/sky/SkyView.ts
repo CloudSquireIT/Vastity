@@ -1,3 +1,4 @@
+import { SurfaceTerrain } from './terrain';
 import { SkyOverlay } from './skyOverlay';
 import { CORNERS_HTML } from '../ui/marker';
 // Vista "Cielo": planetario in tempo reale dalla Terra o da altri mondi.
@@ -124,6 +125,7 @@ export class SkyView {
   private trackRef: ObjRef | null = null;
   private groundAlpha = 0.78;
   skyOverlay!: SkyOverlay;
+  terrain = new SurfaceTerrain();
   private gyroQ = new THREE.Quaternion();
   private gyroHas = false;
   private alphaOffset: number | null = null;
@@ -163,6 +165,7 @@ export class SkyView {
     this.ground.renderOrder = 10;
     this.ground.frustumCulled = false;
     this.scene.add(this.ground);
+    this.scene.add(this.terrain.mesh);
 
     this.issSprite.mesh.visible = false;
     this.celestial.add(this.issSprite.mesh);
@@ -186,9 +189,13 @@ export class SkyView {
   attach() { this.celestial.add(this.bg.group); this.labels.el.style.display = ''; }
   detach() { this.skyOverlay.clear(); this.skyOverlay.svg.style.display = 'none'; this.labels.clear(); this.labels.el.style.display = 'none'; this.ring.style.display = 'none'; this.arrow.style.display = 'none'; }
 
-  setPlace(id: string) {
-    this.place = placeById(id);
+  setPlace(id: string, at?: { lat: number; lon: number; sub?: string }) {
+    const base = placeById(id);
+    // atterraggio dalla navicella: stesso mondo, ma nel punto esatto sotto la navicella
+    this.place = at ? { ...base, lat: at.lat, lon: at.lon, sub: at.sub ?? base.sub } : base;
     state.placeId = this.place.id;
+    this.terrain.setWorld(this.place.exo ? (this.place.id.startsWith('trappist') ? 'trappist' : 'proxima') : this.place.id,
+      Math.round(((this.place.lat ?? 0) + 91) * 1000 + ((this.place.lon ?? 0) + 181) * 7));
     this.frame = skyFrame(this.place, simDate());
     this.refreshLists();
     bus.emit('place');
@@ -550,7 +557,10 @@ export class SkyView {
     du.uHasAtm.value = this.hasAtmosphere() ? 1 : 0;
     du.uPollution.value = this.place.id === 'earth' ? (st.bortle - 1) / 8 : 0;
     this.dome.visible = !this.ar;
-    this.ground.visible = this.groundOn();
+    // sui mondi solidi c'è il terreno vero al posto del velo trasparente
+    this.terrain.setSun(sunH, Math.max(0, Math.min(1, (this.frame.sunAlt + 6) / 16)));
+    this.terrain.mesh.visible = this.groundOn() && this.terrain.hasWorld();
+    this.ground.visible = this.groundOn() && !this.terrain.mesh.visible;
     this.groundMat.uniforms.uColor.value.setRGB(...this.place.ground);
     this.groundMat.uniforms.uLight.value = Math.max(0, Math.min(1, (this.frame.sunAlt + 8) / 20));
     // terreno semitrasparente quando guardi un oggetto sotto l'orizzonte
@@ -736,6 +746,8 @@ export class SkyView {
       const p = this.project(dir);
       if (!p.front || p.x < -50 || p.x > this.w + 50 || p.y < -20 || p.y > this.h + 20) return;
       const below = this.groundOn() && p.alt < -0.3;
+      // sui mondi con il terreno vero, ciò che sta sotto il suolo non ha etichetta (salvo il selezionato)
+      if (below && this.terrain.mesh.visible && !force) return;
       L.add(p.x, p.y, text, below ? cls + ' below' : cls, force, ref, Math.min(this.h * 0.32, offset));
     };
     // punti cardinali

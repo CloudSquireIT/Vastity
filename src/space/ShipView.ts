@@ -12,7 +12,7 @@ import { CORNERS_HTML } from '../ui/marker';
 import { craftById, loadEphem, moonById } from '../data/ephem';
 import { refHelioKm, resetSearchIndex } from '../features/objects';
 import { exoHosts, exoplanets, hostPosPc } from '../data/exoplanets';
-import { BODIES, BodyInfo, V3, bodyAxes, v3 } from '../astro/astro';
+import { BODIES, BodyInfo, PLACES, V3, bodyAxes, v3 } from '../astro/astro';
 import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, galaxyPhotos, messier, radecToVec, starName, starPhysical, stars } from '../data/catalog';
 import { ObjRef, formatDistanceKm, refName, refPosPc, sameRef } from '../features/objects';
 import { deepById, deepForMessier, deepObjects } from '../data/deep';
@@ -138,6 +138,9 @@ export class ShipView {
   private shake = 0;
   private galSpin = 0;
   private launch: { t: number; base: V3; up: V3; quat: THREE.Quaternion } | null = null;
+  /** Discesa verso la superficie (stile SpaceEngine): si scende sulla verticale del punto sotto la navicella. */
+  private landing: { t: number; id: string; dir: V3; alt0: number; alt1: number; R: number; q0: THREE.Quaternion; fwd: V3; done: () => void } | null = null;
+  get isLanding() { return !!this.landing; }
   private marker: HTMLDivElement;
   private markerArrow: HTMLDivElement;
   private cloudOffset = 0;
@@ -370,6 +373,7 @@ export class ShipView {
 
   placeAt(pos: V3, look: V3, up: V3 = [0, 0, 1]) {
     this.launch = null;
+    this.landing = null;
     this.resetZoom();
     this.pos = pos;
     this.lookAt(look, up);
@@ -414,6 +418,58 @@ export class ShipView {
     this.resetZoom();
     this.arrived = null;
     this.launch = null;
+    this.landing = null;
+  }
+
+  /**
+   * Il luogo dove si può atterrare da qui: il mondo del Sistema Solare più vicino (Luna, Mercurio, Venere,
+   * Marte, Giove, Saturno, Plutone; la Terra riporta a casa) o il pianeta di una stella famosa
+   * (Proxima, TRAPPIST-1, Kepler-186). Latitudine e longitudine sono quelle del punto sotto la navicella.
+   */
+  landingSite(date = simDate()): { placeId: string; name: string; lat?: number; lon?: number; body?: string } | null {
+    let best: { placeId: string; name: string; lat?: number; lon?: number; body?: string } | null = null;
+    let bestK = Infinity;
+    for (const pl of PLACES) {
+      if (pl.exo) {
+        const c = v3.scale(radecToVec(pl.exo.raDeg, pl.exo.decDeg), pl.exo.distPc * PC_IN_KM);
+        const k = v3.len(v3.sub(this.pos, c)) / (3000 * AU_IN_KM);
+        if (k < 1 && k < bestK) { bestK = k; best = { placeId: pl.id, name: pl.name }; }
+        continue;
+      }
+      const b = BODIES.find((x) => x.id === pl.id);
+      if (!b?.body) continue;
+      const rel = v3.sub(this.pos, this.bodyPosKm(b.id, date));
+      const k = v3.len(rel) / (b.radiusKm * 80);
+      if (k >= 1 || k >= bestK) continue;
+      bestK = k;
+      if (pl.id === 'earth') { best = { placeId: 'earth', name: pl.name }; continue; }
+      const ax = bodyAxes(b.body, date);
+      const n = v3.norm(rel);
+      const lat = Math.asin(Math.max(-1, Math.min(1, v3.dot(n, ax.Z)))) / D2R;
+      const lon = Math.atan2(v3.dot(n, ax.Y), v3.dot(n, ax.X)) / D2R;
+      best = { placeId: pl.id, name: pl.name, lat, lon, body: b.id };
+    }
+    return best;
+  }
+
+  /** Discesa animata (~5 s) sulla verticale del punto sotto la navicella; poi `done`. */
+  landOn(bodyId: string, done: () => void) {
+    const b = BODIES.find((x) => x.id === bodyId)!;
+    const rel = v3.sub(this.pos, this.bodyPosKm(bodyId));
+    const dir = v3.norm(rel);
+    const R = b.radiusKm;
+    // si guarda l'orizzonte nella direzione in cui si stava già guardando
+    const f = this.forward();
+    let fwd = v3.sub(f, v3.scale(dir, v3.dot(f, dir)));
+    if (v3.len(fwd) < 1e-3) fwd = v3.cross(dir, [0, 0, 1]);
+    if (v3.len(fwd) < 1e-3) fwd = [1, 0, 0];
+    this.stop(true);
+    this.autopilot = false;
+    this.target = null;
+    this.arrived = null;
+    this.launch = null;
+    this.resetZoom();
+    this.landing = { t: 0, id: bodyId, dir, R, alt0: Math.max(v3.len(rel) - R, R * 0.02), alt1: R * 0.006, q0: this.quat.clone(), fwd: v3.norm(fwd), done };
   }
 
   setThrottle(t: number) {
@@ -433,6 +489,7 @@ export class ShipView {
     const k = () => ((this.camera.fov * D2R) / this.h);
     return {
       drag: (dx, dy) => {
+        if (this.landing) return;
         this.settleLook = null;
         this.pendYaw += -dx * k();
         this.pendPitch += -dy * k();
@@ -513,6 +570,25 @@ export class ShipView {
       this.quat.copy(L.quat).multiply(this.tq);
       if (L.t >= 1) this.launch = null;
     }
+    // atterraggio: quota in scala logaritmica (rapida da lontano, lenta vicino al suolo), la vista si
+    // raddrizza sull'orizzonte e il corpo resta sotto i piedi anche se si muove lungo l'orbita
+    if (this.landing) {
+      const Ld = this.landing;
+      Ld.t += dt / 5;
+      const t = Math.min(1, Ld.t);
+      const e = easeInOutCubic(t);
+      const alt = Math.exp(Math.log(Ld.alt0) + (Math.log(Ld.alt1) - Math.log(Ld.alt0)) * e);
+      this.pos = v3.add(this.bodyPosKm(Ld.id, date), v3.scale(Ld.dir, Ld.R + alt));
+      this.tm.lookAt(this.tv.set(0, 0, 0), this.tv2.set(...Ld.fwd), this.upV.set(...Ld.dir));
+      this.tq.setFromRotationMatrix(this.tm);
+      this.quat.copy(Ld.q0).slerp(this.tq, smoothstep(0.05, 0.8, t));
+      this.speed = 0;
+      if (Ld.t >= 1) { this.landing = null; Ld.done(); }
+    }
+    // in discesa contano il suolo e l'orizzonte: niente orbite né etichette che attraversano il pianeta
+    this.small.hideOrbits = !!this.landing;
+    const lv = this.landing ? 'hidden' : '';
+    if (this.labels.el.style.visibility !== lv) this.labels.el.style.visibility = lv;
 
     // pilota automatico
     if (this.autopilot && this.target) {

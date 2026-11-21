@@ -2,6 +2,18 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.5.4
+
+- Atterraggio dalla navicella (ispirato a SpaceEngine): vicino a Luna, Mercurio, Venere, Marte, Giove, Saturno o Plutone,
+  «Atterra» fa scendere la navicella sulla verticale del punto sottostante e apre il cielo da lì, con latitudine e
+  longitudine reali; vicino a Proxima Centauri, TRAPPIST-1 o Kepler-186 si atterra sul loro pianeta; vicino alla Terra
+  si torna a casa. Durante la discesa orbite ed etichette si nascondono.
+- Suolo procedurale per i mondi rocciosi (crateri, dune, ghiaccio, curvatura del pianeta, foschia) illuminato dal Sole
+  vero; copre stelle ed etichette sotto l'orizzonte.
+- Badge rotondo dello zoom in alto («8.0X») che appare solo quando ingrandisci tu.
+- Puntatore giallo sul bordo dello schermo verso il bersaglio fuori campo.
+- Scritta V A S T I T Y del caricamento animata (comparsa lettera per lettera e respiro), senza artefatti.
+
 ## 0.5.3
 
 - Modelli 3D ufficiali NASA (pubblico dominio) per ISS, Hubble, James Webb e Voyager, in scala reale.

@@ -186,7 +186,7 @@ async function main() {
     iconButton('search', tx('Vai a', 'Go to', 'Aller à'), () => openSearch((r) => { ship.goTo(r); toast(routeTo(r)); }), 'dbtn accent'),
     iconButton('place', tx('Posiziona', 'Place', 'Placer'), () => openPlacePanel(), 'dbtn'),
     iconButton('stop', tx('Ferma', 'Stop', 'Stop'), () => ship.stop(), 'dbtn'),
-    iconButton('sky', tx('Atterra', 'Land', 'Atterrir'), () => setMode('sky'), 'dbtn'),
+    iconButton('sky', tx('Atterra', 'Land', 'Atterrir'), () => landHere(), 'dbtn'),
   );
   const bottom = h('div', { class: 'bottom' }, dockSky, dockShip);
   liquidDock(dockSky);
@@ -241,11 +241,13 @@ async function main() {
   throttle.addEventListener('pointerup', () => { throttleActive = false; });
   throttle.addEventListener('input', () => ship.setThrottle(+throttle.value));
 
-  ui.append(top, reticle, missionChip, zoomPill, telemetry, throttleWrap, bottom, timeCtl, hideBtn);
+  const zoomBadge = h('div', { class: 'zoom-badge', 'aria-hidden': 'true' });
+  ui.append(top, reticle, missionChip, zoomPill, zoomBadge, telemetry, throttleWrap, bottom, timeCtl, hideBtn);
 
   // ------------------------------------------------------------------ modalità
   function setMode(m: 'sky' | 'ship', instant = false) {
     if (state.mode === m) return;
+    quietZoomUntil = performance.now() + 2600;
     const go = () => {
       if (m === 'ship') {
         // decollo: dalla tua posizione, guardando nella stessa direzione
@@ -290,6 +292,32 @@ async function main() {
       setTimeout(() => fade.classList.remove('on'), 60);
       setTimeout(() => document.body.classList.remove('mode-in', 'to-ship', 'to-sky'), 700);
     }, 420);
+  }
+
+  /**
+   * «Atterra»: vicino a un mondo del Sistema Solare si scende sulla sua superficie, nel punto esatto sotto
+   * la navicella (coordinate vere); vicino a Proxima, TRAPPIST-1 o Kepler-186 sul loro pianeta; vicino alla
+   * Terra si torna a casa. Lontano da tutto si torna al cielo da cui si era partiti.
+   */
+  function landHere() {
+    if (ship.isLanding) return;
+    const site = ship.landingSite();
+    if (!site) { setMode('sky'); return; }
+    if (site.placeId === 'earth') { sky.setPlace('earth'); setMode('sky'); return; }
+    const coords = site.lat != null && site.lon != null
+      ? `${Math.abs(site.lat).toFixed(1)}° ${site.lat >= 0 ? 'N' : 'S'} · ${Math.abs(site.lon).toFixed(1)}° ${site.lon >= 0 ? 'E' : tx('O', 'W', 'O')}`
+      : undefined;
+    const arrive = () => {
+      sky.setPlace(site.placeId, site.lat != null && site.lon != null ? { lat: site.lat, lon: site.lon!, sub: coords } : undefined);
+      sky.landIn();
+      setMode('sky');
+      toast(`${tx('Atterrato su', 'Landed on', 'Posé sur')} ${site.name}${coords ? ` · ${coords}` : ''}`);
+    };
+    feel.whoosh();
+    if (site.body && !reducedMotion()) {
+      toast(`${tx('Discesa verso', 'Descending to', 'Descente vers')} ${site.name}…`);
+      ship.landOn(site.body, arrive);
+    } else arrive();
   }
 
   initTours({ root: ui, flyTo: (r) => flyTo(r), stopShip: () => ship.stop() });
@@ -561,7 +589,17 @@ async function main() {
     const mag = state.mode === 'sky' ? 75 / sky.zoomFov : ship.magnification;
     const label = `×${mag < 10 ? num(mag, 1) : num(Math.round(mag))}`;
     if (zoomLbl.textContent !== label) zoomLbl.textContent = label;
+    // badge rotondo dello zoom in alto (stile SpaceEngine): appare quando lo zoom cambia, poi svanisce
+    const badgeTxt = `${mag < 10 ? mag.toFixed(1) : Math.round(mag)}X`;
+    if (badgeTxt !== zoomBadge.textContent) {
+      const first = !zoomBadge.textContent;
+      zoomBadge.textContent = badgeTxt;
+      // solo per lo zoom scelto dall'utente: non durante cambi di modalità, atterraggi o arrivi
+      if (!first && performance.now() - quietZoomUntil > 0 && !ship.isLanding) { zoomBadge.classList.add('on'); clearTimeout(zoomBadgeT); zoomBadgeT = window.setTimeout(() => zoomBadge.classList.remove('on'), 1400); }
+    }
   }
+  var zoomBadgeT = 0;
+  var quietZoomUntil = 0;
   function frame(now: number) {
     const raw = (now - last) / 1000;
     const dt = Math.min(0.1, raw);

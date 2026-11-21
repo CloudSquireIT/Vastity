@@ -48,6 +48,8 @@ export class SmallBodies {
   private sun = new THREE.DirectionalLight(0xffffff, 2.6);
   private sphere = bodySphere(48);
   visible: Pickable[] = [];
+  /** Nasconde le orbite delle lune (durante l'atterraggio attraverserebbero il suolo). */
+  hideOrbits = false;
   private trackT = 0;
 
   constructor() {
@@ -143,7 +145,7 @@ export class SmallBodies {
       o.mesh.visible = near && disc > 0.8;
       o.mesh.position.set(rel[0], rel[1], rel[2]);
       o.mat.uniforms.uLight.value.set(-o.pos[0], -o.pos[1], -o.pos[2]).normalize().transformDirection(view);
-      o.orbit.visible = near;
+      o.orbit.visible = near && !this.hideOrbits;
       if (near) {
         o.orbitPts = moonOrbitKm(o.m, t, 160);
         const arr = o.orbit.geometry.attributes.position.array as Float32Array;
