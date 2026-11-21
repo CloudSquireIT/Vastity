@@ -82,6 +82,37 @@ export function initSheet(root: HTMLElement) {
   // scorrendo il contenuto di una scheda a metà, si apre del tutto
   sheetBody.addEventListener('scroll', () => { if (sheetEl.classList.contains('peek') && sheetBody.scrollTop > 12) sheetEl.classList.remove('peek'); }, { passive: true });
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+  // rete di sicurezza per i tocchi: su iPhone, dopo un pinch sul cielo, capita che il "click" di un pulsante
+  // della scheda non arrivi (la X o «Vola fin lì» non rispondono). Se il dito si è alzato sullo stesso
+  // pulsante senza muoversi e il click non è arrivato, lo inviamo noi.
+  let down: { b: HTMLElement; x: number; y: number; t: number } | null = null;
+  let clicked: EventTarget | null = null;
+  let synth: { b: HTMLElement; t: number } | null = null;
+  sheetEl.addEventListener('pointerdown', (e) => {
+    const b = (e.target as HTMLElement).closest('button') as HTMLElement | null;
+    down = b ? { b, x: e.clientX, y: e.clientY, t: performance.now() } : null;
+    clicked = null;
+  }, { capture: true });
+  sheetEl.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button');
+    // il click vero arrivato in ritardo dopo quello di riserva: non lo ripetiamo
+    if (e.isTrusted && synth && synth.b === b && performance.now() - synth.t < 800) { e.stopPropagation(); e.preventDefault(); synth = null; return; }
+    clicked = b;
+  }, { capture: true });
+  sheetEl.addEventListener('pointerup', (e) => {
+    const d = down; down = null;
+    if (!d || e.pointerType === 'mouse') return;
+    // dito che faceva parte di un pinch (caduto sul pannello): niente click di riserva
+    const g = (window as unknown as { __vxGhost?: Element | null }).__vxGhost;
+    if (g && (g === d.b || d.b.contains(g) || g.contains(d.b))) return;
+    const b = (e.target as HTMLElement).closest('button');
+    if (b !== d.b || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 12 || performance.now() - d.t > 700) return;
+    setTimeout(() => {
+      if (clicked === d.b || !document.contains(d.b) || (d.b as HTMLButtonElement).disabled) return;
+      synth = { b: d.b, t: performance.now() };
+      d.b.click();
+    }, 350);
+  }, { capture: true });
 }
 
 let returnFocus: HTMLElement | null = null;

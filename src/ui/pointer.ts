@@ -32,11 +32,18 @@ export function attachPointer(el: HTMLElement, getHandlers: () => PointerHandler
   let pendX = 0, pendY = 0;
   let vx = 0, vy = 0, lastMoveT = 0;
   let lastMultiEnd = 0;
+  let ghost: { el: Element; t: number } | null = null;
   const root = opts.overlay?.parentElement ?? el;
   const inScene = (t: EventTarget | null) => t === el || (!!opts.overlay && t instanceof Node && opts.overlay.contains(t));
 
   root.addEventListener('pointerdown', (e) => {
-    if (!inScene(e.target)) return;
+    // un secondo dito conta anche se cade su un pannello (la scheda informativa occupa mezzo schermo):
+    // fa parte del pinch e il pannello non riceve un tocco "fantasma"
+    if (e.isPrimary) { ghost = null; (window as unknown as { __vxGhost?: Element | null }).__vxGhost = null; }
+    const second = e.pointerType !== 'mouse' && pts.size >= 1 && !e.isPrimary;
+    if (!inScene(e.target) && !second) return;
+    // il dito finito su un pannello durante il pinch: il suo eventuale click va ignorato
+    if (!inScene(e.target)) { ghost = { el: e.target as Element, t: performance.now() }; (window as unknown as { __vxGhost?: Element | null }).__vxGhost = ghost.el; }
     // un nuovo gesto (primo dito, o il mouse) riparte da zero: un "su" perso non lascia dita fantasma
     if (e.isPrimary || e.pointerType === 'mouse') { pts.clear(); multi = false; }
     const ctl = e.target !== el;
@@ -115,7 +122,11 @@ export function attachPointer(el: HTMLElement, getHandlers: () => PointerHandler
   el.addEventListener('lostpointercapture', (e) => finish(e, true));
   // un dito finito su un'etichetta durante un pinch non deve aprirne la scheda
   root.addEventListener('click', (e) => {
-    if (performance.now() - lastMultiEnd < 450 && inScene(e.target)) { e.stopPropagation(); e.preventDefault(); }
+    if (!e.isTrusted || performance.now() - lastMultiEnd > 600) return;
+    const t = e.target as Element;
+    // click "fantasma" di un dito del pinch: sulla scena, o sul pannello dove è caduto quel dito
+    const g = ghost && performance.now() - ghost.t < 4000 ? ghost.el : null;
+    if (inScene(t) || (g && (g === t || g.contains(t) || t.contains(g)))) { e.stopPropagation(); e.preventDefault(); }
   }, { capture: true });
   el.addEventListener('wheel', (e) => {
     e.preventDefault();

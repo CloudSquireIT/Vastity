@@ -105,8 +105,8 @@ void main() {
     vec3 p = sp0 * 2.4;
     float tt = t * 0.05;
     // plasma con domain warping animato e filamenti "di fuoco" (turbolenza a creste)
-    vec3 q = vec3(fbm3(p + vec3(0.0, 0.0, tt), 3), fbm3(p + vec3(5.2, 1.3, -tt), 3), fbm3(p + vec3(2.1, 7.7, tt * 0.7), 3));
-    float pl = fbm3(p * 1.8 + q * 2.6 + vec3(tt * 1.4, 0.0, 0.0), 5);
+    vec3 q = vec3(fbm3(p + vec3(0.0, 0.0, tt), 2), fbm3(p + vec3(5.2, 1.3, -tt), 2), fbm3(p + vec3(2.1, 7.7, tt * 0.7), 2));
+    float pl = fbm3(p * 1.8 + q * 2.6 + vec3(tt * 1.4, 0.0, 0.0), 4);
     float ridge = 1.0 - abs(pl * 2.0 - 1.0);
     float fire = pow(ridge, 3.0);
     float gran = vn3(sp0 * 80.0 + vec3(t * 0.3, -t * 0.22, t * 0.17)) * 0.6 + vn3(sp0 * 170.0 - vec3(t * 0.4)) * 0.4;
@@ -143,7 +143,7 @@ void main() {
     float shear = abs(cos(lat * 46.0));
     // vortici allungati lungo le bande (spazio 3D stirato in latitudine)
     vec3 pp = sp * vec3(7.0, 7.0, 26.0);
-    vec2 warp = vec2(fbm3(pp + vec3(t * 0.02, 0.0, 0.0), 4), fbm3(pp + vec3(9.1, 3.3, t * 0.015), 4)) - 0.5;
+    vec2 warp = vec2(fbm3(pp + vec3(t * 0.02, 0.0, 0.0), 3), fbm3(pp + vec3(9.1, 3.3, t * 0.015), 3)) - 0.5;
     flow = vec2(spin + jets, 0.0) + warp * vec2(0.022, 0.007) * (0.35 + shear);
   }
 
@@ -161,9 +161,9 @@ void main() {
 
   if (gasLike) {
     // turbolenza fine che si muove (visibile da vicino) e contrasto delle bande
-    float fine = fbm3(sp * vec3(28.0, 28.0, 90.0) + vec3(t * 0.06, -t * 0.04, 0.0), 4);
+    float fine = fbm3(sp * vec3(28.0, 28.0, 90.0) + vec3(t * 0.06, -t * 0.04, 0.0), 3);
     // tempeste e filamenti scuri/chiari che si avvolgono lungo le bande
-    float storms = smoothstep(0.62, 0.8, fbm3(sp * vec3(10.0, 10.0, 34.0) + vec3(-t * 0.03, t * 0.02, 0.0), 4));
+    float storms = smoothstep(0.62, 0.8, fbm3(sp * vec3(10.0, 10.0, 34.0) + vec3(-t * 0.03, t * 0.02, 0.0), 3));
     base *= 0.8 + 0.4 * fine + storms * 0.12;
     float l = lum(base);
     base = clamp(mix(vec3(l), base, 1.25) + (base - vec3(0.55)) * 0.18, 0.0, 1.0);
@@ -190,9 +190,13 @@ void main() {
     if (on > 0.0) {
       float h = 0.0, rimSum = 0.0, rim;
       float f = 180.0;
+      int used = 0;
       for (int k = 0; k < 5; k++) {
         float cell = 1.0 / f;
         float w = smoothstep(3.0 * pix, 10.0 * pix, cell);
+        // solo le scale visibili ora (al massimo 3): costo costante anche a tutto schermo
+        if (w <= 0.0 || cell > 260.0 * pix || used >= 3) { f *= 2.6; continue; }
+        used++;
         vec3 rp = sp * f + vec3(float(k) * 17.3, float(k) * 5.1, float(k) * 11.7);
         h += crater(rp, rim) * cell * w;
         rimSum += rim * w;

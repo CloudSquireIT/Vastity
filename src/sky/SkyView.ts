@@ -236,9 +236,21 @@ export class SkyView {
   // --- orientamento ---------------------------------------------------------
   get zoomFov() { return this.fov; }
   /** Zoom 0 (campo più ampio) … 1 (massimo ingrandimento), scala logaritmica. */
-  get zoom() { return Math.log(this.tFov / MAX_FOV) / Math.log(MIN_FOV / MAX_FOV); }
+  /**
+   * Zoom massimo: con un pianeta o la Luna selezionati si arriva fino a quando riempie quasi lo schermo
+   * (Urano, Nettuno, Marte… da vicino), altrimenti il limite del telescopio.
+   */
+  private minFov() {
+    const sel = this.selected;
+    if (sel?.kind === 'body') {
+      const b = this.frame.bodies.find((x) => x.id === sel.id);
+      if (b && !b.isStar) return Math.min(MIN_FOV, Math.max(0.0004, (b.angRadius * 2 * 1.25) / D2R));
+    }
+    return MIN_FOV;
+  }
+  get zoom() { return Math.log(this.tFov / MAX_FOV) / Math.log(this.minFov() / MAX_FOV); }
   set zoom(z: number) {
-    const f = MAX_FOV * Math.pow(MIN_FOV / MAX_FOV, Math.max(0, Math.min(1, z)));
+    const f = MAX_FOV * Math.pow(this.minFov() / MAX_FOV, Math.max(0, Math.min(1, z)));
     if (f < this.tFov - 1e-6) this.aimSelection();
     this.slewing = false; this.tFov = f;
   }
@@ -402,8 +414,8 @@ export class SkyView {
         this.tPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.tPitch + dy * radPerPx()));
       },
       dragEnd: (vx, vy) => { this.vYaw = -vx * radPerPx() * 60; this.vPitch = vy * radPerPx() * 60; },
-      pinch: (s) => { if (s > 1) this.aimSelection(); this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(MAX_FOV, this.tFov / s)); },
-      wheel: (d) => { if (d < 0) this.aimSelection(); this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(MAX_FOV, this.tFov * Math.exp(d * 0.0012))); },
+      pinch: (s) => { if (s > 1) this.aimSelection(); this.slewing = false; this.tFov = Math.max(this.minFov(), Math.min(MAX_FOV, this.tFov / s)); },
+      wheel: (d) => { if (d < 0) this.aimSelection(); this.slewing = false; this.tFov = Math.max(this.minFov(), Math.min(MAX_FOV, this.tFov * Math.exp(d * 0.0012))); },
       // la selezione resta finché non si ritocca lo stesso oggetto (toccare il vuoto non la toglie)
       tap: (x, y) => {
         const p = this.pick(x, y);
@@ -414,7 +426,7 @@ export class SkyView {
       doubleTap: (x, y) => {
         const p = this.pick(x, y);
         if (p) { this.select(p); this.centerOn(p); }
-        else this.tFov = Math.max(MIN_FOV, this.tFov / 2.5);
+        else this.tFov = Math.max(this.minFov(), this.tFov / 2.5);
       },
     };
   }
@@ -551,6 +563,8 @@ export class SkyView {
       this.pitch = damp(this.pitch, this.tPitch, lam, dt);
       if (this.slewing && Math.abs(this.yaw - this.tYaw) + Math.abs(this.pitch - this.tPitch) < 1e-4) { this.slewing = false; this.trackRef = null; }
     }
+    // deselezionando un pianeta mentre si è oltre il limite del telescopio, si torna al limite
+    if (this.tFov < this.minFov()) this.tFov = this.minFov();
     this.fov = Math.exp(damp(Math.log(this.fov), Math.log(this.tFov), this.slewing ? 3.5 : 11, dt));
     if (state.gyro && this.gyroHas) {
       this.camera.quaternion.slerp(this.gyroQ, 1 - Math.pow(0.001, dt));
@@ -663,6 +677,8 @@ export class SkyView {
       const use3d = !b.isStar && disc > 3 && LOOKS[b.id] !== undefined;
       u.uDiscPx.value = use3d ? 0 : disc;
       this.updateMesh(b, use3d, disc, date, day);
+      // con il disco 3D già grande, l'alone non serve: il suo quadrato coprirebbe tutto lo schermo a ogni fotogramma
+      if (use3d && disc > 60) { sp.mesh.visible = false; return; }
       u.uGlowPx.value = glowPx;
       u.uGlow.value = glow;
       u.uStar.value = b.isStar ? 1 : 0;

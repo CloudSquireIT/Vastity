@@ -2,6 +2,17 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.6.4
+
+- Zoom e scheda informativa: con la scheda aperta (mezzo schermo in orizzontale) un dito del pinch finiva sulla
+  scheda e non veniva contato: niente zoom, un tocco "fantasma" sulla scheda e poi X e «Vola fin lì» che
+  sembravano bloccati. Ora quel dito fa parte del pinch e il suo tocco viene ignorato; in più, se dopo un gesto
+  il click di un pulsante della scheda non arriva, l'app lo invia comunque.
+- Zoom fino a vedere da vicino i pianeti nella modalità esplorazione: con un pianeta selezionato si arriva finché
+  riempie quasi lo schermo (Urano, Nettuno, Marte, Saturno…), non più fermi al limite fisso del telescopio.
+- Prestazioni a forte ingrandimento: niente alone a tutto schermo dietro i pianeti già in 3D, dettaglio
+  procedurale limitato alle scale visibili, shader di stelle e giganti gassosi più leggeri.
+
 ## 0.6.3
 
 - Corretto il pulsare di tutto lo schermo durante il caricamento: la regola `.loading` (pensata per i testi
