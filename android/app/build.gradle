@@ -7,8 +7,8 @@ android {
         applicationId "app.vastity"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10
-        versionName "0.5.7"
+        versionCode 11
+        versionName "0.5.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -17,6 +17,15 @@ android {
         }
     }
     signingConfigs {
+        // chiave di TEST fissa (non segreta, come la debug.keystore di Android): firma le APK di prova,
+        // così si installano e gli aggiornamenti successivi si sovrappongono senza disinstallare.
+        // Per il Play Store si usa la chiave vera (secret ANDROID_* nella pipeline).
+        test {
+            storeFile file('vastity-test.keystore')
+            storePassword 'vastitytest'
+            keyAlias 'vastity'
+            keyPassword 'vastitytest'
+        }
         release {
             // firma della release (impostata dalla pipeline di release o da android/gradle.properties)
             if (project.hasProperty('VASTITY_STORE_FILE')) {
@@ -28,8 +37,13 @@ android {
         }
     }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.test
+        }
         release {
-            if (project.hasProperty('VASTITY_STORE_FILE')) signingConfig signingConfigs.release
+            // senza la chiave vera la release viene comunque firmata (con la chiave di test): un'APK non
+            // firmata Android la rifiuta come «pacchetto non valido»
+            signingConfig project.hasProperty('VASTITY_STORE_FILE') ? signingConfigs.release : signingConfigs.test
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

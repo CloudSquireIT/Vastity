@@ -73,7 +73,7 @@ jobs:
       - run: |
           mkdir out
           cp android/app/build/outputs/apk/debug/app-debug.apk out/vastity-$VER-debug.apk
-          cp android/app/build/outputs/apk/release/*.apk out/vastity-$VER-release.apk
+          cp android/app/build/outputs/apk/release/app-release.apk out/vastity-$VER-release.apk
           cp android/app/build/outputs/bundle/release/*.aab out/vastity-$VER.aab
       - uses: actions/upload-artifact@v4
         with: { name: android, path: out/* }

@@ -2,6 +2,12 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.5.8
+
+- Android: le APK ora sono sempre firmate. La `-release.apk` usciva senza firma (manca la chiave del Play Store)
+  e Android la rifiutava come «pacchetto non valido». Le build di prova usano una chiave di test fissa, quindi le
+  prossime versioni si installano sopra la precedente senza disinstallare.
+
 ## 0.5.7
 
 - Caricamento: niente più lampo dello sfondo. Le stelle si vedono come dalla Terra: scintillano, cambiano colore
