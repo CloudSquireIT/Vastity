@@ -124,7 +124,8 @@ export function showInfo(ref: ObjRef) {
   const facts = h('dl', { class: 'facts' });
   for (const [k, v] of d.facts) facts.append(h('dt', {}, k), h('dd', {}, v));
   body.append(facts);
-  openSheet('info', d.title, body, { compact: true, peek: true, onClose: () => { if (state.mode === 'sky') api.selectSky(null); } });
+  // chiudere la scheda non toglie la selezione: l'oggetto resta "agganciato" (lo si deseleziona ritoccandolo)
+  openSheet('info', d.title, body, { compact: true, peek: true });
 }
 
 // ---------------------------------------------------------------------------

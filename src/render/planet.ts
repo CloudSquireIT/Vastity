@@ -34,6 +34,8 @@ uniform vec3 uLight;
 uniform float uType;
 uniform float uTime;
 uniform float uBump;
+uniform sampler2D uHeight;
+uniform float uBumpH;
 uniform vec3 uAtm;
 uniform float uAtmK;
 uniform float uCloudOffset;
@@ -91,10 +93,17 @@ void main() {
 
   vec3 base = uHasMap > 0.5 ? texture2D(uMap, uv).rgb : uColor;
   // rilievo dalla luminosità della texture (crateri, canyon, catene montuose)
-  if (uBump > 0.0 && uHasMap > 0.5) {
+  if ((uBump > 0.0 || uBumpH > 0.0) && uHasMap > 0.5) {
     vec2 dx = dFdx(uv), dy = dFdy(uv);
     float h0 = lum(texture2D(uMap, uv).rgb);
     vec2 dH = vec2(lum(texture2D(uMap, uv + dx).rgb) - h0, lum(texture2D(uMap, uv + dy).rgb) - h0) * uBump;
+    // quote vere (LOLA per la Luna, MOLA per Marte): Olympus Mons, Valles Marineris, i grandi bacini
+    if (uBumpH > 0.0) {
+      // differenze su almeno mezzo texel: a forte ingrandimento il rilievo resta morbido, senza gradini
+      vec2 ex = dx * max(1.0, 0.0007 / max(length(dx), 1e-7)), ey = dy * max(1.0, 0.0007 / max(length(dy), 1e-7));
+      float g0 = texture2D(uHeight, uv).r;
+      dH += vec2((texture2D(uHeight, uv + ex).r - g0) * length(dx) / length(ex), (texture2D(uHeight, uv + ey).r - g0) * length(dy) / length(ey)) * uBumpH;
+    }
     n = perturb(vPosV, n, dH);
   }
   float NdL = dot(n, L);
@@ -154,15 +163,21 @@ void main() {
 }
 `;
 
-export interface PlanetLook { type: number; map?: string; color?: number; atm?: number; atmK?: number; bump?: number; bright?: number }
+export interface PlanetLook {
+  type: number; map?: string; color?: number; atm?: number; atmK?: number; bump?: number; bright?: number;
+  /** Mappa delle quote vere (8 bit normalizzati) e dislivello totale in km. */
+  height?: { map: string; km: number };
+}
+/** Esagerazione del rilievo vero sui globi: abbastanza per vedere i vulcani al terminatore. */
+const RELIEF_EXAG = 3;
 
 export const LOOKS: Record<string, PlanetLook & { shell?: [number, number, number] }> = {
   sun: { type: PT.star, map: 'sun', color: 0xffe2b0, bright: 1.45 },
   mercury: { type: PT.rocky, map: 'mercury', bump: 2.4 },
   venus: { type: PT.venus, map: 'venus', atm: 0xffe0a8, atmK: 0.45, shell: [0xffcf8a, 1.04, 0.9] },
   earth: { type: PT.earth, map: 'earth', atm: 0x6fa8ff, atmK: 0.7, bump: 0.5, shell: [0x6aa2ff, 1.022, 0.7] },
-  moon: { type: PT.rocky, map: 'moon', bump: 2.8 },
-  mars: { type: PT.rocky, map: 'mars', bump: 1.8, atm: 0xe0a080, atmK: 0.22, shell: [0xe8a07a, 1.015, 0.45] },
+  moon: { type: PT.rocky, map: 'moon', bump: 1.2, height: { map: 'moon_h', km: 19.38 } },
+  mars: { type: PT.rocky, map: 'mars', bump: 0.6, height: { map: 'mars_h', km: 29.2 }, atm: 0xe0a080, atmK: 0.22, shell: [0xe8a07a, 1.015, 0.45] },
   jupiter: { type: PT.gas, map: 'jupiter', atm: 0xe8d6b8, atmK: 0.18 },
   saturn: { type: PT.gas, map: 'saturn', atm: 0xf0e0b8, atmK: 0.15 },
   uranus: { type: PT.gas, map: 'uranus', atm: 0xa8ecff, atmK: 0.35, shell: [0x9fe6ff, 1.03, 0.5] },
@@ -179,6 +194,7 @@ export function planetMaterial(look: PlanetLook) {
       uMap: { value: map }, uSCL: { value: scl }, uHasMap: { value: look.map ? 1 : 0 },
       uColor: { value: new THREE.Color(look.color ?? 0xffffff) }, uLight: { value: new THREE.Vector3(1, 0, 0) },
       uType: { value: look.type }, uTime: { value: 0 }, uBump: { value: look.bump ?? 0 },
+      uHeight: { value: look.height ? planetTexture(look.height.map, false) : blankTexture }, uBumpH: { value: look.height ? look.height.km * RELIEF_EXAG : 0 },
       uAtm: { value: new THREE.Color(look.atm ?? 0x000000) }, uAtmK: { value: look.atmK ?? 0 },
       uCloudOffset: { value: 0 }, uBright: { value: look.bright ?? 1.25 }, uEmit: { value: new THREE.Color(0, 0, 0) },
     },

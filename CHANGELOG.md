@@ -2,6 +2,22 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.5.5
+
+- Caricamento: niente più cerchio; le lettere V A S T I T Y si accendono una dopo l'altra e sono l'indicatore.
+  Si entra quando la Y è accesa (4 secondi in tutto), con un campo di stelle che si avvicina.
+- Terreni veri: quote NASA LOLA (Luna) e MOLA (Marte) per il paesaggio fino a ~600 km, con la curvatura del pianeta
+  e i colori della mappa del pianeta. Nuovi luoghi in «Mondi»: Olympus Mons, Valles Marineris, Cratere Gale,
+  Hadley-Apennino (Apollo 15), Cratere Tycho. Anche atterrando dalla navicella si vede il paesaggio reale del punto.
+- Globi 3D di Luna e Marte con il rilievo vero (Olympus Mons, Valles Marineris, bacini e crateri), uguali in cielo e in
+  navicella; corretto il rilievo "granuloso" della Luna nel cielo a forte ingrandimento.
+- Filmato iniziale: una sola carrellata in avanti, senza riposizionamenti; Gruppo Locale popolato (Via Lattea e
+  Andromeda affiancate, Triangolo, Nubi di Magellano e dodici galassie nane); sosta sul Sole; dal Sole alla Terra
+  si passa di lato, senza attraversarlo.
+- Selezione agganciata: l'oggetto resta selezionato chiudendo la scheda; ritoccarlo lo deseleziona. Ingrandendo,
+  la vista si centra da sola sull'oggetto selezionato (anche in navicella sul bersaglio).
+- Navicella: arrivando a ISS, telescopi, sonde e Tesla ci si ferma a meno di due volte la loro dimensione.
+
 ## 0.5.4
 
 - Atterraggio dalla navicella (ispirato a SpaceEngine): vicino a Luna, Mercurio, Venere, Marte, Giove, Saturno o Plutone,

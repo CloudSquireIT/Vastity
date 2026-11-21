@@ -123,6 +123,8 @@ export class SkyView {
   private slewing = false;
   /** Oggetto inseguito durante lo spostamento (si aggiorna se il tempo scorre). */
   private trackRef: ObjRef | null = null;
+  /** Selezione "agganciata": dopo uno zoom la vista resta centrata sull'oggetto selezionato e lo segue. */
+  private lockSel = false;
   private groundAlpha = 0.78;
   skyOverlay!: SkyOverlay;
   terrain = new SurfaceTerrain();
@@ -165,7 +167,7 @@ export class SkyView {
     this.ground.renderOrder = 10;
     this.ground.frustumCulled = false;
     this.scene.add(this.ground);
-    this.scene.add(this.terrain.mesh);
+    this.scene.add(this.terrain.mesh, this.terrain.far.mesh);
 
     this.issSprite.mesh.visible = false;
     this.celestial.add(this.issSprite.mesh);
@@ -194,8 +196,10 @@ export class SkyView {
     // atterraggio dalla navicella: stesso mondo, ma nel punto esatto sotto la navicella
     this.place = at ? { ...base, lat: at.lat, lon: at.lon, sub: at.sub ?? base.sub } : base;
     state.placeId = this.place.id;
-    this.terrain.setWorld(this.place.exo ? (this.place.id.startsWith('trappist') ? 'trappist' : 'proxima') : this.place.id,
-      Math.round(((this.place.lat ?? 0) + 91) * 1000 + ((this.place.lon ?? 0) + 181) * 7));
+    const world = this.place.world ?? this.place.id;
+    this.terrain.setWorld(this.place.exo ? (this.place.id.startsWith('trappist') ? 'trappist' : 'proxima') : world,
+      Math.round(((this.place.lat ?? 0) + 91) * 1000 + ((this.place.lon ?? 0) + 181) * 7),
+      this.place.lat != null && this.place.lon != null && !this.place.exo ? { lat: this.place.lat, lon: this.place.lon } : undefined);
     this.frame = skyFrame(this.place, simDate());
     this.refreshLists();
     bus.emit('place');
@@ -233,7 +237,15 @@ export class SkyView {
   get zoomFov() { return this.fov; }
   /** Zoom 0 (campo più ampio) … 1 (massimo ingrandimento), scala logaritmica. */
   get zoom() { return Math.log(this.tFov / MAX_FOV) / Math.log(MIN_FOV / MAX_FOV); }
-  set zoom(z: number) { this.slewing = false; this.tFov = MAX_FOV * Math.pow(MIN_FOV / MAX_FOV, Math.max(0, Math.min(1, z))); }
+  set zoom(z: number) {
+    const f = MAX_FOV * Math.pow(MIN_FOV / MAX_FOV, Math.max(0, Math.min(1, z)));
+    if (f < this.tFov - 1e-6) this.aimSelection();
+    this.slewing = false; this.tFov = f;
+  }
+  /** Ingrandendo con un oggetto selezionato non serve mirare: la vista si centra da sola su di lui. */
+  private aimSelection() {
+    if (this.selected && !state.gyro && refDirection(this.selected, this.frame, this.issDir)) this.lockSel = true;
+  }
   get magnification() { return 60 / this.fov; }
   get viewAz() { return ((this.yaw / D2R) % 360 + 360) % 360; }
   get viewAlt() { return this.pitch / D2R; }
@@ -277,6 +289,7 @@ export class SkyView {
 
   select(ref: ObjRef | null) {
     this.selected = ref;
+    if (!ref) this.lockSel = false;
     bus.emit('select', ref);
   }
 
@@ -382,16 +395,22 @@ export class SkyView {
   handlers(): PointerHandlers {
     const radPerPx = () => (this.fov * D2R) / this.h;
     return {
-      down: () => { this.vYaw = this.vPitch = 0; this.slewing = false; this.trackRef = null; this.tYaw = this.yaw; this.tPitch = this.pitch; },
+      down: () => { this.vYaw = this.vPitch = 0; this.slewing = false; this.trackRef = null; this.lockSel = false; this.tYaw = this.yaw; this.tPitch = this.pitch; },
       drag: (dx, dy) => {
         if (state.gyro) return;
         this.tYaw -= dx * radPerPx();
         this.tPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.tPitch + dy * radPerPx()));
       },
       dragEnd: (vx, vy) => { this.vYaw = -vx * radPerPx() * 60; this.vPitch = vy * radPerPx() * 60; },
-      pinch: (s) => { this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(MAX_FOV, this.tFov / s)); },
-      wheel: (d) => { this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(MAX_FOV, this.tFov * Math.exp(d * 0.0012))); },
-      tap: (x, y) => this.select(this.pick(x, y)),
+      pinch: (s) => { if (s > 1) this.aimSelection(); this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(MAX_FOV, this.tFov / s)); },
+      wheel: (d) => { if (d < 0) this.aimSelection(); this.slewing = false; this.tFov = Math.max(MIN_FOV, Math.min(MAX_FOV, this.tFov * Math.exp(d * 0.0012))); },
+      // la selezione resta finché non si ritocca lo stesso oggetto (toccare il vuoto non la toglie)
+      tap: (x, y) => {
+        const p = this.pick(x, y);
+        if (!p) return;
+        if (this.selected && sameRef(p, this.selected)) this.select(null);
+        else this.select(p);
+      },
       doubleTap: (x, y) => {
         const p = this.pick(x, y);
         if (p) { this.select(p); this.centerOn(p); }
@@ -506,8 +525,10 @@ export class SkyView {
     const date = simDate();
     this.frame = skyFrame(this.place, date);
     this.applyFrame();
-    if (this.slewing && this.trackRef) {
-      const d = refDirection(this.trackRef, this.frame, this.issDir);
+    if (this.lockSel && (!this.selected || state.gyro)) this.lockSel = false;
+    const follow = this.lockSel ? this.selected : this.slewing ? this.trackRef : null;
+    if (follow) {
+      const d = refDirection(follow, this.frame, this.issDir);
       if (d) {
         const v = this.tmp.set(...d).applyMatrix4(this.celestial.matrix).normalize();
         let az = Math.atan2(v.x, -v.z);
@@ -525,7 +546,7 @@ export class SkyView {
       this.tPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.tPitch + this.vPitch * dt));
       const k = Math.exp(-3.2 * dt);
       this.vYaw *= k; this.vPitch *= k;
-      const lam = this.slewing ? 4.2 : 22;
+      const lam = this.slewing ? 4.2 : this.lockSel ? 7 : 22;
       this.yaw = damp(this.yaw, this.tYaw, lam, dt);
       this.pitch = damp(this.pitch, this.tPitch, lam, dt);
       if (this.slewing && Math.abs(this.yaw - this.tYaw) + Math.abs(this.pitch - this.tPitch) < 1e-4) { this.slewing = false; this.trackRef = null; }
@@ -560,6 +581,7 @@ export class SkyView {
     // sui mondi solidi c'è il terreno vero al posto del velo trasparente
     this.terrain.setSun(sunH, Math.max(0, Math.min(1, (this.frame.sunAlt + 6) / 16)));
     this.terrain.mesh.visible = this.groundOn() && this.terrain.hasWorld();
+    this.terrain.far.mesh.visible = this.terrain.mesh.visible && this.terrain.far.ready;
     this.ground.visible = this.groundOn() && !this.terrain.mesh.visible;
     this.groundMat.uniforms.uColor.value.setRGB(...this.place.ground);
     this.groundMat.uniforms.uLight.value = Math.max(0, Math.min(1, (this.frame.sunAlt + 8) / 20));
@@ -697,6 +719,12 @@ export class SkyView {
     m.mat.uniforms.uLight.value.copy(L);
     m.mat.uniforms.uTime.value = this.time;
     m.mat.uniforms.uBright.value = 1;
+    // il rilievo dipende dalla scala del modello: nel cielo la sfera misura pochi "metri", nella navicella
+    // il raggio vero in km. Si riporta il rilievo alla stessa intensità della navicella, altrimenti a forte
+    // ingrandimento diventa un rumore granuloso
+    const worldPerKm = Math.min(1, R / Math.max(1, info?.radiusKm ?? 1));
+    m.mat.uniforms.uBump.value = (LOOKS[b.id]?.bump ?? 0) * worldPerKm;
+    m.mat.uniforms.uBumpH.value = (LOOKS[b.id]?.height?.km ?? 0) * 3 * worldPerKm;
     void disc; void day;
     if (m.ring) {
       m.ring.visible = true;
@@ -747,7 +775,7 @@ export class SkyView {
       if (!p.front || p.x < -50 || p.x > this.w + 50 || p.y < -20 || p.y > this.h + 20) return;
       const below = this.groundOn() && p.alt < -0.3;
       // sui mondi con il terreno vero, ciò che sta sotto il suolo non ha etichetta (salvo il selezionato)
-      if (below && this.terrain.mesh.visible && !force) return;
+      if (below && this.terrain.mesh.visible && (!force || (ref && !sameRef(ref, this.selected)))) return;
       L.add(p.x, p.y, text, below ? cls + ' below' : cls, force, ref, Math.min(this.h * 0.32, offset));
     };
     // punti cardinali

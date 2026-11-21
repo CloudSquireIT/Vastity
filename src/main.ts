@@ -47,13 +47,40 @@ const LYS = tx('anni luce', 'light years', 'années-lumière');
 const loader = document.getElementById('loader');
 const loaderEl = document.getElementById('loader');
 
+/**
+ * Caricamento: le sette lettere V A S T I T Y si accendono una dopo l'altra e fanno da indicatore.
+ * L'avanzamento mostrato è il minore tra il tempo (4 s in tutto) e il caricamento reale, così la Y si
+ * accende solo quando l'app è davvero pronta; a quel punto si entra.
+ */
+const LOAD_MS = 4000;
+let loadReal = 0;
+const loaderReady = new Promise<void>((resolve) => {
+  const letters = [...document.querySelectorAll<HTMLElement>('#loader .loader-n span')];
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let shown = 0;
+  const step = () => {
+    const target = Math.min(loadReal, performance.now() / LOAD_MS);
+    // avanza in modo continuo (mai all'indietro), con un leggero inseguimento per non scattare
+    shown = Math.min(1, Math.max(shown, shown + (target - shown) * 0.18));
+    if (target >= 1 && shown > 0.995) shown = 1;
+    letters.forEach((el, i) => {
+      const b = Math.max(0, Math.min(1, shown * letters.length - i));
+      const e = b * b * (3 - 2 * b);
+      el.style.opacity = String(0.12 + 0.88 * e);
+      el.style.transform = still ? '' : `translateY(${((1 - e) * 0.1).toFixed(3)}em)`;
+    });
+    loaderEl?.style.setProperty('--p', shown.toFixed(3));
+    if (shown >= 1) { setTimeout(resolve, 280); return; }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+});
+
 async function main() {
-  // schermata iniziale: barra di avanzamento reale del caricamento dei cataloghi
-  // il disco di stelle attorno al buco nero si "accende" mentre i cataloghi arrivano
-  setLoadProgress((p) => { loaderEl?.style.setProperty('--p', String(Math.min(1, p / 0.86))); });
-  const ring = document.querySelector('.mini-bh .p') as SVGCircleElement | null;
-  setLoadProgress((p) => { if (ring) ring.style.strokeDashoffset = String(100 - Math.min(100, (p / 0.86) * 100)); });
+  // i cataloghi valgono l'85% del caricamento, la costruzione della scena il resto
+  setLoadProgress((p) => { loadReal = Math.max(loadReal, Math.min(0.85, p * 0.85)); });
   await loadCatalogs();
+  loadReal = Math.max(loadReal, 0.85);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
   const adaptive = new AdaptiveResolution(renderer);
@@ -264,7 +291,7 @@ async function main() {
           const r = i >= 0 ? { ref: { kind: 'star', index: i } as ObjRef } : search(sky.place.exo.starName)[0];
           if (r) ship.placeNear(r.ref);
         } else if (sky.place.body) {
-          ship.placeNear({ kind: 'body', id: sky.place.id });
+          ship.placeNear({ kind: 'body', id: sky.place.world ?? sky.place.id });
         }
         if (state.gyro) sky.setGyro(false);
         if (sky.ar) api.setAR(false);
@@ -644,9 +671,9 @@ async function main() {
     }
   }
   renderer.setAnimationLoop(frame);
-  // il caricamento resta almeno 2 secondi (la scritta V A S T I T Y si legge); i menu restano nascosti
-  const waitMs = Math.max(0, 2000 - performance.now());
-  if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
+  // si entra quando la Y è accesa (4 s in tutto, o di più se il dispositivo è lento); i menu restano nascosti
+  loadReal = 1;
+  await loaderReady;
   document.body.classList.remove('loading');
   bus.emit('loaded');
   // uscita dal caricamento: si entra nel buco nero, poi il cielo appare

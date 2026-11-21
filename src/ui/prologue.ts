@@ -1,6 +1,6 @@
 // Apertura cinematografica del primo avvio: si parte a due milioni di anni luce, si attraversa
 // la Via Lattea, il Sistema Solare e la Terra, e si atterra esattamente sopra casa tua, sul cielo
-// di questo momento. ~24 s, saltabile; rivedibile dalle impostazioni.
+// di questo momento. ~33 s, saltabile; rivedibile dalle impostazioni.
 import { h } from './dom';
 import { tx } from '../i18n';
 import { V3, v3 } from '../astro/astro';
@@ -13,9 +13,12 @@ import { feel, reducedMotion } from '../core/feel';
 import { state } from '../state';
 
 const R_EARTH = 6371;
-// [tempo s, log10 distanza dalla Terra in km]: ogni chiave è una "stazione" dove il volo rallenta
+// [tempo s, log10 distanza dal punto inquadrato in km]. Il volo è una sola carrellata in avanti, come gli
+// "zoom dell'universo": la camera guarda sempre dove sta andando e la distanza scorre senza strappi.
+//   0-6 Gruppo Locale · 6-10.5 Via Lattea · 10.5-15 tuffo verso il Sole · 15-19 Sistema Solare ·
+//   19-23.5 il Sole da vicino · 23.5-28.5 dal Sole alla Terra (passando di lato) · 28.5-33 discesa su casa
 const KEYS: [number, number][] = [
-  [0, 19.3], [6, 18.25], [10.5, 16.9], [14.5, 10.7], [19, 5.3], [23.5, Math.log10(R_EARTH + 260)],
+  [0, 19.33], [6, 18.4], [10.5, 17.97], [15, 10.4], [19, 9.15], [23.5, 6.95], [26, 6.85], [29, 6.1], [33, Math.log10(R_EARTH + 260)],
 ];
 const END = KEYS[KEYS.length - 1][0];
 
@@ -55,10 +58,11 @@ export function startPrologue(o: {
   const place = state.location.name;
   const caps: Caption[] = [
     { at: 0.6, k: tx('Due milioni di anni luce da casa', 'Two million light years from home', 'À deux millions d\'années-lumière de chez vous'), n: tx('Il Gruppo Locale', 'The Local Group', 'Le Groupe local') },
-    { at: 5.4, k: tx('Duecento miliardi di stelle. Una è la nostra.', 'Two hundred billion stars. One of them is ours.', 'Deux cents milliards d\'étoiles. L\'une d\'elles est la nôtre.'), n: tx('La Via Lattea', 'The Milky Way', 'La Voie lactée') },
-    { at: 13.6, k: tx('Otto pianeti attorno a una stella', 'Eight planets around one star', 'Huit planètes autour d\'une étoile'), n: tx('Il Sistema Solare', 'The Solar System', 'Le Système solaire') },
-    { at: 18.2, k: tx('Un puntino azzurro, il nostro', 'A pale blue dot, our own', 'Un point bleu pâle, le nôtre'), n: tx('La Terra', 'Earth', 'La Terre') },
-    { at: 22.4, k: place ? `${place} · ${tx('adesso', 'right now', 'maintenant')}` : tx('adesso', 'right now', 'maintenant'), n: tx('Ecco il tuo cielo', 'This is your sky', 'Voici votre ciel') },
+    { at: 6.4, k: tx('Duecento miliardi di stelle. Una è la nostra.', 'Two hundred billion stars. One of them is ours.', 'Deux cents milliards d\'étoiles. L\'une d\'elles est la nôtre.'), n: tx('La Via Lattea', 'The Milky Way', 'La Voie lactée') },
+    { at: 15.2, k: tx('Otto pianeti attorno a una stella', 'Eight planets around one star', 'Huit planètes autour d\'une étoile'), n: tx('Il Sistema Solare', 'The Solar System', 'Le Système solaire') },
+    { at: 19.6, k: tx('Ogni secondo trasforma 4 milioni di tonnellate di materia in luce', 'Every second it turns 4 million tonnes of matter into light', 'Chaque seconde, il transforme 4 millions de tonnes de matière en lumière'), n: tx('Il Sole', 'The Sun', 'Le Soleil') },
+    { at: 27.6, k: tx('Un puntino azzurro, il nostro', 'A pale blue dot, our own', 'Un point bleu pâle, le nôtre'), n: tx('La Terra', 'Earth', 'La Terre') },
+    { at: 31.2, k: place ? `${place} · ${tx('adesso', 'right now', 'maintenant')}` : tx('adesso', 'right now', 'maintenant'), n: tx('Ecco il tuo cielo', 'This is your sky', 'Voici votre ciel') },
   ];
 
   // geometria: tutto in km eliocentrici EQJ
@@ -66,9 +70,21 @@ export function startPrologue(o: {
   const ngp = radecToVec(192.85948, 27.12825);
   const m31 = v3.norm((refPosPc({ kind: 'deep', id: 'm31g' }) as V3) ?? [0.5, 0.2, 0.8]);
   const gcDir = v3.norm(gc);
-  const dFar = v3.norm(v3.add(v3.scale(m31, -1), v3.scale(ngp, 0.55))); // Andromeda dietro la Via Lattea
   const dGal = v3.norm(v3.add(ngp, v3.scale(gcDir, -0.45)));            // galassia vista di tre quarti
+  // Gruppo Locale: si parte di lato rispetto all'asse Via Lattea–Andromeda, così si vedono entrambe con
+  // Triangolo, Nubi di Magellano e le nane attorno; si guarda il baricentro, poi la Via Lattea
+  const m31Km = v3.scale((refPosPc({ kind: 'deep', id: 'm31g' }) as V3) ?? v3.scale(m31, 778000), PC_IN_KM);
+  const dLG = v3.norm(v3.sub(dGal, v3.scale(m31, v3.dot(dGal, m31) + 0.25)));
+  const lgMid = v3.scale(m31Km, 0.42);
+  // Via Lattea e Andromeda affiancate in orizzontale
+  const upLG = v3.norm(v3.cross(dLG, m31));
   const earth = () => ship.bodyPosKm('earth');
+  // vista del Sistema Solare: di tre quarti sopra l'eclittica, con la Terra oltre il Sole ma di lato,
+  // così il viaggio Sole → Terra scorre accanto al Sole invece di attraversarlo
+  const nEcl: V3 = [0, -0.3978, 0.9175];
+  const eDir = v3.norm(earth());
+  const side = v3.norm(v3.cross(nEcl, eDir));
+  const dSS = v3.norm(v3.add(v3.add(v3.scale(eDir, -0.5), v3.scale(nEcl, 0.55)), v3.scale(side, 0.67)));
   const zenith = (): V3 => (sky.place.id === 'earth' && sky.frame?.rows ? (sky.frame.rows[1] as V3) : ngp);
 
   let t = 0;
@@ -101,6 +117,7 @@ export function startPrologue(o: {
     finished = true;
     running = false;
     feel.setWarp(0);
+    ship.setLocalBoost(0);
     const land = () => {
       o.toSky();
       // atterraggio guardando qualcosa di bello: la Luna se è alta, altrimenti verso sud a mezza altezza
@@ -135,26 +152,34 @@ export function startPrologue(o: {
       (bar.firstChild as HTMLElement).style.transform = `scaleX(${Math.min(1, t / END)})`;
       const ld = logDist(t);
       const D = Math.pow(10, ld);
-      // punto guardato: centro galattico da lontano, poi la Terra
       const E = earth();
-      const focus = mix(E, gc, sm(16.9, 18.0, ld));
-      // direzione da cui si guarda: Andromeda alle spalle → galassia di tre quarti → zenit di casa
+      ship.setLocalBoost(1 - sm(4.5, 8.5, t));
       const up = zenith();
-      let dir = v3.norm(mix(dFar, dGal, sm(19.2, 18.4, ld)));
-      dir = v3.norm(mix(dir, up, sm(17.6, 11.5, ld)));
+      // punto inquadrato: il Sole (a queste scale coincide con casa), poi si scivola verso la Terra
+      const focus = mix([0, 0, 0], E, sm(24, 29, t));
+      // direzione da cui si guarda: Andromeda alle spalle → galassia di tre quarti (poi dritti nel tuffo)
+      // → Sistema Solare di tre quarti → zenit di casa. Cambia solo quando si è lontani dal soggetto.
+      let dir = v3.norm(mix(dLG, dGal, sm(3.5, 10.5, t)));
+      dir = v3.norm(mix(dir, dSS, sm(14.6, 19.5, t)));
+      dir = v3.norm(mix(dir, up, sm(27, 31.5, t)));
       const pos = v3.add(focus, v3.scale(dir, D));
       // negli ultimi istanti lo sguardo scivola dal pianeta verso l'orizzonte
       const horizonK = sm(4.6, 3.83, ld) * 0.55;
       let north: V3 = v3.sub([0, 0, 1], v3.scale(up, v3.dot([0, 0, 1], up)));
       if (v3.len(north) < 1e-3) north = [1, 0, 0];
       north = v3.norm(north);
-      // lo sguardo lascia il centro galattico più lentamente della posizione: la galassia resta in vista
-      const lookFocus = mix(E, gc, sm(15.2, 18.0, ld));
-      const lookTarget = v3.norm(v3.add(v3.scale(v3.norm(v3.sub(lookFocus, pos)), 1 - horizonK), v3.scale(north, horizonK)));
+      // sguardo: centro galattico da lontano, poi il Sole (quando la differenza è di pochi gradi), poi la Terra
+      let lookAtP = mix(lgMid, gc, sm(2.5, 7.5, t));
+      lookAtP = mix(lookAtP, [0, 0, 0], sm(6.8, 10.2, t));
+      lookAtP = mix(lookAtP, E, sm(24.2, 27.6, t));
+      const lookTarget = v3.norm(v3.add(v3.scale(v3.norm(v3.sub(lookAtP, pos)), 1 - horizonK), v3.scale(north, horizonK)));
       // sguardo e "alto" della camera inseguono il bersaglio con dolcezza: niente scatti né ribaltamenti
-      const kk = 1 - Math.exp(-Math.min(dt, 0.05) * 5);
+      const kk = 1 - Math.exp(-Math.min(dt, 0.05) * 3.2);
       lookDir = lookDir ? v3.norm(mix(lookDir, lookTarget, kk)) : lookTarget;
-      const upGoal = v3.norm(mix(north, [0, 0, 1], sm(17, 18.5, ld)));
+      // "alto": nord celeste nello spazio profondo, nord dell'eclittica nel Sistema Solare, nord di casa alla fine
+      let upGoal: V3 = v3.norm(mix(upLG, [0, 0, 1], sm(4, 10, t)));
+      upGoal = v3.norm(mix(upGoal, nEcl, sm(13, 18, t)));
+      upGoal = v3.norm(mix(upGoal, north, sm(28.5, 32, t)));
       let u0: V3 = camUp ?? upGoal;
       u0 = v3.norm(mix(u0, upGoal, kk * 0.6));
       const ortho = v3.sub(u0, v3.scale(lookDir, v3.dot(u0, lookDir)));

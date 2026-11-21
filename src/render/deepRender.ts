@@ -311,7 +311,7 @@ void main() {
 }
 `;
 
-interface GalaxyMesh { obj: DeepObject; center: THREE.Vector3; R: number; disk: THREE.Mesh; core: THREE.Mesh; hasParticles: boolean; edge: THREE.Mesh | null; normal: THREE.Vector3; spin: number; spinDir: number }
+interface GalaxyMesh { obj: DeepObject; center: THREE.Vector3; R: number; coreR: number; disk: THREE.Mesh; core: THREE.Mesh; hasParticles: boolean; edge: THREE.Mesh | null; normal: THREE.Vector3; spin: number; spinDir: number }
 interface ExoticMesh { obj: DeepObject; center: THREE.Vector3; R: number; mesh: THREE.Mesh }
 
 const SHAPES: Record<string, number> = { spiral: 0, barred: 1, elliptical: 2, lenticular: 3, irregular: 4, ring: 5 };
@@ -358,6 +358,12 @@ export class DeepRenderer {
   private obs = { value: new THREE.Vector3() };
   private time = { value: 0 };
   private tmp = new THREE.Vector3();
+  /**
+   * Risalto cinematografico del Gruppo Locale (0…1, usato dal filmato d'apertura): le galassie entro
+   * ~6 milioni di anni luce non scendono sotto qualche pixel, così le nane attorno alla Via Lattea e ad
+   * Andromeda si vedono anche da lontano. A 0 tutto torna in scala reale.
+   */
+  localBoost = 0;
 
   constructor(gc: [number, number, number], mwPlane: { a: THREE.Vector3; b: THREE.Vector3 }) {
     const plane = new THREE.PlaneGeometry(1, 1, 24, 24);
@@ -415,7 +421,7 @@ export class DeepRenderer {
           edge.renderOrder = 0.22;
           this.group.add(edge);
         }
-        this.galaxies.push({ obj: o, center, R, disk, core, hasParticles: PARTICLE_GALAXIES.includes(o.id), edge, normal, spin: 0, spinDir: seed % 3 ? 1 : -1 });
+        this.galaxies.push({ obj: o, center, R, coreR: (core.material as THREE.ShaderMaterial).uniforms.uR.value, disk, core, hasParticles: PARTICLE_GALAXIES.includes(o.id), edge, normal, spin: 0, spinDir: seed % 3 ? 1 : -1 });
       } else if (o.type === 'gc' || o.type === 'oc') {
         // bagliore d'insieme dell'ammasso: si dissolve quando le singole stelle si risolvono
         const center = deepCenterPc(o);
@@ -460,7 +466,15 @@ export class DeepRenderer {
       const d = this.tmp.copy(g.center).sub(obsPc).length();
       // da lontano il render "fotografico", da vicino le particelle
       const far = g.hasParticles ? smooth(0.45 * g.R, 1.25 * g.R, d) : smooth(0.3 * g.R, 0.9 * g.R, d);
-      const px = (g.R / d) * pixPerRad;
+      let px = (g.R / d) * pixPerRad;
+      let grow = 1;
+      if (this.localBoost > 0 && g.obj.id !== 'milkyway' && g.center.length() < 1.9e6) {
+        grow = 1 + (Math.min(14, Math.max(1, (9 * this.localBoost) / Math.max(px, 1e-3))) - 1) * this.localBoost;
+        px *= grow;
+      }
+      (g.disk.material as THREE.ShaderMaterial).uniforms.uR.value = g.R * grow;
+      (g.core.material as THREE.ShaderMaterial).uniforms.uR.value = g.coreR * grow;
+      if (g.edge) (g.edge.material as THREE.ShaderMaterial).uniforms.uR.value = g.R * grow;
       const visible = smooth(1.5, 6, px);
       const k = far * visible * dim * (g.obj.bright ?? 1);
       // quanto è "di taglio": il disco piatto lascia il posto allo strato con spessore e polveri

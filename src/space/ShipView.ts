@@ -141,6 +141,8 @@ export class ShipView {
   /** Discesa verso la superficie (stile SpaceEngine): si scende sulla verticale del punto sotto la navicella. */
   private landing: { t: number; id: string; dir: V3; alt0: number; alt1: number; R: number; q0: THREE.Quaternion; fwd: V3; done: () => void } | null = null;
   get isLanding() { return !!this.landing; }
+  /** Risalto del Gruppo Locale per il filmato d'apertura (0 = scala reale). */
+  setLocalBoost(k: number) { this.bg.deepObjects.localBoost = k; }
   private marker: HTMLDivElement;
   private markerArrow: HTMLDivElement;
   private cloudOffset = 0;
@@ -300,7 +302,8 @@ export class ShipView {
     if (ref.kind === 'craft' || ref.kind === 'iss') {
       const c = craftById(ref.kind === 'iss' ? 'iss' : ref.id);
       const p = refHelioKm(ref, state.time);
-      return c && p ? { pos: p, standoff: Math.max(0.008, c.sizeKm * 2.4), radius: c.sizeKm / 2 } : null;
+      // i veicoli sono minuscoli: ci si ferma a meno di due volte la loro dimensione, così riempiono la vista
+      return c && p ? { pos: p, standoff: Math.max(0.009, c.sizeKm * 1.6), radius: c.sizeKm / 2 } : null;
     }
     if (ref.kind === 'exo') {
       const e = exoplanets[ref.index];
@@ -430,6 +433,7 @@ export class ShipView {
     let best: { placeId: string; name: string; lat?: number; lon?: number; body?: string } | null = null;
     let bestK = Infinity;
     for (const pl of PLACES) {
+      if (pl.world) continue; // i luoghi celebri si scelgono da «Mondi»; qui conta il punto sotto la navicella
       if (pl.exo) {
         const c = v3.scale(radecToVec(pl.exo.raDeg, pl.exo.decDeg), pl.exo.distPc * PC_IN_KM);
         const k = v3.len(v3.sub(this.pos, c)) / (3000 * AU_IN_KM);
@@ -479,7 +483,17 @@ export class ShipView {
   get throttle() { return speedToThrottle(this.speed); }
   /** Zoom ottico della navicella 0 (grandangolo) … 1 (teleobiettivo ×230). */
   get zoom() { return Math.log(this.baseFov / ShipView.FOV_WIDE) / Math.log(ShipView.FOV_TELE / ShipView.FOV_WIDE); }
-  set zoom(z: number) { this.baseFov = ShipView.FOV_WIDE * Math.pow(ShipView.FOV_TELE / ShipView.FOV_WIDE, Math.max(0, Math.min(1, z))); }
+  set zoom(z: number) {
+    const f = ShipView.FOV_WIDE * Math.pow(ShipView.FOV_TELE / ShipView.FOV_WIDE, Math.max(0, Math.min(1, z)));
+    if (f < this.baseFov - 1e-6) this.aimTarget();
+    this.baseFov = f;
+  }
+  /** Ingrandendo con un bersaglio selezionato la navicella si gira da sola verso di lui. */
+  private aimTarget() {
+    if (!this.target || this.autopilot || this.landing) return;
+    const t = this.targetInfo(this.target);
+    if (t) this.settleLook = t.look ?? t.pos;
+  }
   get magnification() { return ShipView.FOV_WIDE / this.baseFov; }
   /** Torna allo zoom minimo (all'arrivo e a ogni nuova destinazione). */
   resetZoom() { this.baseFov = ShipView.FOV_WIDE; }
@@ -498,9 +512,15 @@ export class ShipView {
       },
       dragEnd: (vx, vy) => { this.yawV = -vx * k() * 50; this.pitchV = -vy * k() * 50; },
       down: () => { this.yawV = this.pitchV = 0; },
-      pinch: (s) => { this.baseFov = Math.max(ShipView.FOV_TELE, Math.min(ShipView.FOV_WIDE, this.baseFov / s)); },
-      wheel: (d) => { this.baseFov = Math.max(ShipView.FOV_TELE, Math.min(ShipView.FOV_WIDE, this.baseFov * Math.exp(d * 0.001))); },
-      tap: (x, y) => { const r = this.pick(x, y); if (r) bus.emit('ship-select', r); },
+      pinch: (s) => { if (s > 1) this.aimTarget(); this.baseFov = Math.max(ShipView.FOV_TELE, Math.min(ShipView.FOV_WIDE, this.baseFov / s)); },
+      wheel: (d) => { if (d < 0) this.aimTarget(); this.baseFov = Math.max(ShipView.FOV_TELE, Math.min(ShipView.FOV_WIDE, this.baseFov * Math.exp(d * 0.001))); },
+      tap: (x, y) => {
+        const r = this.pick(x, y);
+        if (!r) return;
+        // ritoccare il bersaglio attuale lo deseleziona
+        if (this.target && sameRef(r, this.target) && !this.autopilot) { this.target = null; this.arrived = null; bus.emit('ship-deselect'); return; }
+        bus.emit('ship-select', r);
+      },
     };
   }
 
@@ -621,7 +641,9 @@ export class ShipView {
         }
         // soglia d'arrivo proporzionale alla scala del bersaglio (anche per i punti di vista con standoff 0)
         const scale = t.look ? v3.len(v3.sub(t.pos, t.look)) : t.standoff;
-        if (remaining <= Math.max(1, scale * 0.015)) {
+        // soglia minima di 1 km per pianeti e stelle, di pochi metri per i veicoli
+        const tiny = scale < 1;
+        if (remaining <= Math.max(tiny ? scale * 0.04 : 1, scale * 0.015)) {
           this.stop(true);
           if (t.look) this.settleLook = t.look;
           this.arrived = refName(this.target);
@@ -632,7 +654,7 @@ export class ShipView {
           bus.emit('arrived', this.target);
         } else {
           const aligned = smoothstep(1.1, 0.3, angle);
-          this.targetSpeed = Math.max(1, remaining / 0.55) * aligned;
+          this.targetSpeed = Math.max(tiny ? 0.01 : 1, remaining / 0.55) * aligned;
         }
       }
     }

@@ -4,6 +4,8 @@
 // ghiaccio a seconda del mondo; luce dal Sole nella sua posizione reale. Approccio "heightfield"
 // della skill shader-art-coding, con hash interi PCG (niente hash a seno) e normali per differenze finite.
 import * as THREE from 'three';
+import { FarTerrain } from './farTerrain';
+import { planetTexture } from '../core/textures';
 
 export type TerrainKind = 'craters' | 'dunes' | 'ice';
 export interface TerrainLook { kind: TerrainKind; a1: number; a2: number; radiusKm: number; haze?: number; hazeColor?: number; relief?: number }
@@ -72,19 +74,23 @@ const vert = /* glsl */ `
 ${common}
 uniform float uRadius;
 uniform float uK;
+uniform vec2 uTilt;
 varying vec3 vN;
 varying vec2 vP;
 varying float vDist;
+// rilievo procedurale che si attenua verso il bordo (dove comincia il terreno ricostruito dalle quote vere),
+// più la pendenza reale del luogo
+float hn(vec2 q) { return height(q) * (1.0 - 0.8 * smoothstep(${(MAXR * 0.45).toFixed(1)}, ${MAXR.toFixed(1)}, length(q))) + dot(uTilt, q); }
 void main() {
   vec2 p = position.xz;
-  float h = height(p);
+  float h = hn(p);
   float d = length(p);
   // curvatura del pianeta: la superficie scende con la distanza (orizzonte vero)
   // l'osservatore sta sempre 1,7 m sopra il suolo del punto in cui si trova
-  float y = h - height(vec2(0.0)) - ${EYE.toFixed(1)} - d * d / (2.0 * uRadius);
+  float y = h - hn(vec2(0.0)) - ${EYE.toFixed(1)} - d * d / (2.0 * uRadius);
   float e = max(0.6, d * 0.01);
-  float hx = height(p + vec2(e, 0.0)) - height(p - vec2(e, 0.0));
-  float hz = height(p + vec2(0.0, e)) - height(p - vec2(0.0, e));
+  float hx = hn(p + vec2(e, 0.0)) - hn(p - vec2(e, 0.0));
+  float hz = hn(p + vec2(0.0, e)) - hn(p - vec2(0.0, e));
   vN = normalize(vec3(-hx, 2.0 * e, -hz));
   vP = p;
   vDist = d;
@@ -100,6 +106,9 @@ uniform vec3 uA2;
 uniform vec3 uHazeColor;
 uniform float uHaze;
 uniform float uDay;
+uniform sampler2D uMap;
+uniform vec2 uSiteUv;
+uniform float uHasSite;
 varying vec3 vN;
 varying vec2 vP;
 varying float vDist;
@@ -111,6 +120,8 @@ void main() {
   float slope = 1.0 - n.y;
   alb = mix(alb, uA2 * 0.7, smoothstep(0.25, 0.6, slope));
   if (uKind > 1.5) alb = mix(alb, uA1 * 1.08, smoothstep(0.55, 0.7, fbm(vP / 50.0)));
+  // colore del suolo del luogo vero (dalla mappa del pianeta), così il terreno vicino si raccorda a quello lontano
+  if (uHasSite > 0.5) alb *= clamp(texture2D(uMap, uSiteUv).rgb * 1.25 / max((uA1 + uA2) * 0.5, vec3(0.01)), 0.2, 3.0);
   float sunUp = smoothstep(-0.02, 0.04, uSun.y);
   float lam = max(dot(n, normalize(uSun)), 0.0) * sunUp;
   // senza atmosfera il cielo non illumina: ombre nere e luce dura; con atmosfera, un po' di luce diffusa
@@ -127,6 +138,8 @@ void main() {
 export class SurfaceTerrain {
   mesh: THREE.Mesh;
   mat: THREE.ShaderMaterial;
+  /** Paesaggio lontano dalle quote vere (Luna, Marte). */
+  far = new FarTerrain();
   private cur = '';
 
   constructor() {
@@ -155,6 +168,7 @@ export class SurfaceTerrain {
         uSeed: { value: 7 }, uKind: { value: 0 }, uRelief: { value: 1 }, uRadius: { value: 1.7e6 }, uK: { value: K },
         uSun: { value: new THREE.Vector3(0, 1, 0) }, uA1: { value: new THREE.Color() }, uA2: { value: new THREE.Color() },
         uHazeColor: { value: new THREE.Color() }, uHaze: { value: 0 }, uDay: { value: 1 },
+        uTilt: { value: new THREE.Vector2() }, uMap: { value: null }, uSiteUv: { value: new THREE.Vector2() }, uHasSite: { value: 0 },
       },
     });
     this.mesh = new THREE.Mesh(g, this.mat);
@@ -169,13 +183,27 @@ export class SurfaceTerrain {
   hasWorld() { return this.cur !== ''; }
 
   /** Imposta il mondo; `seed` cambia il paesaggio a seconda del punto di atterraggio. */
-  setWorld(id: string | null, seed = 7) {
+  setWorld(id: string | null, seed = 7, site?: { lat: number; lon: number }) {
     const look = id ? TERRAIN[id] : undefined;
     this.mesh.visible = !!look;
-    if (!look) { this.cur = ''; return; }
-    const key = `${id}:${seed}`;
+    if (!look) { this.cur = ''; this.far.ready = false; return; }
+    const key = `${id}:${seed}:${site?.lat}:${site?.lon}`;
     if (key === this.cur) return;
     this.cur = key;
+    const u0 = this.mat.uniforms;
+    u0.uTilt.value.set(0, 0);
+    u0.uHasSite.value = 0;
+    this.far.ready = false;
+    if (site && id) {
+      this.far.build(id, site.lat, site.lon, EYE).then((r) => {
+        if (!r || this.cur !== key) return;
+        // x est, z sud: la quota cresce di gE verso est e di gN verso nord
+        u0.uTilt.value.set(r.gE, -r.gN);
+        u0.uMap.value = planetTexture(id);
+        u0.uSiteUv.value.set(r.uv[0], r.uv[1]);
+        u0.uHasSite.value = 1;
+      });
+    }
     const u = this.mat.uniforms;
     u.uSeed.value = Math.abs(Math.floor(seed)) % 100000;
     u.uKind.value = look.kind === 'craters' ? 0 : look.kind === 'dunes' ? 1 : 2;
@@ -191,5 +219,6 @@ export class SurfaceTerrain {
   setSun(local: THREE.Vector3, day: number) {
     this.mat.uniforms.uSun.value.copy(local);
     this.mat.uniforms.uDay.value = day;
+    this.far.setSun(local, day);
   }
 }
