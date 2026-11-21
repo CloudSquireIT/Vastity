@@ -34,6 +34,10 @@ export interface Settings {
   textScale?: number;
   /** Suoni ambientali ed effetti. */
   sound?: boolean;
+  /** Apertura cinematografica già vista. */
+  prologueDone?: boolean;
+  /** Prima missione guidata: passo raggiunto (3 = completata). */
+  firstTrip?: number;
   /** Vibrazioni leggere sui tocchi importanti. */
   haptics?: boolean;
 }

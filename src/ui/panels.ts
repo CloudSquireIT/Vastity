@@ -26,6 +26,7 @@ export interface AppApi {
   setMode(m: 'sky' | 'ship'): void;
   share(): void;
   tutorial(): void;
+  opening(): void;
   setAR(on: boolean): Promise<boolean>;
   ar(): boolean;
   gl(): WebGL2RenderingContext;
@@ -387,7 +388,8 @@ export function openSettings() {
     h('div', { class: 'actions' },
       h('button', { class: 'btn', onclick: () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}); } }, icon('fullscreen'), tx('Schermo intero', 'Full screen', 'Plein écran')),
       h('button', { class: 'btn', onclick: () => api.share() }, icon('share'), tx('Condividi questa vista', 'Share this view', 'Partager cette vue')),
-      h('button', { class: 'btn', onclick: () => api.tutorial() }, icon('eye'), tx('Rivedi il tutorial', 'Replay the tutorial', 'Revoir le tutoriel'))),
+      h('button', { class: 'btn', onclick: () => api.tutorial() }, icon('eye'), tx('Rivedi il tutorial', 'Replay the tutorial', 'Revoir le tutoriel')),
+      h('button', { class: 'btn', onclick: () => api.opening() }, icon('play'), tx('Rivedi l\'apertura', 'Replay the opening', 'Revoir l\'ouverture'))),
     h('h3', {}, tx('Suoni e vibrazioni', 'Sound and haptics', 'Sons et vibrations')),
     toggle(tx('Suoni ambientali ed effetti', 'Ambient sound and effects', 'Sons d\'ambiance et effets'), st.sound !== false, (v) => { st.sound = v; saveSettings(); feel.refresh(); }),
     toggle(tx('Vibrazioni leggere', 'Light haptics', 'Vibrations légères'), st.haptics !== false, (v) => { st.haptics = v; saveSettings(); }),

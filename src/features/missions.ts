@@ -43,6 +43,7 @@ export const BADGES: Badge[] = [
   { id: 'light', name: tx('Quasi luce', 'Almost light', 'Presque la lumière'), desc: tx('Raggiungi il 99% della velocità della luce', 'Reach 99% of the speed of light', 'Atteignez 99 % de la vitesse de la lumière'), icon: 'c' },
   { id: 'star', name: tx('Interstellare', 'Interstellar', 'Interstellaire'), desc: tx('Arriva con la navicella a un\'altra stella', 'Fly the spaceship to another star', 'Rejoignez une autre étoile avec le vaisseau'), icon: '✶' },
   { id: 'wish', name: tx('Esprimi un desiderio', 'Make a wish', 'Faites un vœu'), desc: tx('Tocca una stella cadente prima che svanisca', 'Tap a shooting star before it fades', 'Touchez une étoile filante avant qu\'elle disparaisse'), icon: '☄' },
+  { id: 'trip', name: tx('Primo viaggio', 'First voyage', 'Premier voyage'), desc: tx('Dalla Luna a fuori dalla galassia', 'From the Moon to beyond the galaxy', 'De la Lune jusqu\'au-delà de la galaxie'), icon: '➶' },
   { id: 'andromeda', name: tx('Fuori dalla galassia', 'Beyond the galaxy', 'Hors de la galaxie'), desc: tx('Raggiungi la Galassia di Andromeda', 'Reach the Andromeda Galaxy', 'Atteignez la galaxie d\'Andromède'), icon: '◎' },
 ];
 

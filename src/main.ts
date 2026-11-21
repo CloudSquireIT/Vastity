@@ -9,7 +9,7 @@ import { Background } from './render/background';
 import { SkyView } from './sky/SkyView';
 import { ShipView, formatDuration, formatSpeed, speedToThrottle } from './space/ShipView';
 import { V3, v3 } from './astro/astro';
-import { bus, setTime, simDate, state, tick } from './state';
+import { bus, saveSettings, setTime, simDate, state, tick } from './state';
 import { attachPointer } from './ui/pointer';
 import { closeSheet, h, icon, iconButton, initSheet, initToasts, openSheet, sheetOpen, toast } from './ui/dom';
 import { AppApi, applyAccessibility, initPanels, openJournal, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
@@ -23,6 +23,8 @@ import { feel, reducedMotion } from './core/feel';
 import { initDiagnostics } from './core/diagnostics';
 import { initTextures } from './core/textures';
 import { startTutorial } from './ui/tutorial';
+import { Prologue, startPrologue } from './ui/prologue';
+import { startFirstTrip } from './features/firstTrip';
 import { LOCALE, num, tx } from './i18n';
 
 const app = document.getElementById('app')!;
@@ -99,6 +101,7 @@ async function main() {
     setMode: (m) => setMode(m),
     share: () => share(),
     tutorial: () => { closeSheet(); setTimeout(() => startTutorial(ui), 350); },
+    opening: () => { closeSheet(); setTimeout(() => playOpening(), 350); },
     ar: () => sky.ar,
     gl: () => renderer.getContext() as WebGL2RenderingContext,
     landSky: () => sky.landIn(),
@@ -271,6 +274,18 @@ async function main() {
       setTimeout(() => fade.classList.remove('on'), 60);
       setTimeout(() => document.body.classList.remove('mode-in', 'to-ship', 'to-sky'), 700);
     }, 420);
+  }
+
+  let prologue: Prologue | null = null;
+  /** Apertura cinematografica (primo avvio o dalle impostazioni). */
+  function playOpening(then?: () => void) {
+    closeSheet();
+    prologue = startPrologue({
+      root: app, ship, sky,
+      toShip: () => setMode('ship', true),
+      toSky: () => { setMode('sky', true); },
+      done: () => { state.settings.prologueDone = true; saveSettings(); prologue = null; then?.(); },
+    });
   }
 
   function flyTo(r: ObjRef) {
@@ -546,6 +561,7 @@ async function main() {
       lastZoomFov = zf;
     }
     else {
+      if (prologue?.running) prologue.tick(dt);
       ship.update(dt); ship.updateOverlay(); ship.render(renderer); syncZoom();
       // curvatura: il tunnel cresce sopra la velocità della luce; lampo azzurro quando la si supera
       const sp = ship.speed / C_KMS;
@@ -570,7 +586,12 @@ async function main() {
   setTimeout(() => bg.drawConstellations(), 500);
   loader?.classList.add('done');
   setTimeout(() => document.body.classList.remove('intro'), 1600);
-  if (!state.settings.tutorialDone && !location.hash) setTimeout(() => startTutorial(ui), 1500);
+  const afterOpening = () => {
+    if (!state.settings.tutorialDone) setTimeout(() => startTutorial(ui), 1400);
+    setTimeout(() => startFirstTrip(ui), state.settings.tutorialDone ? 900 : 1800);
+  };
+  if (!state.settings.prologueDone && !location.hash) playOpening(afterOpening);
+  else if (!location.hash) afterOpening();
   setTimeout(() => loader?.remove(), 1300);
 
   // dati di rete in secondo piano
@@ -585,7 +606,7 @@ async function main() {
 
   if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});
   (window as any).vastity = {
-    sky, ship, state, setMode, setTime,
+    sky, ship, state, setMode, setTime, playOpening: () => playOpening(), get prologue() { return prologue; },
     /** Test: disegna un fotogramma e restituisce l'alfa minimo del canvas (deve essere 255: niente "buchi" trasparenti). */
     debugAlpha() {
       if (state.mode === 'sky') { sky.update(0.016); sky.render(renderer); } else { ship.update(0.016); ship.render(renderer); }
