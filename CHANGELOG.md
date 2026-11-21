@@ -2,6 +2,11 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.6.1
+
+- Caricamento: il cielo non lampeggia più. Scintillio delle stelle lieve e lento, colori fissi (prima cambiavano a
+  scatti) e nessun fotogramma vuoto quando su iPhone la pagina cambia misura durante l'apertura.
+
 ## 0.6.0
 
 - Caricamento senza lampo: prima compare il cielo stellato (in dissolvenza), poi la scritta V A S T I T Y, poi le

@@ -37,8 +37,9 @@
     (function () {
       var c = document.getElementById('ld-sky'); if (!c || !c.getContext) return;
       var g = c.getContext('2d'), dpr = Math.min(2, window.devicePixelRatio || 1), W = 0, H = 0;
-      function rs() { W = innerWidth; H = innerHeight; c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
-      rs(); addEventListener('resize', rs);
+      // ridimensiona solo se la misura cambia davvero, dentro il ciclo di disegno (niente fotogrammi vuoti)
+      function rs() { if (W === innerWidth && H === innerHeight) return; W = innerWidth; H = innerHeight; c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+      rs();
       var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
       var COL = [[255, 255, 255], [208, 222, 255], [255, 240, 214], [255, 214, 172], [182, 206, 255], [255, 196, 196]];
       var N = Math.round(Math.max(300, Math.min(620, W * H / 1300))), S = [];
@@ -50,6 +51,7 @@
       function frame(now) {
         if (!document.getElementById('loader')) return;
         var t = (now - T0) / 1000;
+        rs();
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.clearRect(0, 0, W, H);
         // tutto entra in dissolvenza lenta (niente lampi): velo appena percettibile, poi le stelle
@@ -67,10 +69,11 @@
           if (px < -8 || px > W + 8 || py < -8 || py > H + 8) continue;
           var near = Math.min(1, (1 - z) * 1.5 + 0.12);
           // scintillazione: due oscillazioni a frequenze diverse, più forte per le stelle brillanti
-          var tw = still ? 1 : 0.62 + 0.38 * Math.sin(t * s.f1 + s.p) * Math.sin(t * s.f2 * 0.6 + s.p * 1.7);
+          // scintillio lieve e lento: le stelle respirano, non lampeggiano
+          var tw = still ? 1 : 0.86 + 0.14 * Math.sin(t * s.f1 * 0.35 + s.p);
           var a = fade * near * (0.28 + 0.72 * s.m) * tw;
           // le stelle più brillanti cambiano colore a lampi (rifrazione dell'atmosfera)
-          var col = s.m > 0.55 && !still ? COL[Math.floor(t * s.f2 * 0.9 + s.p * 3) % COL.length] : s.c;
+          var col = s.c;
           var r = (0.45 + s.m * 1.5) * (0.6 + near * 0.7);
           g.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + a.toFixed(3) + ')';
           g.beginPath(); g.arc(px, py, r, 0, 6.283); g.fill();
