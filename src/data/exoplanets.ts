@@ -100,17 +100,6 @@ export function exoPosPc(i: number, timeMs: number): [number, number, number] {
 
 // ----------------------------------------------------------------------------- texture procedurali
 function rng(seed: number) { let s = (seed * 4294967296) >>> 0 || 1; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return (s >>> 0) / 4294967296; }; }
-function valueNoise(r: () => number, w: number, h: number, cells: number) {
-  const gw = cells, gh = Math.max(2, Math.round(cells / 2));
-  const g = Array.from({ length: (gw + 1) * (gh + 1) }, () => r());
-  return (x: number, y: number) => {
-    const fx = (x / w) * gw, fy = (y / h) * gh;
-    const ix = Math.floor(fx), iy = Math.floor(fy), tx_ = fx - ix, ty = fy - iy;
-    const s = (i: number, j: number) => g[(j % (gh + 1)) * (gw + 1) + (i % gw)];
-    const sx = tx_ * tx_ * (3 - 2 * tx_), sy = ty * ty * (3 - 2 * ty);
-    return (s(ix, iy) * (1 - sx) + s(ix + 1, iy) * sx) * (1 - sy) + (s(ix, iy + 1) * (1 - sx) + s(ix + 1, iy + 1) * sx) * sy;
-  };
-}
 
 type RGB = [number, number, number];
 const PALETTES: Record<ExoClass, RGB[]> = {
@@ -129,6 +118,24 @@ const lerp = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1]
 
 const texCache = new Map<string, THREE.CanvasTexture>();
 /** Texture equirettangolare 512×256 generata dal tipo di pianeta e dal suo nome (ogni pianeta è diverso). */
+/** Rumore a reticolo 3D (valori casuali ai vertici, interpolazione morbida), in [0, 1]. */
+function noise3(seed: number) {
+  const hv = (x: number, y: number, z: number) => {
+    let h = (x * 374761393 + y * 668265263 + z * 2147483647 + seed * 1274126177) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+  };
+  const sm = (t: number) => t * t * (3 - 2 * t);
+  return (x: number, y: number, z: number) => {
+    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    const u = sm(x - xi), v = sm(y - yi), w = sm(z - zi);
+    const L = (a: number, b: number, t: number) => a + (b - a) * t;
+    return L(
+      L(L(hv(xi, yi, zi), hv(xi + 1, yi, zi), u), L(hv(xi, yi + 1, zi), hv(xi + 1, yi + 1, zi), u), v),
+      L(L(hv(xi, yi, zi + 1), hv(xi + 1, yi, zi + 1), u), L(hv(xi, yi + 1, zi + 1), hv(xi + 1, yi + 1, zi + 1), u), v), w);
+  };
+}
+
 export function exoTexture(i: number): THREE.CanvasTexture {
   const p = exoplanets[i];
   const key = p.name;
@@ -141,7 +148,16 @@ export function exoTexture(i: number): THREE.CanvasTexture {
   const img = ctx.createImageData(W, H);
   const r = rng(hash(p.name) + 0.001);
   const pal = PALETTES[p.cls].map((c) => c.map((v) => Math.min(255, v * (0.85 + r() * 0.3))) as RGB);
-  const n1 = valueNoise(r, W, H, 8), n2 = valueNoise(r, W, H, 24), n3 = valueNoise(r, W, H, 64);
+  // rumore campionato sulla sfera (non sulla mappa piatta): niente "raggiera" ai poli né cucitura
+  const seed = Math.floor(r() * 1e6);
+  const N1 = noise3(seed), N2 = noise3(seed + 17), N3 = noise3(seed + 131);
+  const SX = new Float32Array(W * H), SY = new Float32Array(W * H), SZ = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    const la = (0.5 - (y + 0.5) / H) * Math.PI, cl = Math.cos(la), sl = Math.sin(la);
+    for (let x = 0; x < W; x++) { const lo = ((x + 0.5) / W) * Math.PI * 2; const k = y * W + x; SX[k] = cl * Math.cos(lo); SY[k] = cl * Math.sin(lo); SZ[k] = sl; }
+  }
+  const at = (N: (a: number, b: number, c: number) => number, f: number) => (x: number, y: number) => { const k = y * W + x; return N(SX[k] * f, SY[k] * f, SZ[k] * f); };
+  const n1 = at(N1, 2.4), n2 = at(N2, 7), n3 = at(N3, 18);
   const gas = /jupiter|neptune/.test(p.cls);
   const bands = 6 + Math.floor(r() * 10);
   const tilt = (r() - 0.5) * 0.15;
@@ -168,7 +184,7 @@ export function exoTexture(i: number): THREE.CanvasTexture {
           c = h < sea ? lerp(pal[0], pal[2], h / sea) : lerp(pal[1], pal[2], (h - sea) * 3);
           const cloud = Math.max(0, n3(x, y) * 0.6 + n2(x, y) * 0.4 - 0.55) * 2.6;
           c = lerp(c, pal[3], Math.min(0.9, cloud));
-          if (Math.abs(lat) > 0.42) c = lerp(c, pal[3], 0.85);
+          if (Math.abs(lat) > 0.41 + (n2(x, y) - 0.5) * 0.1) c = lerp(c, pal[3], 0.85);
         } else {
           c = lerp(lerp(pal[0], pal[1], h), lerp(pal[2], pal[3], turb), 0.4);
           if (p.cls === 'ice') c = lerp(c, pal[2], Math.max(0, Math.abs(lat) * 2.2 - 0.5));
