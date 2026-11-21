@@ -23,7 +23,7 @@ export async function getWeather(): Promise<WeatherHour[] | null> {
     if (c && c.k === k && Date.now() - c.t < 3600e3) return c.hours;
   } catch { /* */ }
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}` +
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(1)}&longitude=${lon.toFixed(1)}` +
       '&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,relative_humidity_2m,visibility,precipitation_probability,wind_speed_10m' +
       '&forecast_days=7&timeformat=unixtime&timezone=auto';
     const r = await fetch(url);

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vastity · Privacy</title>
+<meta name="description" content="Informativa sulla privacy di Vastity: nessun account, nessuna pubblicità, nessun tracciamento.">
+<link rel="icon" href="icons/favicon-64.png" type="image/png">
+<style>
+  :root { --bg: #05070d; --ink: #eef2ff; --ink-2: rgba(230,236,255,.74); --line: rgba(255,255,255,.1); --accent: #8fb4ff; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 20px 80px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 36px; }
+  header a { color: var(--ink); text-decoration: none; letter-spacing: .42em; font-weight: 300; font-size: 15px; }
+  nav button { background: none; border: 1px solid var(--line); color: var(--ink-2); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  nav button[aria-pressed="true"] { color: var(--ink); border-color: var(--accent); }
+  h1 { font-size: 34px; font-weight: 600; letter-spacing: -.02em; line-height: 1.2; margin: 0 0 8px; }
+  h2 { font-size: 19px; margin: 34px 0 8px; }
+  p, li { color: var(--ink-2); }
+  .muted { font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--ink); font-weight: 600; }
+  td { color: var(--ink-2); }
+  .wrap { overflow-x: auto; }
+  [data-l] { display: none; } html[lang="it"] [data-l="it"], html[lang="en"] [data-l="en"], html[lang="fr"] [data-l="fr"] { display: block; }
+</style>
+</head>
+<body>
+<main>
+  <header><a href="./">VASTITY</a><nav aria-label="Lingua"><button data-set="it">IT</button> <button data-set="en">EN</button> <button data-set="fr">FR</button></nav></header>
+
+  <section data-l="it">
+    <h1>Privacy</h1>
+    <p class="muted">Ultimo aggiornamento: 21 novembre 2026</p>
+    <p>Vastity non ha account, non mostra pubblicità e non usa strumenti di analisi o tracciamento. Non vendiamo né condividiamo dati personali, perché non ne raccogliamo.</p>
+    <h2>Cosa resta sul tuo dispositivo</h2>
+    <p>La tua posizione, le impostazioni, il diario delle osservazioni, i badge e i progressi delle missioni sono salvati solo sul tuo dispositivo. Se disinstalli l'app o cancelli i dati del browser, spariscono.</p>
+    <h2>Cosa esce dal dispositivo</h2>
+    <div class="wrap"><table>
+      <tr><th>Servizio</th><th>Cosa riceve</th><th>Perché</th></tr>
+      <tr><td>Open-Meteo (api.open-meteo.com)</td><td>Una posizione approssimata, arrotondata a circa 10 km</td><td>Previsioni di nuvole e meteo per la sezione «Stasera»</td></tr>
+      <tr><td>CelesTrak e tle.ivanstanojevic.me</td><td>Nessun dato su di te</td><td>Dati orbitali della Stazione Spaziale Internazionale</td></tr>
+      <tr><td>Sito di Vastity (GitHub Pages)</td><td>Nessun dato su di te</td><td>Aggiornamenti del catalogo e texture ad alta risoluzione</td></tr>
+    </table></div>
+    <p>Come ogni richiesta su Internet, questi servizi vedono l'indirizzo IP da cui arriva la richiesta. Vastity non invia identificativi, nomi o altri dati.</p>
+    <h2>Permessi</h2>
+    <ul>
+      <li><b>Posizione:</b> per calcolare il cielo che vedi. Puoi anche scegliere un luogo a mano.</li>
+      <li><b>Sensori di movimento:</b> per mostrare la parte di cielo verso cui punti il telefono.</li>
+      <li><b>Fotocamera:</b> solo per la realtà aumentata. Le immagini non vengono salvate né inviate.</li>
+      <li><b>Notifiche:</b> promemoria per eclissi e passaggi della ISS, programmati sul dispositivo.</li>
+    </ul>
+    <h2>Bambini</h2>
+    <p>Vastity è adatta a tutte le età e non raccoglie dati di nessuno, bambini compresi.</p>
+    <h2>Contatti</h2>
+    <p>Per domande sulla privacy apri una segnalazione nel repository del progetto o scrivi all'indirizzo indicato nella pagina dello store.</p>
+  </section>
+
+  <section data-l="en">
+    <h1>Privacy</h1>
+    <p class="muted">Last updated: 21 November 2026</p>
+    <p>Vastity has no accounts, shows no ads and uses no analytics or tracking tools. We do not sell or share personal data, because we do not collect any.</p>
+    <h2>What stays on your device</h2>
+    <p>Your location, settings, observation log, badges and mission progress are stored only on your device. Uninstalling the app or clearing browser data removes them.</p>
+    <h2>What leaves your device</h2>
+    <div class="wrap"><table>
+      <tr><th>Service</th><th>What it receives</th><th>Why</th></tr>
+      <tr><td>Open-Meteo (api.open-meteo.com)</td><td>An approximate position, rounded to about 10 km</td><td>Cloud and weather forecasts for “Tonight”</td></tr>
+      <tr><td>CelesTrak and tle.ivanstanojevic.me</td><td>No data about you</td><td>Orbital data for the International Space Station</td></tr>
+      <tr><td>Vastity website (GitHub Pages)</td><td>No data about you</td><td>Catalogue updates and high-resolution textures</td></tr>
+    </table></div>
+    <p>Like any request on the internet, these services see the IP address the request comes from. Vastity sends no identifiers, names or other data.</p>
+    <h2>Permissions</h2>
+    <ul>
+      <li><b>Location:</b> to work out the sky you see. You can also choose a place manually.</li>
+      <li><b>Motion sensors:</b> to show the part of the sky your phone is pointing at.</li>
+      <li><b>Camera:</b> only for augmented reality. Images are never saved or sent.</li>
+      <li><b>Notifications:</b> reminders for eclipses and ISS passes, scheduled on the device.</li>
+    </ul>
+    <h2>Children</h2>
+    <p>Vastity is suitable for all ages and collects no one's data, children included.</p>
+    <h2>Contact</h2>
+    <p>For privacy questions, open an issue in the project repository or write to the address shown on the store page.</p>
+  </section>
+
+  <section data-l="fr">
+    <h1>Confidentialité</h1>
+    <p class="muted">Dernière mise à jour : 21 novembre 2026</p>
+    <p>Vastity n'a pas de compte, n'affiche pas de publicité et n'utilise aucun outil d'analyse ou de pistage. Nous ne vendons ni ne partageons de données personnelles, car nous n'en collectons pas.</p>
+    <h2>Ce qui reste sur votre appareil</h2>
+    <p>Votre position, vos réglages, votre journal d'observations, vos badges et vos missions sont enregistrés uniquement sur votre appareil. Ils disparaissent si vous désinstallez l'app ou effacez les données du navigateur.</p>
+    <h2>Ce qui quitte votre appareil</h2>
+    <div class="wrap"><table>
+      <tr><th>Service</th><th>Ce qu'il reçoit</th><th>Pourquoi</th></tr>
+      <tr><td>Open-Meteo (api.open-meteo.com)</td><td>Une position approximative, arrondie à environ 10 km</td><td>Prévisions de nuages et météo pour « Ce soir »</td></tr>
+      <tr><td>CelesTrak et tle.ivanstanojevic.me</td><td>Aucune donnée vous concernant</td><td>Données orbitales de la Station spatiale internationale</td></tr>
+      <tr><td>Site de Vastity (GitHub Pages)</td><td>Aucune donnée vous concernant</td><td>Mises à jour du catalogue et textures haute résolution</td></tr>
+    </table></div>
+    <p>Comme toute requête sur Internet, ces services voient l'adresse IP d'où elle provient. Vastity n'envoie ni identifiant, ni nom, ni autre donnée.</p>
+    <h2>Autorisations</h2>
+    <ul>
+      <li><b>Position :</b> pour calculer le ciel que vous voyez. Vous pouvez aussi choisir un lieu à la main.</li>
+      <li><b>Capteurs de mouvement :</b> pour montrer la partie du ciel vers laquelle pointe votre téléphone.</li>
+      <li><b>Appareil photo :</b> uniquement pour la réalité augmentée. Les images ne sont ni enregistrées ni envoyées.</li>
+      <li><b>Notifications :</b> rappels pour les éclipses et les passages de l'ISS, programmés sur l'appareil.</li>
+    </ul>
+    <h2>Enfants</h2>
+    <p>Vastity convient à tous les âges et ne collecte les données de personne, enfants compris.</p>
+    <h2>Contact</h2>
+    <p>Pour toute question sur la confidentialité, ouvrez un ticket dans le dépôt du projet ou écrivez à l'adresse indiquée sur la page de l'app dans le store.</p>
+  </section>
+</main>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search).get('lang');
+    var n = (navigator.language || 'it').slice(0, 2);
+    var l = ['it', 'en', 'fr'].indexOf(q) >= 0 ? q : ['it', 'en', 'fr'].indexOf(n) >= 0 ? n : 'en';
+    function set(x) { document.documentElement.lang = x; document.querySelectorAll('nav button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.set === x)); }); }
+    document.querySelectorAll('nav button').forEach(function (b) { b.addEventListener('click', function () { set(b.dataset.set); }); });
+    set(l);
+  })();
+</script>
+</body>
+</html>

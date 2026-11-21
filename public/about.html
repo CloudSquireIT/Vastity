@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vastity · Il cielo e lo spazio</title>
+<meta name="description" content="Vastity: il cielo vero in tempo reale e una navicella per volare oltre la velocità della luce, fino ai buchi neri e alle altre galassie.">
+<meta property="og:title" content="Vastity">
+<meta property="og:description" content="Il cielo di stanotte e una navicella per volare fino ai confini dell'universo.">
+<meta property="og:image" content="site/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="icons/favicon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+  :root { --bg: #05070d; --bg-2: #0b1230; --ink: #eef2ff; --ink-2: rgba(230,236,255,.74); --ink-3: rgba(220,228,255,.5); --line: rgba(255,255,255,.1); --accent: #8fb4ff; --warm: #ffd08a; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  header { position: sticky; top: 0; z-index: 5; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: rgba(5,7,13,.6); border-bottom: 1px solid var(--line); }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; letter-spacing: .42em; font-weight: 300; font-size: 15px; }
+  .logo .mark { width: 34px; height: 34px; }
+  nav { display: flex; gap: 6px; }
+  nav button { background: none; border: 1px solid var(--line); color: var(--ink-2); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  nav button[aria-pressed="true"] { color: var(--ink); border-color: var(--accent); }
+  .hero { position: relative; padding: 72px 0 40px; text-align: center; overflow: hidden; }
+  .hero::before { content: ""; position: absolute; inset: -20% -10% auto; height: 80%; background: radial-gradient(closest-side, rgba(40,70,160,.45), transparent); pointer-events: none; }
+  .hero .mark { width: 120px; height: 120px; position: relative; }
+  h1 { position: relative; font-size: clamp(36px, 6vw, 64px); line-height: 1.08; letter-spacing: -.03em; font-weight: 600; margin: 18px 0 14px; }
+  .lede { position: relative; font-size: clamp(17px, 2.2vw, 21px); color: var(--ink-2); max-width: 680px; margin: 0 auto 28px; }
+  .cta { position: relative; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 16px; }
+  .btn.primary { background: var(--ink); color: #05070d; }
+  .btn.ghost { border: 1px solid var(--line); color: var(--ink); }
+  .soon { position: relative; margin-top: 14px; font-size: 14px; color: var(--ink-3); }
+  .shot { margin: 40px auto 0; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .shot img { display: block; width: 100%; height: auto; }
+  section { padding: 64px 0; }
+  h2 { font-size: clamp(26px, 3.6vw, 38px); letter-spacing: -.02em; line-height: 1.15; margin: 0 0 12px; font-weight: 600; }
+  .row { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; }
+  .row.flip { grid-template-columns: 1fr 1.15fr; }
+  .row.flip .media { order: 2; }
+  .media { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); }
+  .media img { display: block; width: 100%; height: auto; }
+  .text p { color: var(--ink-2); margin: 0; }
+  .k { font-size: 12px; text-transform: uppercase; letter-spacing: .16em; color: var(--accent); margin-bottom: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { padding: 20px; border-radius: 16px; background: linear-gradient(160deg, rgba(143,180,255,.08), rgba(143,180,255,.02)); border: 1px solid var(--line); }
+  .card b { display: block; font-size: 28px; letter-spacing: -.02em; }
+  .card span { color: var(--ink-2); font-size: 15px; }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--ink-3); font-size: 14px; }
+  footer .wrap { display: flex; gap: 18px; flex-wrap: wrap; justify-content: space-between; }
+  [data-l] { display: none !important; }
+  html[lang="it"] [data-l="it"], html[lang="en"] [data-l="en"], html[lang="fr"] [data-l="fr"] { display: revert !important; }
+  @media (max-width: 760px) { .row, .row.flip { grid-template-columns: 1fr; gap: 20px; } .row.flip .media { order: 0; } .grid { grid-template-columns: 1fr; } section { padding: 44px 0; } }
+</style>
+</head>
+<body>
+<header><div class="wrap"><a class="logo" href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100.0 100.0" width="100" height="100"><defs>
+  <radialGradient id="vxGlow" cx="50%" cy="50%" r="50%"><stop offset=".55" stop-color="#ffd9a0" stop-opacity=".0"/><stop offset=".66" stop-color="#ffcf8a" stop-opacity=".55"/><stop offset="1" stop-color="#ff9e4a" stop-opacity="0"/></radialGradient>
+  <linearGradient id="vxDisk" x1="0" x2="1"><stop offset="0" stop-color="#ff8a3d" stop-opacity=".15"/><stop offset=".3" stop-color="#ffd08a"/><stop offset=".5" stop-color="#fff4e0"/><stop offset=".7" stop-color="#ffd08a"/><stop offset="1" stop-color="#ff8a3d" stop-opacity=".15"/></linearGradient>
+  <linearGradient id="vxBack" x1="0" x2="1"><stop offset="0" stop-color="#ffb46a" stop-opacity="0"/><stop offset=".5" stop-color="#ffd9a6" stop-opacity=".8"/><stop offset="1" stop-color="#ffb46a" stop-opacity="0"/></linearGradient>
+  <linearGradient id="vxLens" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff0d2"/><stop offset=".7" stop-color="#ffc27a" stop-opacity=".75"/><stop offset="1" stop-color="#ff9a4a" stop-opacity=".1"/></linearGradient>
+</defs>
+<circle cx="50" cy="50" r="31" fill="url(#vxGlow)"/>
+<path d="M10 51 C 22 45, 78 45, 90 51" fill="none" stroke="url(#vxBack)" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M25.5 52 C 24 21, 76 21, 74.5 52" fill="none" stroke="url(#vxLens)" stroke-width="2.6" stroke-linecap="round"/>
+<circle cx="50" cy="50" r="19" fill="#000"/>
+<circle cx="50" cy="50" r="19.6" fill="none" stroke="#fff1d6" stroke-width="1.6"/>
+<path d="M6 50 C 16 61, 84 61, 94 50" fill="none" stroke="url(#vxDisk)" stroke-width="3.4" stroke-linecap="round"/></svg>
+<span>VASTITY</span></a><nav aria-label="Lingua / Language"><button data-set="it">IT</button><button data-set="en">EN</button><button data-set="fr">FR</button></nav></div></header>
+<main>
+  <div class="hero"><div class="wrap">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100.0 100.0" width="100" height="100"><defs>
+  <radialGradient id="vxGlow" cx="50%" cy="50%" r="50%"><stop offset=".55" stop-color="#ffd9a0" stop-opacity=".0"/><stop offset=".66" stop-color="#ffcf8a" stop-opacity=".55"/><stop offset="1" stop-color="#ff9e4a" stop-opacity="0"/></radialGradient>
+  <linearGradient id="vxDisk" x1="0" x2="1"><stop offset="0" stop-color="#ff8a3d" stop-opacity=".15"/><stop offset=".3" stop-color="#ffd08a"/><stop offset=".5" stop-color="#fff4e0"/><stop offset=".7" stop-color="#ffd08a"/><stop offset="1" stop-color="#ff8a3d" stop-opacity=".15"/></linearGradient>
+  <linearGradient id="vxBack" x1="0" x2="1"><stop offset="0" stop-color="#ffb46a" stop-opacity="0"/><stop offset=".5" stop-color="#ffd9a6" stop-opacity=".8"/><stop offset="1" stop-color="#ffb46a" stop-opacity="0"/></linearGradient>
+  <linearGradient id="vxLens" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff0d2"/><stop offset=".7" stop-color="#ffc27a" stop-opacity=".75"/><stop offset="1" stop-color="#ff9a4a" stop-opacity=".1"/></linearGradient>
+</defs>
+<circle cx="50" cy="50" r="31" fill="url(#vxGlow)"/>
+<path d="M10 51 C 22 45, 78 45, 90 51" fill="none" stroke="url(#vxBack)" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M25.5 52 C 24 21, 76 21, 74.5 52" fill="none" stroke="url(#vxLens)" stroke-width="2.6" stroke-linecap="round"/>
+<circle cx="50" cy="50" r="19" fill="#000"/>
+<circle cx="50" cy="50" r="19.6" fill="none" stroke="#fff1d6" stroke-width="1.6"/>
+<path d="M6 50 C 16 61, 84 61, 94 50" fill="none" stroke="url(#vxDisk)" stroke-width="3.4" stroke-linecap="round"/></svg>
+
+    <h1><span data-l="it">Il cielo di stanotte.<br>E tutto quello che c'è oltre.</span><span data-l="en">Tonight's sky.<br>And everything beyond it.</span><span data-l="fr">Le ciel de ce soir.<br>Et tout ce qu'il y a au-delà.</span></h1>
+    <p class="lede"><span data-l="it">Punta il telefono al cielo per sapere cosa stai guardando. Poi sali sulla navicella e vola, più veloce della luce, fino ai buchi neri e alle altre galassie.</span><span data-l="en">Point your phone at the sky to find out what you are looking at. Then board the spaceship and fly, faster than light, to black holes and other galaxies.</span><span data-l="fr">Pointez votre téléphone vers le ciel pour savoir ce que vous regardez. Puis montez à bord du vaisseau et volez, plus vite que la lumière, vers les trous noirs et les autres galaxies.</span></p>
+    <div class="cta"><a class="btn primary" href="./"><span data-l="it">Apri Vastity nel browser</span><span data-l="en">Open Vastity in your browser</span><span data-l="fr">Ouvrir Vastity dans le navigateur</span></a></div>
+    <p class="soon"><span data-l="it">Presto su App Store e Google Play</span><span data-l="en">Coming soon to the App Store and Google Play</span><span data-l="fr">Bientôt sur l'App Store et Google Play</span></p>
+    <div class="shot"><img src="site/1-sky.webp" alt="" width="1434" height="660"></div>
+  </div></div>
+
+  <section><div class="wrap row">
+    <div class="media"><img src="site/2-saturn.webp" alt="" loading="lazy" width="1434" height="660"></div>
+    <div class="text"><div class="k"><span data-l="it">Navicella</span><span data-l="en">Spaceship</span><span data-l="fr">Vaisseau</span></div>
+      <h2><span data-l="it">Decolla da casa tua</span><span data-l="en">Take off from your home</span><span data-l="fr">Décollez de chez vous</span></h2>
+      <p><span data-l="it">Sfiora gli anelli di Saturno, attraversa la Nebulosa di Orione, esci dalla Via Lattea. Ogni viaggio è a scala reale, fino a mille miliardi di volte la velocità della luce.</span><span data-l="en">Skim Saturn's rings, cross the Orion Nebula, leave the Milky Way. Every journey is at true scale, up to a trillion times the speed of light.</span><span data-l="fr">Frôlez les anneaux de Saturne, traversez la nébuleuse d'Orion, quittez la Voie lactée. Chaque voyage est à l'échelle réelle, jusqu'à mille milliards de fois la vitesse de la lumière.</span></p></div>
+  </div></section>
+
+  <section><div class="wrap row flip">
+    <div class="media"><img src="site/5-blackhole.webp" alt="" loading="lazy" width="1434" height="660"></div>
+    <div class="text"><div class="k"><span data-l="it">Universo</span><span data-l="en">Universe</span><span data-l="fr">Univers</span></div>
+      <h2><span data-l="it">Buchi neri, galassie, altri mondi</span><span data-l="en">Black holes, galaxies, other worlds</span><span data-l="fr">Trous noirs, galaxies, autres mondes</span></h2>
+      <p><span data-l="it">Il buco nero di M87 come l'ha fotografato l'Event Horizon Telescope, Andromeda con le foto reali, e tutti gli oltre 6000 esopianeti confermati dalla NASA sulle loro orbite.</span><span data-l="en">The M87 black hole as the Event Horizon Telescope imaged it, Andromeda in real photos, and all 6,000+ NASA-confirmed exoplanets on their orbits.</span><span data-l="fr">Le trou noir de M87 tel que l'Event Horizon Telescope l'a photographié, Andromède en vraies photos, et les plus de 6 000 exoplanètes confirmées par la NASA sur leurs orbites.</span></p></div>
+  </div></section>
+
+  <section><div class="wrap row">
+    <div class="media"><img src="site/6-story.webp" alt="" loading="lazy" width="1434" height="660"></div>
+    <div class="text"><div class="k"><span data-l="it">Storie</span><span data-l="en">Stories</span><span data-l="fr">Histoires</span></div>
+      <h2><span data-l="it">La luce che vedi ha una storia</span><span data-l="en">The light you see has a story</span><span data-l="fr">La lumière que vous voyez a une histoire</span></h2>
+      <p><span data-l="it">Ogni scheda racconta quando è partita la luce e cosa succedeva sulla Terra in quel momento. Tour narrati ti accompagnano dalla nascita delle stelle ai buchi neri.</span><span data-l="en">Every card tells you when the light set off and what was happening on Earth at that moment. Narrated tours take you from the birth of stars to black holes.</span><span data-l="fr">Chaque fiche raconte quand la lumière est partie et ce qui se passait sur Terre à ce moment-là. Des visites guidées vous emmènent de la naissance des étoiles aux trous noirs.</span></p></div>
+  </div></section>
+
+  <section><div class="wrap">
+    <div class="grid">
+      <div class="card"><b>50 000+</b><span data-l="it">stelle con i loro colori reali</span><span data-l="en">stars in their true colours</span><span data-l="fr">étoiles avec leurs vraies couleurs</span></div>
+      <div class="card"><b>16″</b><span data-l="it">scarto massimo dalle effemeridi NASA/JPL</span><span data-l="en">maximum error against NASA/JPL ephemerides</span><span data-l="fr">écart maximal avec les éphémérides NASA/JPL</span></div>
+      <div class="card"><b>0</b><span data-l="it">account, pubblicità e tracciamenti</span><span data-l="en">accounts, ads and trackers</span><span data-l="fr">compte, publicité et pistage</span></div>
+    </div>
+  </div></section>
+</main>
+<footer><div class="wrap"><span>© 2026 Vastity</span><span><a href="privacy.html">Privacy</a> · <a href="./">App</a></span></div></footer>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search).get('lang');
+    var n = (navigator.language || 'it').slice(0, 2);
+    var L = ['it', 'en', 'fr'];
+    var l = L.indexOf(q) >= 0 ? q : L.indexOf(n) >= 0 ? n : 'en';
+    function set(x) { document.documentElement.lang = x; document.querySelectorAll('nav button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.set === x)); }); }
+    document.querySelectorAll('nav button').forEach(function (b) { b.addEventListener('click', function () { set(b.dataset.set); }); });
+    set(l);
+  })();
+</script>
+</body>
+</html>
