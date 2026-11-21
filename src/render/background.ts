@@ -56,6 +56,7 @@ uniform float uTime;
 uniform float uTwinkle;
 uniform float uSpikes;
 uniform float uMagBelow;
+uniform float uJitter;
 varying vec3 vColor;
 varying float vAlpha;
 varying float vSpike;
@@ -71,7 +72,8 @@ void main() {
   vec3 dir = aberrate(rel / d, D);
   float m = absmag + 5.0 * log(d) / log(10.0) - 5.0 - 2.5 * 1.2 * log(D) / log(10.0);
   float Tobs = temp * D;
-  float s = mix(uMagLimit, uMagBelow, belowF(dir)) - m;
+  // all'alba e al tramonto le stelle si spengono (o si accendono) una alla volta, non tutte insieme
+  float s = mix(uMagLimit, uMagBelow, belowF(dir)) - m - uJitter * hash(float(gl_VertexID) * 0.731) * 1.6;
   if (d < uNearCut || s < 0.0 || Tobs < 600.0) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
@@ -79,7 +81,7 @@ void main() {
     return;
   }
   gl_Position = projectionMatrix * modelViewMatrix * vec4(dir * 1000.0, 1.0);
-  float id = float(gl_VertexID);
+  float id = float(gl_VertexID) + 0.0;
   float tw = 1.0 + uTwinkle * 0.22 * sin(uTime * (3.0 + hash(id) * 5.0) + hash(id * 1.3) * 6.28);
   // stelle molto brillanti: punte di diffrazione e un alone più ampio
   vSpike = uSpikes * smoothstep(5.2, 8.5, s);
@@ -117,9 +119,14 @@ void main() {
 `;
 
 const lineVert = /* glsl */ `
+attribute float aCons;
+attribute float aOrder;
 uniform vec3 uObs;
 uniform float uOpacity;
 uniform float uLineBelow;
+uniform float uDraw;   // disegno progressivo di tutte le costellazioni (0 → 1)
+uniform float uSel;    // costellazione selezionata (-1 = nessuna)
+uniform float uSelT;   // avanzamento del disegno di quella selezionata
 varying float vOp;
 ${RELATIVITY}
 ${HORIZON}
@@ -127,7 +134,9 @@ void main() {
   vec3 rel = position - uObs;
   float D;
   vec3 dir = aberrate(normalize(rel), D);
-  vOp = mix(uOpacity, uLineBelow, belowF(dir));
+  vOp = mix(uOpacity, uLineBelow, belowF(dir)) * smoothstep(aOrder, aOrder + 0.12, uDraw);
+  // la costellazione toccata si ridisegna, più luminosa, linea dopo linea
+  if (abs(aCons - uSel) < 0.5) vOp = max(vOp * 0.4, 0.9 * smoothstep(aOrder, aOrder + 0.08, uSelT));
   gl_Position = projectionMatrix * modelViewMatrix * vec4(dir * 990.0, 1.0);
 }
 `;
@@ -639,6 +648,8 @@ export interface BackgroundUpdate {
   deepField?: boolean;
   /** Cielo notturno sotto l'orizzonte (solo vista dalla Terra). */
   below?: { mag: number; galaxyDim: number; lines: number };
+  /** 0…1: quanto si è nel crepuscolo (stelle che si spengono una alla volta). */
+  twilight?: number;
   /** Intensità della Via Lattea fotografica. */
   panoGain?: number;
 }
@@ -700,7 +711,7 @@ export class Background {
       vertexShader: starVert, fragmentShader: starFrag,
       uniforms: {
         uObs: obs, uBeta: beta, uMagLimit: { value: 6.5 }, uScale: { value: 1 }, uNearCut: { value: 1e-4 },
-        uDim: { value: 1 }, uTime: time, uTwinkle: { value: 0 }, uSpikes: { value: 1 }, uHz: hz.uHz, uMagBelow: hz.uMagBelow,
+        uDim: { value: 1 }, uTime: time, uTwinkle: { value: 0 }, uSpikes: { value: 1 }, uHz: hz.uHz, uMagBelow: hz.uMagBelow, uJitter: { value: 0 },
       },
       blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
     });
@@ -729,8 +740,11 @@ export class Background {
       return bd > Math.cos((0.3 * Math.PI) / 180) ? bright[best] : -1;
     };
     const lp: number[] = [];
-    for (const c of constellations) {
+    const lc: number[] = [], lo: number[] = [];
+    constellations.forEach((c, ci) => {
       const ids: number[] = [];
+      const segTotal = c.lines.reduce((n, ln) => n + Math.max(0, ln.length - 1), 0) || 1;
+      let segIdx = 0;
       for (const ln of c.lines) {
         for (let k = 0; k < ln.length - 1; k++) {
           const a = ln[k], b = ln[k + 1];
@@ -738,17 +752,22 @@ export class Background {
           const pa = ia >= 0 ? [stars.pos[ia * 3], stars.pos[ia * 3 + 1], stars.pos[ia * 3 + 2]] : radecToVec(a[0], a[1]).map((x) => x * 1000);
           const pb = ib >= 0 ? [stars.pos[ib * 3], stars.pos[ib * 3 + 1], stars.pos[ib * 3 + 2]] : radecToVec(b[0], b[1]).map((x) => x * 1000);
           lp.push(...pa, ...pb);
+          const ord = segIdx++ / segTotal;
+          lc.push(ci, ci); lo.push(ord, ord);
           if (ia >= 0) ids.push(ia);
           if (ib >= 0) ids.push(ib);
         }
       }
       this.lineStars.set(c.id, [...new Set(ids)]);
-    }
+    });
     const lg = new THREE.BufferGeometry();
     lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+    lg.setAttribute('aCons', new THREE.Float32BufferAttribute(lc, 1));
+    lg.setAttribute('aOrder', new THREE.Float32BufferAttribute(lo, 1));
     this.lineMat = new THREE.ShaderMaterial({
       vertexShader: lineVert, fragmentShader: lineFrag,
-      uniforms: { uObs: obs, uBeta: beta, uColor: { value: new THREE.Color(0.45, 0.62, 0.95) }, uOpacity: { value: 0.5 }, uHz: hz.uHz, uLineBelow: hz.uLineBelow },
+      uniforms: { uObs: obs, uBeta: beta, uColor: { value: new THREE.Color(0.45, 0.62, 0.95) }, uOpacity: { value: 0.5 }, uHz: hz.uHz, uLineBelow: hz.uLineBelow,
+        uDraw: { value: 0 }, uSel: { value: -1 }, uSelT: { value: 0 } },
       blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true,
     });
     this.lines = new THREE.LineSegments(lg, this.lineMat);
@@ -868,7 +887,24 @@ export class Background {
     this.group.add(this.intergalactic, this.deep, this.panorama, this.deepObjects.group, this.galaxy, this.dust, this.nebulae, this.lines, this.starPoints);
   }
 
+  private drawStart: number | null = null;
+  private selStart = 0;
+  private lastTime = 0;
+  /** Le costellazioni si disegnano progressivamente (all'avvio o quando si riattivano). */
+  drawConstellations() { this.drawStart = this.lastTime; this.lineMat.uniforms.uDraw.value = 0; }
+  /** Evidenzia e ridisegna una costellazione (id IAU) o nessuna. */
+  highlightConstellation(id: string | null) {
+    const i = id ? constellations.findIndex((c) => c.id === id) : -1;
+    this.lineMat.uniforms.uSel.value = i;
+    this.selStart = this.lastTime;
+    this.lineMat.uniforms.uSelT.value = 0;
+  }
+
   update(u: BackgroundUpdate) {
+    this.lastTime = u.time;
+    const lu = this.lineMat.uniforms;
+    if (this.drawStart !== null) { lu.uDraw.value = Math.max(0, Math.min(1.2, (u.time - this.drawStart) / 2.4)); if (lu.uDraw.value >= 1.2) this.drawStart = null; }
+    if (lu.uSel.value >= 0) lu.uSelT.value = Math.min(1.2, (u.time - this.selStart) / 1.1);
     const su = this.starMat.uniforms;
     su.uObs.value.copy(u.obsPc);
     su.uBeta.value.copy(u.beta);
@@ -879,6 +915,7 @@ export class Background {
     su.uTwinkle.value = u.twinkle;
     su.uNearCut.value = u.nearCutPc;
     su.uSpikes.value = u.spikes ?? 1;
+    su.uJitter.value = u.twilight ?? 0;
     this.deepMat.uniforms.uScale.value = u.pixelScale;
     const bl = u.below;
     this.hz.uHz.value = bl ? 1 : 0;

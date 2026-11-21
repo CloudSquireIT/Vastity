@@ -14,7 +14,8 @@ import { attachPointer } from './ui/pointer';
 import { closeSheet, h, icon, iconButton, initSheet, initToasts, openSheet, sheetOpen, toast } from './ui/dom';
 import { AppApi, applyAccessibility, initPanels, openJournal, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
 import { ObjRef, refName, sameRef, search } from './features/objects';
-import { activeMissions, ensureDailyMissions, flag, tryComplete } from './features/missions';
+import { Badge, activeMissions, awardSecret, ensureDailyMissions, flag, tryComplete } from './features/missions';
+import { animateIcon, badgeUnlocked, initFx, rippleAtLastTap, startShootingStars, trackPointer } from './ui/fx';
 import { loadISS } from './features/iss';
 import { AU_IN_KM, C_KMS, setLoadProgress, stars } from './data/catalog';
 import { AdaptiveResolution } from './core/quality';
@@ -61,7 +62,9 @@ async function main() {
   const fade = h('div', { class: 'fade' });
   const night = h('div', { class: 'night-filter' });
   const flash = h('div', { class: 'warp-flash' });
-  app.append(overlay, ui, flash, fade, night);
+  // tunnel di curvatura: vignetta azzurra che si stringe con la velocità
+  const tunnel = h('div', { class: 'warp-tunnel' });
+  app.append(overlay, tunnel, ui, flash, fade, night);
   // Vastity è pensata in orizzontale: invito a ruotare il telefono (si può continuare in verticale)
   const rotate = h('div', { class: 'rotate-hint', role: 'dialog' },
     h('span', { class: 'ico', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>' }),
@@ -74,6 +77,8 @@ async function main() {
   document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) lockLandscape(); });
   initSheet(ui);
   initToasts(ui);
+  initFx(ui);
+  trackPointer();
 
   const bg = new Background();
   const sky = new SkyView(bg, overlay);
@@ -96,6 +101,7 @@ async function main() {
     tutorial: () => { closeSheet(); setTimeout(() => startTutorial(ui), 350); },
     ar: () => sky.ar,
     gl: () => renderer.getContext() as WebGL2RenderingContext,
+    landSky: () => sky.landIn(),
     setAR: async (on) => {
       if (on) {
         try {
@@ -305,8 +311,21 @@ async function main() {
 
   // ------------------------------------------------------------------ input
   attachPointer(renderer.domElement, () => (state.mode === 'sky' ? sky.handlers() : ship.handlers()));
-  bus.on('select', (r: ObjRef | null) => { if (r && state.mode === 'sky') { feel.select(); showInfo(r); } });
-  bus.on('ship-select', (r: ObjRef) => { ship.target = r; feel.select(); showInfo(r); });
+  bus.on('select', (r: ObjRef | null) => {
+    bg.highlightConstellation(r?.kind === 'constellation' ? r.id : null);
+    if (r && state.mode === 'sky') { rippleAtLastTap(); feel.select(); showInfo(r); }
+  });
+  // costellazioni che si disegnano quando le riattivi
+  let consOn = state.settings.constellations;
+  bus.on('settings', () => { if (state.settings.constellations && !consOn) bg.drawConstellations(); consOn = state.settings.constellations; });
+  bus.on('ship-select', (r: ObjRef) => { ship.target = r; rippleAtLastTap(); feel.select(); showInfo(r); });
+  bus.on('badge', (b: Badge) => badgeUnlocked(b));
+  // icone della barra: ognuna ha la sua piccola animazione al tocco
+  document.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('.dbtn, .tbtn, .ibtn') as HTMLElement | null; if (b) animateIcon(b); }, { capture: true });
+  // stelle cadenti nelle notti limpide: toccane una per esprimere un desiderio
+  startShootingStars(
+    () => state.mode === 'sky' && sky.dayFactor() < 0.15 && !sheetOpen(),
+    () => { if (!awardSecret('wish')) toast(tx('Desiderio espresso ✨', 'Wish made ✨', 'Vœu exaucé ✨')); });
   bus.on('flash', () => { if (reducedMotion()) return; flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on'); });
   // suoni e vibrazioni: l'audio si sblocca al primo tocco; un "tic" discreto sui pulsanti
   window.addEventListener('pointerdown', () => feel.unlock(), { once: true, capture: true });
@@ -490,6 +509,7 @@ async function main() {
   let last = performance.now();
   let hudT = 0;
   let lastZoomFov = 60;
+  let tunnelK = 0, wasWarp = false;
   function syncZoom() {
     const v = zView();
     if (!zoomDrag) zoomRange.value = String(v.zoom);
@@ -519,7 +539,17 @@ async function main() {
       }
       lastZoomFov = zf;
     }
-    else { ship.update(dt); ship.updateOverlay(); ship.render(renderer); syncZoom(); }
+    else {
+      ship.update(dt); ship.updateOverlay(); ship.render(renderer); syncZoom();
+      // curvatura: il tunnel cresce sopra la velocità della luce; lampo azzurro quando la si supera
+      const sp = ship.speed / C_KMS;
+      const w = reducedMotion() ? 0 : Math.max(0, Math.min(1, Math.log10(Math.max(sp, 1e-9)) / 4 + 0.15));
+      tunnelK += (w - tunnelK) * Math.min(1, dt * 3);
+      tunnel.style.setProperty('--warp', tunnelK.toFixed(3));
+      const above = sp >= 0.9999;
+      if (above && !wasWarp && !reducedMotion()) { flash.classList.remove('on', 'blue'); void flash.offsetWidth; flash.classList.add('on', 'blue'); feel.warpIn(); }
+      wasWarp = above;
+    }
     hudT += dt;
     if (hudT > 0.2) {
       checkMissions(hudT);
@@ -531,6 +561,7 @@ async function main() {
   renderer.setAnimationLoop(frame);
   // uscita dal caricamento: si entra nel buco nero, poi il cielo appare
   document.body.classList.add('intro');
+  setTimeout(() => bg.drawConstellations(), 500);
   loader?.classList.add('done');
   setTimeout(() => document.body.classList.remove('intro'), 1600);
   if (!state.settings.tutorialDone && !location.hash) setTimeout(() => startTutorial(ui), 1500);

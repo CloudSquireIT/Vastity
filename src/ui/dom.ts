@@ -12,7 +12,10 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<s
     if (k === 'class') el.className = v;
     else if (k === 'html') el.innerHTML = v;
     else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+    else if (k === 'style' && typeof v === 'object') {
+      // le variabili CSS (--nome) vanno impostate con setProperty
+      for (const [sk, sv] of Object.entries(v)) if (sk.startsWith('--')) el.style.setProperty(sk, String(sv)); else (el.style as any)[sk] = sv;
+    }
     else el.setAttribute(k, v === true ? '' : String(v));
   }
   for (const c of children) if (c != null && c !== false) el.append(c);
@@ -24,7 +27,7 @@ export function icon(name: IconName, cls = 'ico') {
 }
 
 export function iconButton(name: IconName, label: string, onclick: (e: MouseEvent) => void, cls = 'ibtn') {
-  return h('button', { class: cls, 'aria-label': label, title: label, onclick }, icon(name), h('span', { class: 'ibtn-label' }, label));
+  return h('button', { class: cls, 'aria-label': label, title: label, 'data-icon': name, onclick }, icon(name), h('span', { class: 'ibtn-label' }, label));
 }
 
 // --- Pannello a scomparsa (bottom sheet su mobile, laterale su desktop) -------

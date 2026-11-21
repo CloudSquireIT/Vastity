@@ -14,6 +14,7 @@ import { bus, saveSettings, setLocation, setTime, state } from '../state';
 import { azName } from '../features/iss';
 import { LANGS, LOCALE, lang, num, setLang, tx } from '../i18n';
 import { objectThumb } from './thumb';
+import { worldTransition } from './fx';
 
 export interface AppApi {
   frame(): SkyFrame;
@@ -28,6 +29,7 @@ export interface AppApi {
   setAR(on: boolean): Promise<boolean>;
   ar(): boolean;
   gl(): WebGL2RenderingContext;
+  landSky(): void;
 }
 
 let api: AppApi;
@@ -82,12 +84,13 @@ export function showInfo(ref: ObjRef) {
     const yr = close ? '' : ` (${formatYear(lj.eventYear)})`;
     body.append(h('div', { class: 'journey' },
       h('div', { class: 'journey-k' }, LJ),
-      h('div', { class: 'journey-big' }, tx(`La luce che vedi è partita ${lj.departureText}`, `The light you see set off ${lj.departureText}`, `La lumière que vous voyez est partie ${lj.departureText}`)),
+      h('div', { class: 'journey-big' }, tx('La luce che vedi è partita ', 'The light you see set off ', 'La lumière que vous voyez est partie '), countUp(lj.departureText)),
       h('p', {}, close
         ? tx(`In quel momento sulla Terra ${lj.event}.`, `At that moment on Earth, ${lj.event}.`, `À ce moment-là sur Terre, ${lj.event}.`)
         : tx(`In quell'epoca sulla Terra ${lj.event}${yr}.`, `Around that time on Earth, ${lj.event}${yr}.`, `À cette époque sur Terre, ${lj.event}${yr}.`)),
       h('div', { class: 'timeline', 'aria-hidden': 'true' },
-        h('div', { class: 'timeline-bar' }, h('div', { class: 'timeline-fill', style: { width: pct + '%' } })),
+        // un fotone parte da "oggi" e viaggia indietro nel tempo fino al momento della partenza
+        h('div', { class: 'timeline-bar' }, h('div', { class: 'timeline-fill photon', style: { '--w': pct + '%' } }, h('i', { class: 'photon-dot' }))),
         h('div', { class: 'timeline-labels' }, h('span', {}, tx('oggi', 'today', 'aujourd\'hui')), h('span', {}, 'Big Bang'))),
       h('p', { class: 'muted' }, lj.mirror),
     ));
@@ -323,12 +326,12 @@ export function openWorlds() {
   const grid = h('div', { class: 'worlds' });
   for (const p of PLACES) {
     const active = state.placeId === p.id;
+    const dotColor = `rgb(${p.ground.map((c) => Math.round(Math.min(1, c * 2.6 + 0.12) * 255)).join(',')})`;
     grid.append(h('button', { class: 'world' + (active ? ' active' : ''), onclick: () => {
-      api.setMode('sky');
-      api.setPlace(p.id);
-      visitPlace(p.id);
       closeSheet();
-      if (p.note) toast(p.note);
+      if (active) return;
+      api.setMode('sky');
+      worldTransition(p.name, dotColor, () => { api.setPlace(p.id); visitPlace(p.id); }, () => { api.landSky(); if (p.note) setTimeout(() => toast(p.note), 900); });
     } },
     h('div', { class: 'world-dot', style: { background: `rgb(${p.ground.map((c) => Math.round(Math.min(1, c * 2.6 + 0.12) * 255)).join(',')})` } }),
     h('div', { class: 'world-n' }, p.name), h('div', { class: 'world-s' }, p.sub)));
@@ -397,6 +400,25 @@ export function openSettings() {
       diagButton()),
   );
   openSheet('settings', tx('Impostazioni', 'Settings', 'Réglages'), body, { wide: true });
+}
+
+/** Testo con un numero (anno) che "scorre" dall'anno attuale a quello finale. */
+function countUp(text: string): HTMLElement {
+  const el = h('span', { class: 'count' }, text);
+  const m = text.match(/-?\d[\d.\s]*/);
+  if (!m || reducedMotion()) return el;
+  const target = parseInt(m[0].replace(/[.\s]/g, ''), 10);
+  const now = new Date(state.time).getFullYear();
+  if (!isFinite(target) || target > now || now - target < 2) return el;
+  const t0 = performance.now(), dur = 1400;
+  const step = (t: number) => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    const y = Math.round(now + (target - now) * e);
+    el.textContent = text.replace(m[0], String(y) + (m[0].endsWith(' ') ? ' ' : ''));
+    if (k < 1 && el.isConnected) requestAnimationFrame(step); else el.textContent = text;
+  };
+  setTimeout(() => requestAnimationFrame(step), 250);
+  return el;
 }
 
 /** Diario delle osservazioni: tutto ciò che hai salvato o trovato, raggruppato per giorno. */

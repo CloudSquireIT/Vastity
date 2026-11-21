@@ -122,6 +122,7 @@ export class ShipView {
   private labelStars: number[] = [];
   private labelScanT = 0;
   private baseFov = 70;
+  private arrivalT = 99;
   static readonly FOV_WIDE = 70;
   static readonly FOV_TELE = 0.3;
   private fov = new SmoothValue(70, 0.6);
@@ -469,12 +470,14 @@ export class ShipView {
     // decollo
     if (this.launch) {
       const L = this.launch;
-      L.t += dt / 4.2;
-      const e = easeInOutCubic(Math.min(1, L.t));
-      const alt = 60 + 2400 * e * e + 40 * e;
+      // decollo cinematografico (~7 s): si sale oltre l'atmosfera fino a vedere la Terra intera
+      L.t += dt / 7;
+      const t = Math.min(1, L.t);
+      const e = easeInOutCubic(t);
+      const alt = 60 + 45000 * Math.pow(e, 2.6);
       this.pos = v3.add(L.base, v3.scale(L.up, alt));
-      // la vista si inclina verso il basso per mostrare la Terra che si allontana
-      this.tq.setFromAxisAngle(this.tv.set(1, 0, 0), -0.55 * e);
+      // prima l'orizzonte che si incurva, poi la vista ruota verso il basso sul pianeta che si allontana
+      this.tq.setFromAxisAngle(this.tv.set(1, 0, 0), -1.32 * smoothstep(0.12, 0.85, t));
       this.quat.copy(L.quat).multiply(this.tq);
       if (L.t >= 1) this.launch = null;
     }
@@ -515,6 +518,9 @@ export class ShipView {
           if (t.look) this.settleLook = t.look;
           this.arrived = refName(this.target);
           this.resetZoom();
+          // arrivo: la camera si avvicina con un piccolo rimbalzo e il mirino si chiude a scatto
+          this.arrivalT = 0;
+          this.marker.classList.remove('snap'); void this.marker.offsetWidth; this.marker.classList.add('snap');
           bus.emit('arrived', this.target);
         } else {
           const aligned = smoothstep(1.1, 0.3, angle);
@@ -563,7 +569,13 @@ export class ShipView {
     // camera: campo visivo che si allarga con la velocità, leggero tremolio nelle accelerazioni
     const calm = reducedMotion();
     const warp = calm ? 0 : smoothstep(4.0, 10.0, Math.log10(Math.max(1, this.speed)));
-    const fov = this.fov.to(this.baseFov + 26 * warp, dt);
+    let pulse = 1;
+    if (this.arrivalT < 1.2 && !calm) {
+      this.arrivalT += dt;
+      const k = Math.min(1, this.arrivalT / 1.2);
+      pulse = 1 - 0.14 * Math.sin(Math.PI * Math.min(1, k * 1.25)) + 0.03 * Math.sin(Math.PI * Math.max(0, k * 1.25 - 1) * 4);
+    }
+    const fov = this.fov.to(this.baseFov * pulse + 26 * warp, dt);
     this.camera.quaternion.copy(this.quat);
     if (this.shake > 0.002 && !calm) {
       const s = this.shake * 0.0035;

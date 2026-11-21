@@ -42,6 +42,7 @@ export const BADGES: Badge[] = [
   { id: 'worlds', name: tx('Turista cosmico', 'Cosmic tourist', 'Touriste cosmique'), desc: tx('Guarda il cielo da 5 mondi diversi', 'View the sky from 5 different worlds', 'Regardez le ciel depuis 5 mondes différents'), icon: '⊕' },
   { id: 'light', name: tx('Quasi luce', 'Almost light', 'Presque la lumière'), desc: tx('Raggiungi il 99% della velocità della luce', 'Reach 99% of the speed of light', 'Atteignez 99 % de la vitesse de la lumière'), icon: 'c' },
   { id: 'star', name: tx('Interstellare', 'Interstellar', 'Interstellaire'), desc: tx('Arriva con la navicella a un\'altra stella', 'Fly the spaceship to another star', 'Rejoignez une autre étoile avec le vaisseau'), icon: '✶' },
+  { id: 'wish', name: tx('Esprimi un desiderio', 'Make a wish', 'Faites un vœu'), desc: tx('Tocca una stella cadente prima che svanisca', 'Tap a shooting star before it fades', 'Touchez une étoile filante avant qu\'elle disparaisse'), icon: '☄' },
   { id: 'andromeda', name: tx('Fuori dalla galassia', 'Beyond the galaxy', 'Hors de la galaxie'), desc: tx('Raggiungi la Galassia di Andromeda', 'Reach the Andromeda Galaxy', 'Atteignez la galaxie d\'Andromède'), icon: '◎' },
 ];
 
@@ -134,7 +135,17 @@ function award(id: string) {
   if (progress.badges[id]) return;
   progress.badges[id] = Date.now();
   const b = BADGES.find((x) => x.id === id);
-  if (b) bus.emit('toast', `${tx('Nuovo badge', 'New badge', 'Nouveau badge')}: ${b.icon} ${b.name}`, 'badge');
+  if (b) bus.emit('badge', b);
+}
+
+/** Badge "segreti" assegnati da eventi dell'interfaccia (es. stella cadente). */
+export function awardSecret(id: string) {
+  if (progress.badges[id]) return false;
+  award(id);
+  progress.xp += 20;
+  persist();
+  bus.emit('progress');
+  return true;
 }
 
 function checkBadges() {

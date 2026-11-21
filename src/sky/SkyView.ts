@@ -52,6 +52,12 @@ void main() {
   float sunSide = pow(max(cosS, 0.0), 3.0);
   c += vec3(1.0, 0.45, 0.18) * tw * (0.15 + 0.85 * sunSide) * hor * 0.9;
   c += vec3(0.25, 0.15, 0.35) * tw * 0.12 * (1.0 - hor);
+  // cintura di Venere: fascia rosata dal lato opposto al Sole, sopra l'ombra della Terra
+  float anti = pow(max(-cosS, 0.0), 1.5);
+  c += vec3(0.6, 0.32, 0.45) * tw * anti * smoothstep(0.02, 0.12, up) * (1.0 - smoothstep(0.12, 0.35, up)) * 0.5;
+  c = mix(c, c * vec3(0.55, 0.6, 0.85), tw * anti * (1.0 - smoothstep(0.0, 0.08, up)) * 0.6);
+  // alone dorato attorno al Sole basso sull'orizzonte
+  c += vec3(1.0, 0.55, 0.22) * tw * pow(max(cosS, 0.0), 10.0) * 0.55;
   c += vec3(1.0, 0.9, 0.75) * pow(max(cosS, 0.0), 64.0) * (day * 0.6 + tw * 0.4);
   c += vec3(0.09, 0.07, 0.05) * uPollution * hor * (1.0 - day);
   vec3 nightBelow = night * 0.85 + vec3(0.02, 0.025, 0.05) * exp(v.y * 14.0);
@@ -239,6 +245,9 @@ export class SkyView {
     if (animate) this.slewing = true;
     else { this.yaw = az; this.pitch = alt; if (fov) this.fov = fov; }
   }
+
+  /** Atterraggio su un nuovo mondo: la vista parte dal basso e sale verso il cielo. */
+  landIn() { this.slewing = true; this.pitch = Math.max(-1.2, this.tPitch - 1.0); this.fov = Math.min(110, this.fov * 1.35); }
 
   setView(azDeg: number, altDeg: number, fov: number) {
     this.yaw = this.tYaw = azDeg * D2R; this.pitch = this.tPitch = altDeg * D2R; this.fov = this.tFov = fov;
@@ -506,7 +515,7 @@ export class SkyView {
       obsPc: this.obsV.set(...this.frame.observerPc), beta: this.zeroV, magLimit: this.magLimit(), spikes: this.hasAtmosphere() ? 0.45 : 0.9,
       pixelScale: dpr * Math.pow(Math.max(1, 60 / this.fov), 0.12), pixPerRad, dim: 1, galaxyDim: galDim,
       linesOpacity: st.constellations ? Math.max(0.28 * (1 - day) * (1 - day), 0.09 * day) : 0,
-      twinkle: this.hasAtmosphere() ? 1 : 0, time: this.time, nearCutPc: 0.002, below,
+      twinkle: this.hasAtmosphere() ? 1 : 0, time: this.time, nearCutPc: 0.002, below, twilight: 4 * day * (1 - day),
     });
 
     // corpi del Sistema Solare
