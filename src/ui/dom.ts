@@ -114,11 +114,12 @@ export function initToasts(root: HTMLElement) {
   root.appendChild(toastWrap);
   bus.on('toast', (msg: string, kind = '') => toast(msg, kind));
 }
-export function toast(msg: string, kind = '') {
+export function toast(msg: string, kind: string | number = '', ms = 4200) {
+  if (typeof kind === 'number') { ms = kind; kind = ''; }
   const t = h('div', { class: `toast ${kind}` }, msg);
   toastWrap.appendChild(t);
   requestAnimationFrame(() => t.classList.add('in'));
-  setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 400); }, 4200);
+  setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 400); }, ms);
 }
 
 export const fmtTime = (d: Date) => d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });

@@ -132,8 +132,14 @@ async function main() {
   const searchBtn = iconButton('search', tx('Cerca', 'Search', 'Chercher'), () => (state.mode === 'ship' ? openSearch((r) => { ship.goTo(r); toast(routeTo(r)); }) : openSearch()), 'ibtn lens');
   const gyroBtn = iconButton('compass', tx('Punta il telefono', 'Point your phone', 'Pointez votre téléphone'), async () => {
     const ok = await sky.setGyro(!state.gyro);
-    if (!ok) toast(tx('Sensori di orientamento non disponibili su questo dispositivo', 'Orientation sensors are not available on this device', 'Capteurs d\'orientation indisponibles sur cet appareil'));
+    if (!ok) gyroFail(sky.gyroError);
   });
+  const gyroFail = (why: string) => toast(why === 'denied'
+    ? tx('Accesso ai sensori negato. Su iPhone: chiudi e riapri Vastity e tocca «Consenti»; in Safari: Impostazioni › App › Safari › Avanzate › Movimento e orientamento.', 'Sensor access denied. On iPhone: close and reopen Vastity and tap “Allow”; in Safari: Settings › Apps › Safari › Advanced › Motion & Orientation Access.', 'Accès aux capteurs refusé. Sur iPhone : fermez et rouvrez Vastity puis touchez « Autoriser » ; dans Safari : Réglages › Apps › Safari › Avancé › Mouvement et orientation.')
+    : why === 'blocked'
+      ? tx('In questa anteprima i sensori sono bloccati: apri Vastity a schermo intero o nell\'app.', 'Sensors are blocked in this embedded preview: open Vastity full screen or in the app.', 'Les capteurs sont bloqués dans cet aperçu : ouvrez Vastity en plein écran ou dans l\'app.')
+      : tx('Questo dispositivo non invia dati di bussola e giroscopio.', 'This device is not sending compass and gyroscope data.', 'Cet appareil n\'envoie pas de données de boussole et gyroscope.'), 6000);
+  bus.on('gyroFail', (w) => gyroFail(String(w)));
   const top = h('div', { class: 'top' }, brand, h('div', { class: 'top-r' }, searchBtn, iconButton('journal', tx('Diario', 'Log', 'Journal'), () => openJournal(), 'ibtn journal-btn'), gyroBtn, iconButton('settings', tx('Impostazioni', 'Settings', 'Réglages'), () => openSettings())));
 
   // controlli del tempo: ora (tocco = presente, pressione lunga = macchina del tempo), indietro, pausa, avanti

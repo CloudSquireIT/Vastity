@@ -1,10 +1,10 @@
 // Ponte verso le funzioni native quando l'app gira dentro Capacitor (iOS/Android):
-// vibrazioni, notifiche locali (anche ad app chiusa) e sensori di orientamento.
+// vibrazioni e notifiche locali (anche ad app chiusa). I sensori di orientamento usano
+// direttamente gli eventi della WebView (bussola vera su iOS, orientamento assoluto su Android).
 // Sul web ogni funzione restituisce false/null e l'app usa le API del browser.
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { Motion } from '@capacitor/motion';
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -31,13 +31,5 @@ export const native = {
       await LocalNotifications.schedule({ notifications: list.map((n) => ({ id: n.id, title: n.title, body: n.body, schedule: { at: n.at, allowWhileIdle: true } })) });
       return true;
     } catch { return false; }
-  },
-  /** Orientamento del telefono dai sensori nativi; restituisce la funzione per smettere o null sul web. */
-  async orientation(cb: (alpha: number, beta: number, gamma: number) => void): Promise<(() => void) | null> {
-    if (!isNative) return null;
-    try {
-      const h = await Motion.addListener('orientation', (e) => cb(e.alpha, e.beta, e.gamma));
-      return () => { h.remove(); };
-    } catch { return null; }
   },
 };

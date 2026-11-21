@@ -20,7 +20,6 @@ import { bus, simDate, state } from '../state';
 import { LabelLayer } from '../ui/labels';
 import { tx } from '../i18n';
 import { PointerHandlers } from '../ui/pointer';
-import { native } from '../core/native';
 
 const D2R = Math.PI / 180;
 
@@ -269,47 +268,89 @@ export class SkyView {
   }
 
   // --- giroscopio -----------------------------------------------------------
-  private stopNative: (() => void) | null = null;
-  private onOrient = (e: DeviceOrientationEvent) => {
+  // Si usano direttamente gli eventi del browser/WebView (anche nell'app nativa): solo così
+  // iOS dà la bussola vera (webkitCompassHeading) e Android l'orientamento assoluto.
+  /** Ultimo problema dei sensori: 'denied' (permesso negato), 'blocked' (anteprima incorporata), 'none'. */
+  gyroError: 'denied' | 'blocked' | 'none' | '' = '';
+  private gyroEvents = 0;
+  private absSeen = false;
+  private offSamples: number[] = [];
+  get gyroLive() { return this.gyroHas; }
+  private onOrientAbs = (e: DeviceOrientationEvent) => { if (e.alpha != null) { this.absSeen = true; this.onOrient(e, true); } };
+  private onOrientRel = (e: DeviceOrientationEvent) => { if (!this.absSeen) this.onOrient(e, !!e.absolute); };
+  private onOrient(e: DeviceOrientationEvent, absolute: boolean) {
     if (e.alpha == null || e.beta == null || e.gamma == null) return;
+    this.gyroEvents++;
     let alpha = e.alpha;
     const heading = (e as any).webkitCompassHeading as number | undefined;
-    if (heading != null && !isNaN(heading)) {
-      const target = 360 - heading;
-      if (this.alphaOffset == null) this.alphaOffset = target - alpha;
-      alpha += this.alphaOffset;
+    const acc = (e as any).webkitCompassAccuracy as number | undefined;
+    if (!absolute && heading != null && !isNaN(heading) && (acc == null || acc < 0 || acc <= 50)) {
+      // iOS: alpha è relativo al punto di partenza; lo agganciamo al nord della bussola con un
+      // offset filtrato (mediana iniziale, poi correzioni lente; scarta i salti di gimbal)
+      // direzione della fotocamera posteriore calcolata dagli angoli relativi (esempio delle
+      // specifiche W3C): webkitCompassHeading è il nord di quella stessa direzione, in qualunque
+      // modo si tenga il telefono (verticale, orizzontale, inclinato)
+      const b = e.beta * D2R, g = e.gamma * D2R, z = alpha * D2R;
+      const vx = -Math.cos(z) * Math.sin(g) - Math.sin(z) * Math.sin(b) * Math.cos(g);
+      const vy = -Math.sin(z) * Math.sin(g) + Math.cos(z) * Math.sin(b) * Math.cos(g);
+      if (Math.hypot(vx, vy) < 0.3) return this.applyOrient(e, alpha); // fotocamera quasi verticale: bussola inaffidabile
+      const relHeading = Math.atan2(vx, vy) / D2R;
+      const off = wrap180(relHeading - heading);
+      if (this.alphaOffset == null) {
+        this.offSamples.push(off);
+        if (this.offSamples.length >= 5) this.alphaOffset = circMedian(this.offSamples);
+      } else {
+        const d = wrap180(off - this.alphaOffset);
+        if (Math.abs(d) < 25) this.alphaOffset = wrap180(this.alphaOffset + d * 0.04);
+      }
     }
+    this.applyOrient(e, alpha);
+  }
+  private applyOrient(e: DeviceOrientationEvent, alpha: number) {
+    if (this.alphaOffset != null) alpha += this.alphaOffset;
     const orient = ((screen.orientation?.angle ?? (window as any).orientation ?? 0) * D2R);
-    const euler = new THREE.Euler(e.beta * D2R, alpha * D2R, -e.gamma * D2R, 'YXZ');
+    const euler = new THREE.Euler(e.beta! * D2R, alpha * D2R, -e.gamma! * D2R, 'YXZ');
     const q = new THREE.Quaternion().setFromEuler(euler);
     q.multiply(new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)));
     q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -orient));
+    // primo campione: salta direttamente lì invece di ruotare da lontano
+    if (!this.gyroHas) this.camera.quaternion.copy(q);
     this.gyroQ.copy(q);
     this.gyroHas = true;
-  };
+  }
 
+  /** Accende/spegne "punta il telefono". La richiesta di permesso di iOS deve essere la prima
+   *  cosa fatta dentro il tocco dell'utente, quindi niente await prima. */
   async setGyro(on: boolean): Promise<boolean> {
+    const w: any = window;
     if (on) {
-      // app nativa: sensori del sistema tramite Capacitor (più stabili del browser)
-      this.stopNative?.();
-      this.stopNative = await native.orientation((alpha, beta, gamma) => this.onOrient({ alpha, beta, gamma } as DeviceOrientationEvent));
-      if (this.stopNative) { this.alphaOffset = null; this.gyroHas = false; state.gyro = true; bus.emit('gyro'); return true; }
-      const DOE = DeviceOrientationEvent as any;
-      if (typeof DOE?.requestPermission === 'function') {
-        try { if ((await DOE.requestPermission()) !== 'granted') return false; } catch { return false; }
+      this.gyroError = '';
+      const DOE = w.DeviceOrientationEvent;
+      if (!DOE) { this.gyroError = 'none'; return false; }
+      if (typeof DOE.requestPermission === 'function') {
+        let r = 'denied';
+        try { r = await DOE.requestPermission(); } catch { r = 'error'; }
+        if (r !== 'granted') { this.gyroError = window.top !== window && r === 'error' ? 'blocked' : 'denied'; return false; }
       }
-      if (typeof DeviceOrientationEvent === 'undefined') return false;
       this.alphaOffset = null;
+      this.offSamples = [];
       this.gyroHas = false;
-      const w: any = window;
-      if ('ondeviceorientationabsolute' in w) w.addEventListener('deviceorientationabsolute' as any, this.onOrient as any);
-      else w.addEventListener('deviceorientation', this.onOrient);
+      this.absSeen = false;
+      this.gyroEvents = 0;
+      w.addEventListener('deviceorientationabsolute', this.onOrientAbs);
+      w.addEventListener('deviceorientation', this.onOrientRel);
       state.gyro = true;
+      // nessun dato dopo 2,5 s: sensori assenti o bloccati (es. anteprima dentro un riquadro)
+      setTimeout(() => {
+        if (state.gyro && this.gyroEvents === 0) {
+          this.gyroError = window.top !== window ? 'blocked' : 'none';
+          this.setGyro(false);
+          bus.emit('gyroFail', this.gyroError);
+        }
+      }, 2500);
     } else {
-      this.stopNative?.();
-      this.stopNative = null;
-      window.removeEventListener('deviceorientationabsolute' as any, this.onOrient);
-      window.removeEventListener('deviceorientation', this.onOrient);
+      w.removeEventListener('deviceorientationabsolute', this.onOrientAbs);
+      w.removeEventListener('deviceorientation', this.onOrientRel);
       state.gyro = false;
     }
     bus.emit('gyro');
@@ -754,4 +795,12 @@ export class SkyView {
   render(renderer: THREE.WebGLRenderer) {
     renderer.render(this.scene, this.camera);
   }
+}
+
+function wrap180(a: number) { return ((a + 540) % 360) - 180; }
+function circMedian(v: number[]) {
+  const x = v.reduce((s, a) => s + Math.cos(a * D2R), 0), y = v.reduce((s, a) => s + Math.sin(a * D2R), 0);
+  const mean = Math.atan2(y, x) / D2R;
+  const d = v.map((a) => wrap180(a - mean)).sort((p, q) => p - q);
+  return wrap180(mean + d[d.length >> 1]);
 }
