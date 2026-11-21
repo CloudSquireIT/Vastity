@@ -84,6 +84,23 @@
             g.fillStyle = gl; g.beginPath(); g.arc(px, py, gr, 0, 6.283); g.fill();
           }
         }
+        // accensione di ogni lettera: un piccolo bagliore stellare dietro di lei, indipendente dalle altre
+        var spans = document.querySelectorAll('#loader .loader-n span');
+        for (var j = 0; j < spans.length; j++) {
+          var lit = +(spans[j].getAttribute('data-lit') || 0);
+          if (!lit || still) continue;
+          var age = (now - lit) / 1000;
+          if (age < 0 || age > 1.4) continue;
+          var rc = spans[j].getBoundingClientRect(), lx = rc.left + rc.width * 0.5, ly = rc.top + rc.height * 0.5;
+          var k2 = 1 - age / 1.4, a2 = 0.32 * k2 * k2 * Math.min(1, age * 6), R = rc.height * (0.45 + 0.35 * (1 - k2));
+          var gg = g.createRadialGradient(lx, ly, 0, lx, ly, R);
+          gg.addColorStop(0, 'rgba(200,218,255,' + a2.toFixed(3) + ')'); gg.addColorStop(1, 'rgba(200,218,255,0)');
+          g.fillStyle = gg; g.beginPath(); g.arc(lx, ly, R, 0, 6.283); g.fill();
+          // raggi sottili a croce, come una stella che si accende
+          g.strokeStyle = 'rgba(220,232,255,' + (a2 * 0.9).toFixed(3) + ')'; g.lineWidth = 1;
+          var Lr = R * 1.6;
+          g.beginPath(); g.moveTo(lx - Lr, ly); g.lineTo(lx + Lr, ly); g.moveTo(lx, ly - Lr * 0.7); g.lineTo(lx, ly + Lr * 0.7); g.stroke();
+        }
         for (var k = 0; k < SH.length; k++) {
           var m = SH[k], u = (t - m.t) / m.d;
           if (u < 0 || u > 1) continue;

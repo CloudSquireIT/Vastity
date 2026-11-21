@@ -2,6 +2,12 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.6.2
+
+- Caricamento: le lettere non fanno più "pulsare" tutto lo schermo. Ognuna si accende come una piccola stella, con un
+  bagliore a croce solo attorno a sé (dietro la scritta), e poi scintilla piano con un ritmo tutto suo;
+  luminosità massima un po' più bassa.
+
 ## 0.6.1
 
 - Caricamento: il cielo non lampeggia più. Scintillio delle stelle lieve e lento, colori fissi (prima cambiavano a

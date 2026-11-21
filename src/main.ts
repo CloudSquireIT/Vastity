@@ -46,7 +46,6 @@ function findHip(hip: string) {
 const routeTo = (r: ObjRef) => tx(`Rotta verso ${refName(r)}`, `Course set for ${refName(r)}`, `Cap sur ${refName(r)}`);
 const LYS = tx('anni luce', 'light years', 'années-lumière');
 const loader = document.getElementById('loader');
-const loaderEl = document.getElementById('loader');
 
 /**
  * Caricamento: le sette lettere V A S T I T Y si accendono una dopo l'altra e fanno da indicatore.
@@ -66,13 +65,17 @@ const loaderReady = new Promise<void>((resolve) => {
     // avanza in modo continuo (mai all'indietro), con un leggero inseguimento per non scattare
     shown = Math.min(1, Math.max(shown, shown + (target - shown) * 0.18));
     if (target >= 1 && shown > 0.995) shown = 1;
+    const now = performance.now() / 1000;
     letters.forEach((el, i) => {
       const b = Math.max(0, Math.min(1, shown * letters.length - i));
       const e = b * b * (3 - 2 * b);
-      el.style.opacity = String(0.12 + 0.88 * e);
-      el.style.transform = still ? '' : `translateY(${((1 - e) * 0.1).toFixed(3)}em)`;
+      // ogni lettera è una piccola stella: si accende da sola (il bagliore lo disegna il cielo, solo attorno a lei)
+      // e poi scintilla piano con il suo ritmo; nessun cambio di luce sull'intero schermo
+      if (e > 0.98 && !el.dataset.lit) el.dataset.lit = String(performance.now());
+      const tw = still || e < 1 ? 1 : 0.93 + 0.07 * Math.sin(now * (0.9 + i * 0.23) + i * 1.7);
+      el.style.opacity = String((0.12 + 0.72 * e) * tw);
+      el.style.transform = still ? '' : `translateY(${((1 - e) * 0.08).toFixed(3)}em)`;
     });
-    loaderEl?.style.setProperty('--p', shown.toFixed(3));
     if (shown >= 1) { setTimeout(resolve, 280); return; }
     requestAnimationFrame(step);
   };
