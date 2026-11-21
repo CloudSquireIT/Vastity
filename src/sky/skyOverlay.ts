@@ -3,7 +3,7 @@
 import * as A from 'astronomy-engine';
 import { V3, v3, bodyById } from '../astro/astro';
 import { AU_IN_KM, PC_IN_KM } from '../data/catalog';
-import { CRAFT, allMoons, leoTrackKm, moonOffsetKm, moonOrbitKm } from '../data/ephem';
+import { CRAFT, allMoons, craftHelioKm, leoTrackKm, moonOffsetKm, moonOrbitKm } from '../data/ephem';
 import { PLANET_TINT } from '../space/smallBodies';
 import { state } from '../state';
 import type { ObjRef } from '../features/objects';
@@ -144,6 +144,31 @@ export class SkyOverlay {
         frag.push(g);
         this.hits.push({ ref: { kind: 'craft', id: c.id }, x: sp.x, y: sp.y });
       }
+    }
+    // sonde e veicoli nello spazio profondo (Tesla Roadster, James Webb, Voyager…): con lo zoom o se selezionati
+    for (const c of CRAFT) {
+      if (c.kind !== 'deep') continue;
+      const isSel = o.selected?.kind === 'craft' && o.selected.id === c.id;
+      if (o.fov > 40 && !isSel) continue;
+      const k = craftHelioKm(c.id, t);
+      if (!k) continue;
+      const p = proj(v3.norm(v3.sub(k, obsKm)));
+      if (!p.front || !above(p.alt) || p.x < 0 || p.x > w || p.y < 0 || p.y > h) continue;
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'sat-pt deep');
+      g.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
+      const dot = document.createElementNS(NS, 'rect');
+      dot.setAttribute('x', '-2.5'); dot.setAttribute('y', '-2.5'); dot.setAttribute('width', '5'); dot.setAttribute('height', '5'); dot.setAttribute('transform', 'rotate(45)');
+      const label = document.createElementNS(NS, 'text');
+      label.setAttribute('y', '-9');
+      label.textContent = c.name;
+      const hit = document.createElementNS(NS, 'circle');
+      hit.setAttribute('r', '16');
+      hit.setAttribute('class', 'hit');
+      g.append(hit, dot, label);
+      g.addEventListener('click', (ev) => { ev.stopPropagation(); this.onPick?.({ kind: 'craft', id: c.id }); });
+      frag.push(g);
+      this.hits.push({ ref: { kind: 'craft', id: c.id }, x: p.x, y: p.y });
     }
     this.layer.replaceChildren(...frag);
   }

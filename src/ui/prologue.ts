@@ -19,14 +19,23 @@ const KEYS: [number, number][] = [
 ];
 const END = KEYS[KEYS.length - 1][0];
 
+// interpolazione cubica monotona (PCHIP): la velocità varia con continuità, senza fermate brusche
+const SLOPES = (() => {
+  const n = KEYS.length, d: number[] = [], m: number[] = new Array(n).fill(0);
+  for (let i = 0; i < n - 1; i++) d.push((KEYS[i + 1][1] - KEYS[i][1]) / (KEYS[i + 1][0] - KEYS[i][0]));
+  m[0] = d[0] * 0.5; m[n - 1] = 0;
+  for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (3 * (d[i - 1] + d[i])) / ((2 * d[i] + d[i - 1]) / d[i - 1] + (d[i] + 2 * d[i - 1]) / d[i]);
+  return m;
+})();
 function logDist(t: number) {
   if (t <= 0) return KEYS[0][1];
   for (let i = 1; i < KEYS.length; i++) {
     const [t1, d1] = KEYS[i];
     const [t0, d0] = KEYS[i - 1];
     if (t <= t1) {
-      const u = (t - t0) / (t1 - t0);
-      return d0 + (d1 - d0) * u * u * (3 - 2 * u);
+      const h = t1 - t0, u = (t - t0) / h;
+      const h00 = 2 * u ** 3 - 3 * u ** 2 + 1, h10 = u ** 3 - 2 * u ** 2 + u, h01 = -2 * u ** 3 + 3 * u ** 2, h11 = u ** 3 - u ** 2;
+      return h00 * d0 + h10 * h * SLOPES[i - 1] + h01 * d1 + h11 * h * SLOPES[i];
     }
   }
   return KEYS[KEYS.length - 1][1];
@@ -76,6 +85,8 @@ export function startPrologue(o: {
   document.body.classList.add('prologue-on');
   o.toShip();
   let shown = -1;
+  let lookDir: V3 | null = null;
+  let camUp: V3 | null = null;
 
   function showCaption(i: number) {
     shown = i;
@@ -139,9 +150,16 @@ export function startPrologue(o: {
       north = v3.norm(north);
       // lo sguardo lascia il centro galattico più lentamente della posizione: la galassia resta in vista
       const lookFocus = mix(E, gc, sm(15.2, 18.0, ld));
-      const lookPt = v3.add(pos, v3.scale(v3.norm(v3.add(v3.scale(v3.norm(v3.sub(lookFocus, pos)), 1 - horizonK), v3.scale(north, horizonK))), Math.max(D, 1000)));
-      const camUp = v3.norm(mix(north, [0, 0, 1], sm(17, 18.5, ld)));
-      ship.placeAt(pos, lookPt, Math.abs(v3.dot(camUp, v3.norm(v3.sub(lookPt, pos)))) > 0.98 ? [1, 0, 0] : camUp);
+      const lookTarget = v3.norm(v3.add(v3.scale(v3.norm(v3.sub(lookFocus, pos)), 1 - horizonK), v3.scale(north, horizonK)));
+      // sguardo e "alto" della camera inseguono il bersaglio con dolcezza: niente scatti né ribaltamenti
+      const kk = 1 - Math.exp(-Math.min(dt, 0.05) * 5);
+      lookDir = lookDir ? v3.norm(mix(lookDir, lookTarget, kk)) : lookTarget;
+      const upGoal = v3.norm(mix(north, [0, 0, 1], sm(17, 18.5, ld)));
+      let u0: V3 = camUp ?? upGoal;
+      u0 = v3.norm(mix(u0, upGoal, kk * 0.6));
+      const ortho = v3.sub(u0, v3.scale(lookDir, v3.dot(u0, lookDir)));
+      if (v3.len(ortho) > 1e-4) camUp = v3.norm(ortho);
+      ship.placeAt(pos, v3.add(pos, v3.scale(lookDir, Math.max(D, 1000))), camUp ?? upGoal);
       // suono del viaggio: l'aria sale quando si attraversano molti ordini di grandezza
       const speedDec = Math.abs(logDist(t + 0.1) - ld) * 10;
       feel.setWarp(Math.min(1, speedDec / 2.5));

@@ -181,7 +181,7 @@ export function openSearch(onPick?: (r: ObjRef) => void) {
     }
     if (!q.trim()) {
       list.append(h('h3', { class: 'sec' }, tx('Suggeriti', 'Suggested', 'Suggestions')));
-      list.append(h('div', { class: 'chips' }, ...quick.map((t) => h('button', { class: 'chip', onclick: () => { input.value = t; render(); } }, t))));
+      list.append(h('div', { class: 'chips row-scroll' }, ...quick.slice(0, 8).map((t) => h('button', { class: 'chip', onclick: () => { input.value = t; render(); } }, t))));
       list.append(h('h3', { class: 'sec' }, tx('Categorie', 'Categories', 'Catégories')));
       list.append(h('div', { class: 'cats' }, ...categories().map((c) => h('button', { class: 'world cat', onclick: () => {
         cat = c; shown = 60; input.value = '';
@@ -198,8 +198,9 @@ export function openSearch(onPick?: (r: ObjRef) => void) {
   input.addEventListener('input', () => { shown = 60; render(); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const r = cat ? filterItems(cat.items, input.value)[0] : search(input.value)[0]; if (r) pick(r.ref); } });
   render();
+  // la tastiera compare solo se si tocca la barra: prima si possono esplorare le categorie
   openSheet('search', state.mode === 'ship' ? tx('Dove vuoi andare?', 'Where do you want to go?', 'Où voulez-vous aller ?') : tx('Cerca nel cielo', 'Search the sky', 'Chercher dans le ciel'), h('div', {}, input, list));
-  setTimeout(() => input.focus(), 250);
+  if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => input.focus(), 250);
 }
 
 // ---------------------------------------------------------------------------

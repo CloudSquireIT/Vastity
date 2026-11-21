@@ -973,24 +973,22 @@ body[data-mode="ship"] .throttle-wrap { top: calc(50% + 30px); height: min(46vh,
   .wl-start { padding: 11px 18px; }
 }
 
-/* ================================================================ marcatore a lineette (stile minimale) */
-/* quattro trattini radiali che ruotano lentamente attorno all'oggetto, in cielo e in navicella */
-@keyframes tick-spin { from { transform: rotate(var(--a)) translateY(var(--r)); } to { transform: rotate(calc(var(--a) + 360deg)) translateY(var(--r)); } }
-@keyframes tick-in { from { opacity: 0; } }
+/* ================================================================ marcatore: triangolo che ruota */
+@keyframes tri-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes tri-in { from { opacity: 0; } }
 .sel-ring.ticks { left: 0; top: 0; width: 0; height: 0; border: 0; box-shadow: none; animation: none; border-radius: 0; --s: 36px; pointer-events: none; }
-.sel-ring.ticks i, .ship-target i {
-  position: absolute; left: -1px; top: -5px; width: 2px; height: 10px; border: 0 !important; border-radius: 1px !important;
-  background: rgba(225, 236, 255, .92); box-shadow: 0 0 6px rgba(150, 190, 255, .45);
-  --r: calc(var(--s) / -2 - 4px); transform: rotate(var(--a)) translateY(var(--r));
-  animation: tick-spin 14s linear infinite, tick-in .45s ease-out; transition: none;
-}
-.sel-ring.ticks i:nth-child(1), .ship-target i:nth-child(1) { --a: 45deg; }
-.sel-ring.ticks i:nth-child(2), .ship-target i:nth-child(2) { --a: 135deg; }
-.sel-ring.ticks i:nth-child(3), .ship-target i:nth-child(3) { --a: 225deg; }
-.sel-ring.ticks i:nth-child(4), .ship-target i:nth-child(4) { --a: 315deg; }
-.ship-target.locked i { background: #9fe8c2; box-shadow: 0 0 8px rgba(127, 224, 176, .6); animation: tick-spin 6s linear infinite; }
-.ship-target.snap i { animation: tick-spin 14s linear infinite, tick-in .45s ease-out; }
-@media (prefers-reduced-motion: reduce) { .sel-ring.ticks i, .ship-target i { animation: none; } }
+.sel-ring.ticks i, .ship-target i { display: none; }
+.tri { position: absolute; left: 0; top: 0; width: calc(var(--s) * 2 + 10px); height: calc(var(--s) * 2 + 10px); transform: translate(-50%, -50%); overflow: visible; pointer-events: none;
+  animation: tri-spin 18s linear infinite, tri-in .5s ease-out; transition: width .35s var(--ease-out, ease), height .35s var(--ease-out, ease); }
+.tri path { fill: none; stroke-linecap: square; vector-effect: non-scaling-stroke; }
+.tri .tri-glow { stroke: rgba(80, 220, 255, .55); stroke-width: 6px; filter: blur(3px); }
+.tri .tri-line { stroke: #8ff0ff; stroke-width: 2.2px; }
+.ship-target.locked .tri .tri-line { stroke: #9fe8c2; }
+.ship-target.locked .tri .tri-glow { stroke: rgba(127, 224, 176, .55); }
+.ship-target.locked .tri { animation-duration: 7s; }
+.ship-target span { top: calc(var(--s) + 12px); }
+.ship-target.top span { top: calc(var(--s) * -1 - 38px); }
+@media (prefers-reduced-motion: reduce) { .tri { animation: none; } }
 
 /* ================================================================ disegni sopra il cielo */
 .sky-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
@@ -1037,3 +1035,44 @@ body.native-dock .bottom .dock { visibility: hidden; }
 .fb-group { display: flex; flex-direction: column; gap: 12px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .06); }
 .fb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .fb-status:empty { display: none; }
+
+/* tutorial: sempre sopra tutto, scheda ferma; durante il tutorial il dock HTML sostituisce quello nativo */
+.tour { z-index: 200 !important; }
+.tour-card { z-index: 201; transition: none !important; max-height: calc(100vh - 140px); overflow: auto; }
+body.native-dock.touring .bottom .dock { visibility: visible; }
+.sky-overlay .sat-pt.deep rect { fill: #ffb27a; }
+.sky-overlay .sat-pt.deep text { fill: #ffcf9f; }
+
+/* ricerca: suggerimenti su una sola riga che scorre, così le categorie restano in vista */
+.chips.row-scroll { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 4px; margin: 0 -2px; }
+.chips.row-scroll::-webkit-scrollbar { display: none; }
+.chips.row-scroll .chip { flex: 0 0 auto; }
+/* in navicella la lente in alto è doppia rispetto a «Vai a» nel dock: si nasconde */
+body[data-mode="ship"] .top-r .ibtn.lens { display: none; }
+/* niente selezione del testo (su iPhone bloccava lo scorrimento delle schede); resta nei campi di testo */
+html, body, .sheet, .sheet * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+.wl-start.off { opacity: .45; }
+.wl-need { margin: 0; font-size: 12.5px; color: var(--warn); }
+.wl-need:empty { display: none; }
+.wl-btn.req.ask { background: var(--accent); color: #05070d; }
+@media (max-height: 430px) {
+  .wl-inner { padding-top: max(10px, var(--safe-t)); padding-bottom: max(10px, var(--safe-b)); gap: 18px; }
+  .wl-side { gap: 7px; }
+  .wl-perms { gap: 6px; }
+  .wl-row { padding: 6px 10px; grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .wl-ico svg { width: 22px; height: 22px; }
+  .wl-txt b { font-size: 13.5px; }
+  .wl-txt span { font-size: 11px; line-height: 1.3; }
+  .wl-btn { padding: 7px 12px; font-size: 12.5px; }
+  .wl-note { display: none; }
+  .wl-need { font-size: 11.5px; }
+  .wl-start { padding: 10px 18px; font-size: 15px; }
+  .wl-k { display: none; }
+}
+@media (max-height: 360px) {
+  .wl-hero p { display: none; }
+  .wl-hero h1 { font-size: 21px; margin: 6px 0 0; }
+  .wl-txt span { display: none; }
+  .wl-row { padding: 5px 10px; }
+}

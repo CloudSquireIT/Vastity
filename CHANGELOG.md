@@ -2,6 +2,18 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.5.1
+
+- Marcatore di selezione: triangolo luminoso che ruota e racchiude sempre l'oggetto (cielo e navicella).
+- Caricamento di almeno 2 secondi con la scritta V A S T I T Y; menu nascosti durante il caricamento.
+- Tutorial fermo al centro, sopra tutto; durante il tutorial il dock nativo lascia il posto a quello evidenziato.
+- ISS raggiungibile con la navicella («Vola fin lì»); immagini dedicate per ISS, Tesla Roadster, Hubble, James Webb e sonde;
+  sonde e Tesla visibili anche nel cielo quando si ingrandisce.
+- Ricerca: suggerimenti su una riga scorrevole, tastiera solo toccando la barra; in navicella una sola lente (nel dock).
+- Niente selezione del testo nelle schede (bloccava lo scorrimento su iPhone).
+- Filmato iniziale più fluido (velocità continua, camera senza scatti).
+- Le notifiche si chiedono solo quando le attivi tu; per iniziare serve l'accesso alla posizione.
+
 ## 0.5.0
 
 - Benvenuto al primo avvio con i permessi spiegati uno alla volta (posizione nativa: niente più richiesta «localhost»).

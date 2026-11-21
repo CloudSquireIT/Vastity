@@ -245,6 +245,7 @@ export function notificationsEnabled() {
 }
 
 export async function requestNotifications(): Promise<boolean> {
+  if (native.isNative) return native.notificationsPermission();
   if (typeof Notification === 'undefined') return false;
   const p = await Notification.requestPermission();
   return p === 'granted';

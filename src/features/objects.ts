@@ -366,8 +366,8 @@ export function info(r: ObjRef, frame: SkyFrame): InfoData {
     title: tx('Stazione Spaziale Internazionale', 'International Space Station', 'Station spatiale internationale'),
     subtitle: tx('Satellite con equipaggio', 'Crewed satellite', 'Satellite habité'),
     facts: [[tx('Quota', 'Altitude', 'Altitude'), '≈ 420 km'], [tx('Velocità', 'Speed', 'Vitesse'), `${num(27600)} km/h`], [tx('Giro della Terra', 'Orbit of Earth', 'Tour de la Terre'), '≈ 92 min']],
-    desc: tx('Il più grande oggetto costruito dall\'uomo nello spazio. Si vede a occhio nudo come una stella che si muove veloce, senza lampeggiare.', 'The largest human-made object in space. It is visible to the naked eye as a fast-moving star that does not blink.', 'Le plus grand objet construit par l\'homme dans l\'espace. On la voit à l\'œil nu comme une étoile qui se déplace vite, sans clignoter.'),
-    canFly: false,
+    desc: tx('Il più grande oggetto costruito dall\'uomo nello spazio. Si vede a occhio nudo come una stella che si muove veloce, senza lampeggiare. Con la navicella puoi raggiungerla e seguirla nella sua orbita.', 'The largest human-made object in space. It is visible to the naked eye as a fast-moving star that does not blink. You can fly the spaceship to it and follow it along its orbit.', 'Le plus grand objet construit par l\'homme dans l\'espace. On la voit à l\'œil nu comme une étoile qui se déplace vite, sans clignoter. Avec le vaisseau, vous pouvez la rejoindre et la suivre sur son orbite.'),
+    canFly: !!craftHelioKm('iss', state.time),
   };
 }
 

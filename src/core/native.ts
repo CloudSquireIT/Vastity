@@ -37,7 +37,8 @@ export const native = {
   async schedule(list: NativeNotification[]): Promise<boolean> {
     if (!isNative) return false;
     try {
-      const perm = await LocalNotifications.requestPermissions();
+      // mai chiedere il permesso da qui: lo chiede solo l'utente, toccando «Notifiche»
+      const perm = await LocalNotifications.checkPermissions();
       if (perm.display !== 'granted') return false;
       const pending = await LocalNotifications.getPending();
       if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });

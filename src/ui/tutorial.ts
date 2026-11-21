@@ -133,13 +133,9 @@ export function startTutorial(root: HTMLElement, kind: 'ui' | 'missions' = 'ui',
       const pad = 8;
       hole.classList.remove('none');
       Object.assign(hole.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px`, borderRadius: s.round ? '999px' : '30px' });
-      const cardH = card.offsetHeight || 220;
-      const below = r.bottom + 20;
-      card.style.top = `${r.top > vh / 2 ? Math.max(16, r.top - cardH - 24) : Math.min(vh - cardH - 16, below)}px`;
-    } else {
-      hole.classList.add('none');
-      card.style.top = `${Math.max(16, vh * 0.5 - (card.offsetHeight || 220) / 2)}px`;
-    }
+    } else hole.classList.add('none');
+    // la scheda resta ferma al centro: i comandi evidenziati stanno ai bordi, così non vengono coperti
+    card.style.top = `${Math.max(12, vh * 0.5 - (card.offsetHeight || 220) / 2 - 18)}px`;
   }
 
   function go(n: number) {

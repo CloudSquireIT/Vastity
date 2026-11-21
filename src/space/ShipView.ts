@@ -8,6 +8,7 @@ import { LOOKS, PT, atmosphereMaterial, bodySphere, planetMaterial, ringMaterial
 import { Streaks } from '../render/streaks';
 import { ExoSystemView } from './exoSystem';
 import { SmallBodies } from './smallBodies';
+import { TRIANGLE_SVG } from '../ui/marker';
 import { craftById, loadEphem, moonById } from '../data/ephem';
 import { refHelioKm, resetSearchIndex } from '../features/objects';
 import { exoHosts, exoplanets, hostPosPc } from '../data/exoplanets';
@@ -231,7 +232,7 @@ export class ShipView {
     // mirino del bersaglio e freccia quando è fuori schermo
     this.marker = document.createElement('div');
     this.marker.className = 'ship-target';
-    this.marker.innerHTML = '<i></i><i></i><i></i><i></i><span></span>';
+    this.marker.innerHTML = TRIANGLE_SVG + '<span></span>';
     this.markerArrow = document.createElement('div');
     this.markerArrow.className = 'sel-arrow ship';
     this.markerArrow.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3l7 12h-14z"/></svg><span></span>';
@@ -1003,7 +1004,7 @@ export class ShipView {
       this.marker.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
       this.marker.style.setProperty('--s', `${size}px`);
       // il nome sta sotto il mirino, o sopra se finirebbe dietro la barra dei comandi
-      const below = p.y + size / 2 + 44 > this.h - 86, above = p.y - size / 2 - 44 < 78;
+      const below = p.y + size + 44 > this.h - 86, above = p.y - size - 44 < 78;
       this.marker.classList.toggle('top', below && !above);
       // se non c'è spazio né sopra né sotto, il nome resta solo nella pillola in alto
       this.marker.classList.toggle('nolabel', below && above);

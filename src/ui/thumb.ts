@@ -223,12 +223,51 @@ function drawMoonBody(id: string) {
   for (let k = 0; k < 14; k++) { const a = r() * 6.28, d = r() * R * 0.8, s = 3 + r() * 10; g.fillStyle = 'rgba(0,0,0,0.16)'; g.beginPath(); g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, s, 0, 6.28); g.fill(); }
   return c;
 }
-function drawCraft() {
+function drawCraft(id: string) {
   const { c, g } = canvas();
-  g.strokeStyle = 'rgba(200,220,255,0.9)'; g.lineWidth = 3; g.lineCap = 'round';
-  const cx = SIZE / 2, cy = SIZE / 2;
-  g.strokeRect(cx - 18, cy - 14, 36, 28);
-  for (const s of [-1, 1]) { g.strokeRect(cx + s * 30 - (s < 0 ? 56 : 0), cy - 24, 56, 48); g.beginPath(); g.moveTo(cx + s * 18, cy); g.lineTo(cx + s * 30, cy); g.stroke(); }
+  const S = SIZE, cx = S / 2, cy = S / 2;
+  // stelle di fondo
+  const r = rng(id.length * 7 + 3);
+  for (let k = 0; k < 40; k++) { g.fillStyle = `rgba(255,255,255,${0.15 + r() * 0.5})`; g.fillRect(r() * S, r() * S, 1.2, 1.2); }
+  const panel = (x: number, y: number, w: number, h: number) => {
+    const gr = g.createLinearGradient(x, y, x + w, y + h); gr.addColorStop(0, '#2a3f78'); gr.addColorStop(1, '#16224a');
+    g.fillStyle = gr; g.fillRect(x, y, w, h); g.strokeStyle = 'rgba(214,170,90,.8)'; g.lineWidth = 1.5; g.strokeRect(x, y, w, h);
+    g.strokeStyle = 'rgba(140,170,255,.25)'; g.lineWidth = 1; for (let k = 1; k < 4; k++) { g.beginPath(); g.moveTo(x, y + (h * k) / 4); g.lineTo(x + w, y + (h * k) / 4); g.stroke(); }
+  };
+  const metal = (x: number, y: number, w: number, h: number, col = '#d9dde6') => { const gr = g.createLinearGradient(x, y, x, y + h); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.5, col); gr.addColorStop(1, '#7d838f'); g.fillStyle = gr; g.fillRect(x, y, w, h); };
+  if (id === 'iss') {
+    metal(cx - 100, cy - 4, 200, 8, '#a9afba');
+    for (const sx of [-1, 1]) for (const k of [0, 1]) for (const sy of [-1, 1]) panel(cx + sx * (62 + k * 24) - 10, sy < 0 ? cy - 58 : cy + 8, 20, 50);
+    metal(cx - 8, cy - 36, 16, 72); metal(cx - 24, cy + 18, 48, 12); for (const x of [-30, 0, 30]) { g.fillStyle = 'rgba(240,244,250,.9)'; g.fillRect(cx + x - 9, cy - 22, 18, 12); }
+  } else if (id === 'tiangong') {
+    metal(cx - 10, cy - 40, 20, 80); metal(cx - 46, cy - 50, 92, 16);
+    for (const sx of [-1, 1]) { panel(cx + sx * 50 - (sx < 0 ? 60 : 0), cy - 54, 60, 24); panel(cx + sx * 14 - (sx < 0 ? 22 : 0), cy + 10, 22, 40); }
+  } else if (id === 'hubble') {
+    g.save(); g.translate(cx, cy); g.rotate(-0.35); metal(-26, -70, 52, 130, '#c9ced8'); g.fillStyle = '#20242c'; g.fillRect(-27, -76, 54, 8);
+    panel(-80, -40, 44, 70); panel(36, -40, 44, 70); g.restore();
+  } else if (id === 'jwst') {
+    g.fillStyle = '#9a86c8'; g.beginPath(); g.moveTo(cx - 100, cy + 40); g.lineTo(cx, cy + 10); g.lineTo(cx + 100, cy + 40); g.lineTo(cx, cy + 75); g.closePath(); g.fill();
+    for (let k = 0; k < 18; k++) {
+      const ring = k < 6 ? 1 : 2; const a = (k % 6) * Math.PI / 3 + (ring === 2 ? Math.PI / 6 : 0); const d = ring * 19;
+      const hx = cx + Math.cos(a) * d * (ring === 2 && k >= 12 ? 1.7 : 1), hy = cy - 30 + Math.sin(a) * d * (ring === 2 && k >= 12 ? 1.7 : 1);
+      g.fillStyle = `hsl(42, 80%, ${55 + (k % 3) * 8}%)`; g.beginPath(); for (let j = 0; j < 6; j++) { const b = j * Math.PI / 3 + Math.PI / 6; g.lineTo(hx + Math.cos(b) * 10, hy + Math.sin(b) * 10); } g.closePath(); g.fill();
+    }
+    g.fillStyle = '#f3d27a'; g.beginPath(); for (let j = 0; j < 6; j++) { const b = j * Math.PI / 3 + Math.PI / 6; g.lineTo(cx + Math.cos(b) * 10, cy - 30 + Math.sin(b) * 10); } g.closePath(); g.fill();
+  } else if (id === 'tesla') {
+    // Roadster rossa di profilo con Starman al volante
+    const red = g.createLinearGradient(0, cy - 20, 0, cy + 20); red.addColorStop(0, '#ff5a5f'); red.addColorStop(1, '#8e0f16');
+    g.fillStyle = red; g.beginPath(); g.moveTo(cx - 92, cy + 14); g.quadraticCurveTo(cx - 90, cy - 6, cx - 60, cy - 10); g.lineTo(cx - 10, cy - 14); g.quadraticCurveTo(cx + 40, cy - 16, cx + 88, cy - 2); g.quadraticCurveTo(cx + 96, cy + 10, cx + 90, cy + 18); g.lineTo(cx - 92, cy + 18); g.closePath(); g.fill();
+    g.fillStyle = '#1b1e25'; for (const x of [-56, 52]) { g.beginPath(); g.arc(cx + x, cy + 18, 15, 0, Math.PI * 2); g.fill(); g.fillStyle = '#5b6170'; g.beginPath(); g.arc(cx + x, cy + 18, 6, 0, Math.PI * 2); g.fill(); g.fillStyle = '#1b1e25'; }
+    g.fillStyle = '#f4f4f4'; g.beginPath(); g.arc(cx - 14, cy - 30, 12, 0, Math.PI * 2); g.fill(); g.fillRect(cx - 22, cy - 22, 16, 16);
+    g.fillStyle = '#26324a'; g.beginPath(); g.arc(cx - 11, cy - 31, 6, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(120,180,255,.18)'; g.beginPath(); g.arc(cx, cy + 60, 140, Math.PI * 1.15, Math.PI * 1.85); g.fill();
+  } else {
+    // sonde: antenna parabolica e bracci
+    g.strokeStyle = '#cfd5df'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 90, cy + 40); g.moveTo(cx, cy); g.lineTo(cx - 70, cy + 50); g.stroke();
+    const dg = g.createRadialGradient(cx - 10, cy - 30, 4, cx, cy - 20, 50); dg.addColorStop(0, '#ffffff'); dg.addColorStop(1, '#9aa2b0');
+    g.fillStyle = dg; g.beginPath(); g.ellipse(cx, cy - 20, 50, 22, -0.25, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#d6aa5a'; g.fillRect(cx - 14, cy - 4, 28, 20);
+  }
   return c;
 }
 
@@ -258,7 +297,7 @@ export function objectThumb(ref: ObjRef): HTMLElement {
   }
   else if (ref.kind === 'exo') cv = drawExoplanet(ref.index);
   else if (ref.kind === 'moon') cv = drawMoonBody(ref.id);
-  else if (ref.kind === 'craft') cv = drawCraft();
+  else if (ref.kind === 'craft') cv = drawCraft(ref.id);
   else cv = drawMessier('oc', 1);
   wrap.appendChild(cv);
   wrap.classList.add('render');

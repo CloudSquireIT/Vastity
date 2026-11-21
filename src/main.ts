@@ -210,12 +210,12 @@ async function main() {
       const btn = (m === 'ship' ? dockShip : dockSky).querySelectorAll('.dbtn')[+i] as HTMLElement | undefined;
       btn?.click();
     }).catch(() => {});
-    showDock();
-    bus.on('mode', showDock);
+    bus.on('loaded', showDock);
+    bus.on('mode', () => { if (!document.body.classList.contains('loading')) showDock(); });
     let lastVis = true;
     const syncDock = () => {
       const b = document.body.classList;
-      const vis = !(b.contains('ui-hidden') || b.contains('prologue-on') || b.contains('idle') || b.contains('welcome-on') || b.contains('touring-tour-hide'));
+      const vis = !(b.contains('loading') || b.contains('ui-hidden') || b.contains('prologue-on') || b.contains('idle') || b.contains('welcome-on') || b.contains('touring'));
       if (vis !== lastVis) { lastVis = vis; GlassDock.setVisible({ visible: vis }).catch(() => {}); }
     };
     new MutationObserver(syncDock).observe(document.body, { attributes: true, attributeFilter: ['class'], childList: true });
@@ -632,6 +632,11 @@ async function main() {
     }
   }
   renderer.setAnimationLoop(frame);
+  // il caricamento resta almeno 2 secondi (la scritta V A S T I T Y si legge); i menu restano nascosti
+  const waitMs = Math.max(0, 2000 - performance.now());
+  if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
+  document.body.classList.remove('loading');
+  bus.emit('loaded');
   // uscita dal caricamento: si entra nel buco nero, poi il cielo appare
   document.body.classList.add('intro');
   setTimeout(() => bg.drawConstellations(), 500);

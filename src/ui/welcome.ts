@@ -30,18 +30,30 @@ export function showWelcome(o: { root: HTMLElement; locate: () => Promise<boolea
   const paint = () => {
     list.replaceChildren(...rows.map((r) => {
       const st = states[r.key] ?? 'ask';
-      const btn = h('button', { class: `wl-btn ${st}`, disabled: st !== 'ask', onclick: async () => {
+      // la posizione è obbligatoria: se negata si può riprovare
+      const retry = r.key === 'loc' && st === 'no';
+      const btn = h('button', { class: `wl-btn ${st}${r.key === 'loc' ? ' req' : ''}`, disabled: st === 'ok' || (st === 'no' && !retry), onclick: async () => {
         btn.classList.add('busy');
         const ok = await r.run().catch(() => false);
         states[r.key] = ok ? 'ok' : 'no';
         feel.toggle(ok);
-        paint();
-      } }, st === 'ok' ? tx('Attivo', 'On', 'Activé') : st === 'no' ? tx('Non ora', 'Not now', 'Pas maintenant') : tx('Consenti', 'Allow', 'Autoriser'));
+        paintAll();
+      } }, st === 'ok' ? tx('Attivo', 'On', 'Activé') : retry ? tx('Riprova', 'Try again', 'Réessayer') : st === 'no' ? tx('Non ora', 'Not now', 'Pas maintenant') : tx('Consenti', 'Allow', 'Autoriser'));
       return h('div', { class: 'wl-row' }, h('span', { class: 'wl-ico', html: r.icon }), h('div', { class: 'wl-txt' }, h('b', {}, r.t), h('span', {}, r.d)), btn);
     }));
   };
-  paint();
-  const start = h('button', { class: 'wl-start', onclick: () => {
+  const need = h('p', { class: 'wl-need', role: 'status' });
+  const paintAll = () => {
+    paint();
+    const ok = states.loc === 'ok';
+    start.disabled = !ok;
+    start.classList.toggle('off', !ok);
+    need.textContent = ok ? '' : states.loc === 'no'
+      ? tx('Senza la posizione non possiamo mostrarti il tuo cielo. Attivala in Impostazioni › Vastity › Posizione, poi tocca «Riprova».', 'Without your location we can\'t show you your sky. Turn it on in Settings › Vastity › Location, then tap “Try again”.', 'Sans votre position, impossible de vous montrer votre ciel. Activez-la dans Réglages › Vastity › Position, puis touchez « Réessayer ».')
+      : tx('Per iniziare serve almeno la posizione.', 'To begin, location access is required.', 'Pour commencer, la position est nécessaire.');
+  };
+  const start = h('button', { class: 'wl-start off', disabled: true, onclick: () => {
+    if (states.loc !== 'ok') return;
     feel.unlock();
     state.settings.welcomeDone = true;
     saveSettings();
@@ -60,8 +72,10 @@ export function showWelcome(o: { root: HTMLElement; locate: () => Promise<boolea
       h('div', { class: 'wl-side' },
         h('div', { class: 'wl-k' }, tx('Prima di partire', 'Before we leave', 'Avant de partir')),
         list,
+        need,
         h('p', { class: 'wl-note' }, tx('Puoi cambiare idea quando vuoi nelle impostazioni del telefono.', 'You can change your mind any time in your phone settings.', 'Vous pouvez changer d\'avis à tout moment dans les réglages du téléphone.')),
         start)));
+  paintAll();
   o.root.appendChild(el);
   document.body.classList.add('welcome-on');
   requestAnimationFrame(() => el.classList.add('in'));
