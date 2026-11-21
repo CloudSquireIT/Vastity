@@ -2,6 +2,15 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.6.3
+
+- Corretto il pulsare di tutto lo schermo durante il caricamento: la regola `.loading` (pensata per i testi
+  "caricamento…" dei pannelli) colpiva anche il `<body>`, che all'avvio ha la classe `loading`, e lo faceva
+  respirare (opacità 1 → 0,4 ogni 1,6 s). Ora vale solo per i pannelli.
+- Lettere del caricamento: tolto il bagliore a croce, resta l'accensione di prima.
+- «Primo viaggio» compare 25 secondi dopo la fine del primo tutorial ed è un po' più in basso (non tocca più
+  l'intestazione della navicella).
+
 ## 0.6.2
 
 - Caricamento: le lettere non fanno più "pulsare" tutto lo schermo. Ognuna si accende come una piccola stella, con un

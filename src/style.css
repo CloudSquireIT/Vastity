@@ -145,7 +145,8 @@ p { margin: 8px 0; }
 .muted { color: var(--ink-3); }
 .small { font-size: 12px; }
 .pad { padding: 10px 0; }
-.loading { color: var(--ink-3); padding: 30px 0; text-align: center; animation: breathe 1.6s infinite ease-in-out; }
+/* testo "caricamento…" nei pannelli; NON il body (che ha la classe loading all'avvio: farebbe pulsare tutta la pagina) */
+:not(body).loading { color: var(--ink-3); padding: 30px 0; text-align: center; animation: breathe 1.6s infinite ease-in-out; }
 @keyframes breathe { 50% { opacity: .4; } }
 
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 14px; background: rgba(255, 255, 255, .06); border: 1px solid var(--line); font-size: 14px; color: var(--ink); transition: background .2s; }
@@ -896,7 +897,7 @@ body[data-mode="sky"] .warp-tunnel { display: none; }
 body.prologue-on .ui, body.prologue-on .overlay, body.prologue-on .warp-tunnel { opacity: 0 !important; pointer-events: none !important; }
 
 /* ================================================================ primo viaggio (missione guidata) */
-.trip-card { position: absolute; left: calc(14px + env(safe-area-inset-left, 0px)); top: calc(70px + var(--safe-t)); width: min(250px, 42vw); padding: 11px 32px 12px 14px; border-radius: 16px; background: var(--lg-fill-strong); -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur); box-shadow: var(--lg-shadow); opacity: 0; transform: translateX(-12px); transition: opacity .6s ease, transform .6s var(--ease-out, ease); }
+.trip-card { position: absolute; left: calc(14px + env(safe-area-inset-left, 0px)); top: calc(84px + var(--safe-t)); width: min(250px, 42vw); padding: 11px 32px 12px 14px; border-radius: 16px; background: var(--lg-fill-strong); -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur); box-shadow: var(--lg-shadow); opacity: 0; transform: translateX(-12px); transition: opacity .6s ease, transform .6s var(--ease-out, ease); }
 .trip-card.in { opacity: 1; transform: none; }
 .trip-card.out { opacity: 0; transform: translateX(-12px); }
 .trip-card.pulse { animation: trip-pulse .9s var(--ease-out, ease); }
@@ -910,7 +911,7 @@ body.prologue-on .ui, body.prologue-on .overlay, body.prologue-on .warp-tunnel {
 .trip-h { margin-top: 3px; font-size: 12px; line-height: 1.4; color: var(--ink-2); }
 .trip-x { position: absolute; right: 6px; top: 5px; width: 26px; height: 26px; border-radius: 50%; font-size: 17px; color: var(--ink-3); }
 body.idle .trip-card { opacity: .35; }
-@media (max-height: 430px) { .trip-card { top: calc(58px + var(--safe-t)); } .trip-h { font-size: 11.5px; } }
+@media (max-height: 430px) { .trip-card { top: calc(70px + var(--safe-t)); } .trip-h { font-size: 11.5px; } }
 
 /* ================================================================ racconti e tour */
 .story { margin: 14px 0 4px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(135deg, rgba(143, 180, 255, .1), rgba(201, 219, 255, .03)); border: 1px solid rgba(143, 180, 255, .16); }

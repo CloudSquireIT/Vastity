@@ -65,16 +65,11 @@ const loaderReady = new Promise<void>((resolve) => {
     // avanza in modo continuo (mai all'indietro), con un leggero inseguimento per non scattare
     shown = Math.min(1, Math.max(shown, shown + (target - shown) * 0.18));
     if (target >= 1 && shown > 0.995) shown = 1;
-    const now = performance.now() / 1000;
     letters.forEach((el, i) => {
       const b = Math.max(0, Math.min(1, shown * letters.length - i));
       const e = b * b * (3 - 2 * b);
-      // ogni lettera è una piccola stella: si accende da sola (il bagliore lo disegna il cielo, solo attorno a lei)
-      // e poi scintilla piano con il suo ritmo; nessun cambio di luce sull'intero schermo
-      if (e > 0.98 && !el.dataset.lit) el.dataset.lit = String(performance.now());
-      const tw = still || e < 1 ? 1 : 0.93 + 0.07 * Math.sin(now * (0.9 + i * 0.23) + i * 1.7);
-      el.style.opacity = String((0.12 + 0.72 * e) * tw);
-      el.style.transform = still ? '' : `translateY(${((1 - e) * 0.08).toFixed(3)}em)`;
+      el.style.opacity = String(0.12 + 0.88 * e);
+      el.style.transform = still ? '' : `translateY(${((1 - e) * 0.1).toFixed(3)}em)`;
     });
     if (shown >= 1) { setTimeout(resolve, 280); return; }
     requestAnimationFrame(step);
@@ -709,7 +704,9 @@ async function main() {
       startFirstTrip(ui);
       if (!state.settings.missionTutorialDone) setTimeout(() => startTutorial(ui, 'missions'), 1100);
     };
-    if (!state.settings.tutorialDone) setTimeout(() => startTutorial(ui, 'ui', () => { revealMissions(); setTimeout(missions, 400); }), 1400);
+    // la finestra «Primo viaggio» compare 25 secondi dopo la fine del primo tutorial (non prima):
+    // intanto ci si gode il cielo
+    if (!state.settings.tutorialDone) setTimeout(() => startTutorial(ui, 'ui', () => { revealMissions(); setTimeout(missions, 25000); }), 1400);
     else { setTimeout(revealMissions, 500); setTimeout(missions, 900); }
   };
   function revealMissions() { document.body.classList.add('missions-ready'); }
