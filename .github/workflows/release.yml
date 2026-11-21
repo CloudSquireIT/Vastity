@@ -83,25 +83,42 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: echo "VER=${VER:-v$(node -p "require('./package.json').version")}" >> $GITHUB_ENV
       - run: npm run build && npx cap sync ios
-      - name: Compila per il simulatore (verifica, senza firma)
+      - name: Compila per iPhone (senza firma) e crea il .ipa
         run: |
           cd ios/App
           xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
-            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build | tail -20
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -15
+          APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qry "$GITHUB_WORKSPACE/vastity-$VER-unsigned.ipa" Payload
+      - name: Compila per il simulatore iOS (verifica)
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath simbuild \
+            CODE_SIGNING_ALLOWED=NO build | tail -5
+          cd simbuild/Build/Products/Release-iphonesimulator && zip -qry "$GITHUB_WORKSPACE/vastity-$VER-simulator.app.zip" App.app
+      - uses: actions/upload-artifact@v4
+        with: { name: ios, path: 'vastity-*' }
 
   release:
-    needs: [web, android]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [web, android, ios]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with: { path: artifacts }
+      - run: echo "TAG=${VER:-v1.0.0}" >> $GITHUB_ENV
+      # crea (o aggiorna) la release e il suo tag anche quando la pipeline è avviata a mano
       - uses: softprops/action-gh-release@v2
         with:
-          name: Vastity ${{ github.ref_name }}
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Vastity ${{ env.TAG }}
           generate_release_notes: true
           files: |
             artifacts/web/*
             artifacts/android/*
+            artifacts/ios/*
