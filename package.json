@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "data": "node scripts/build-data.mjs",
     "test:devices": "node tests/device-check.mjs",
-    "cap:sync": "npm run build && npx cap sync",
+    "cap:sync": "VASTITY_NATIVE=1 npm run build && npx cap sync",
     "cap:assets": "capacitor-assets generate --iconBackgroundColor '#03050c' --iconBackgroundColorDark '#03050c' --splashBackgroundColor '#03050c' --splashBackgroundColorDark '#03050c' --android --ios",
     "test:accuracy": "node tests/accuracy.cjs"
   },

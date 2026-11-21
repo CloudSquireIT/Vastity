@@ -1,6 +1,7 @@
 // Esopianeti confermati (NASA Exoplanet Archive) con un render 3D generato dai dati reali:
 // la classe (gioviano caldo, nettuniano, super-Terra, mondo di lava, oceano, ghiaccio…) dipende
 // da raggio e temperatura di equilibrio; la texture è procedurale e varia per ogni pianeta.
+import { dataFetch } from '../core/remote';
 import * as THREE from 'three';
 import { tx } from '../i18n';
 import { radecToVec } from './catalog';
@@ -18,7 +19,7 @@ let methods: string[] = [];
 
 export async function loadExoplanets() {
   try {
-    const d = await (await fetch('data/exoplanets.json')).json();
+    const d = await (await dataFetch('data/exoplanets.json')).json();
     methods = d.methods;
     exoHosts = d.hosts.map((h: any[]) => ({ name: h[0], ra: h[1], dec: h[2], distPc: h[3], teff: h[4], radiusSun: h[5], planets: [] }));
     exoplanets = d.planets.map((p: any[], i: number) => {

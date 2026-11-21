@@ -1,0 +1,3 @@
+"NSLocationWhenInUseUsageDescription" = "Vastity usa la tua posizione per mostrarti il cielo esattamente come lo vedi da dove sei.";
+"NSMotionUsageDescription" = "Vastity usa i sensori di movimento per mostrare la parte di cielo verso cui punti il telefono.";
+"NSCameraUsageDescription" = "Vastity usa la fotocamera per la realtà aumentata: le stelle e i pianeti sopra il cielo vero.";

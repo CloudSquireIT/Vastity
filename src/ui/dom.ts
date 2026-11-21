@@ -79,6 +79,7 @@ export function initSheet(root: HTMLElement) {
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 }
 
+let returnFocus: HTMLElement | null = null;
 export function openSheet(id: string, title: string, body: Node, opts: { wide?: boolean; onClose?: () => void; compact?: boolean; peek?: boolean } = {}) {
   if (current && current !== id) onCloseCb?.();
   if (!current) feel.open();
@@ -93,12 +94,19 @@ export function openSheet(id: string, title: string, body: Node, opts: { wide?: 
   sheetEl.dataset.peekable = opts.peek ? '1' : '';
   sheetEl.classList.add('open');
   document.body.classList.add('sheet-open');
+  // lettori di schermo: il pannello prende il fuoco sul titolo; alla chiusura il fuoco torna dov'era
+  if (!returnFocus) returnFocus = document.activeElement as HTMLElement | null;
+  sheetEl.setAttribute('aria-label', title);
+  sheetTitle.setAttribute('tabindex', '-1');
+  requestAnimationFrame(() => sheetTitle.focus({ preventScroll: true }));
   bus.emit('sheet', id);
 }
 
 export function closeSheet() {
   if (!current) return;
   feel.close();
+  const rf = returnFocus; returnFocus = null;
+  if (rf && document.contains(rf)) setTimeout(() => rf.focus({ preventScroll: true }), 50);
   const cb = onCloseCb;
   current = null;
   onCloseCb = null;

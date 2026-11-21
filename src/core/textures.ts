@@ -2,6 +2,7 @@
 // Fonte: Solar System Scope (CC BY 4.0), basate su dati NASA.
 import * as THREE from 'three';
 import { quality } from './quality';
+import { texture4kUrl } from './remote';
 
 const HI_RES = new Set(['earth', 'moon', 'mars', 'jupiter', 'milkyway']);
 const cache = new Map<string, THREE.Texture>();
@@ -11,9 +12,9 @@ const bitmapOK = typeof createImageBitmap === 'function';
 const bitmapLoader = new THREE.ImageBitmapLoader();
 bitmapLoader.setOptions({ imageOrientation: 'flipY', premultiplyAlpha: 'none' });
 
-function loadImage(url: string, onLoad: (img: any, isBitmap: boolean) => void) {
-  if (bitmapOK) bitmapLoader.load(url, (b) => onLoad(b, true), undefined, () => loader.load(url, (t) => onLoad(t.image, false)));
-  else loader.load(url, (t) => onLoad(t.image, false));
+function loadImage(url: string, onLoad: (img: any, isBitmap: boolean) => void, onError?: () => void) {
+  if (bitmapOK) bitmapLoader.load(url, (b) => onLoad(b, true), undefined, () => loader.load(url, (t) => onLoad(t.image, false), undefined, onError));
+  else loader.load(url, (t) => onLoad(t.image, false), undefined, onError);
 }
 let maxAniso = 4;
 
@@ -50,7 +51,9 @@ export function planetTexture(name: string, color = true): THREE.Texture {
   if (final !== '1k') {
     loadImage(`textures/1k/${name}.webp`, (img, b) => { if (!tex.userData.final) apply(img, b); });
   }
-  loadImage(`textures/${final}/${name}.webp`, (img, b) => { tex.userData.final = true; apply(img, b); });
+  const done = (img: any, b: boolean) => { tex.userData.final = true; apply(img, b); };
+  if (final === '4k') loadImage(texture4kUrl(name), done, () => loadImage(`textures/2k/${name}.webp`, done));
+  else loadImage(`textures/${final}/${name}.webp`, done);
   return tex;
 }
 

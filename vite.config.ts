@@ -26,6 +26,15 @@ function precache(): Plugin {
       for (const f of files.sort()) h.update(f + fs.statSync(path.join(dist, f)).size);
       files.unshift('./');
       fs.writeFileSync(path.join(dist, 'precache.json'), JSON.stringify({ version: h.digest('hex').slice(0, 10), files }));
+      // versioni dei file di dati aggiornabili (l'app confronta questo file con quello del sito)
+      const ver: Record<string, string> = {};
+      for (const f of ['data/exoplanets.json', 'data/deepsky.json', 'data/galaxy-photos.json']) {
+        const p = path.join(dist, f);
+        if (fs.existsSync(p)) ver[f] = createHash('sha1').update(fs.readFileSync(p)).digest('hex').slice(0, 12);
+      }
+      fs.writeFileSync(path.join(dist, 'data/version.json'), JSON.stringify({ built: new Date().toISOString(), files: ver }));
+      // app nativa: le texture 4K restano sul sito (scaricate solo con qualità Ultra) → pacchetto più leggero
+      if (process.env.VASTITY_NATIVE) fs.rmSync(path.join(dist, 'textures/4k'), { recursive: true, force: true });
     },
   };
 }

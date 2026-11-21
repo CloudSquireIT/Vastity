@@ -22,6 +22,8 @@ import { AdaptiveResolution } from './core/quality';
 import { feel, reducedMotion } from './core/feel';
 import { initDiagnostics } from './core/diagnostics';
 import { initTextures } from './core/textures';
+import { azName } from './features/iss';
+import { checkDataUpdates } from './core/remote';
 import { startTutorial } from './ui/tutorial';
 import { Prologue, startPrologue } from './ui/prologue';
 import { startFirstTrip } from './features/firstTrip';
@@ -58,6 +60,8 @@ async function main() {
   initTextures(renderer);
   renderer.setClearColor(0x000000, 1);
   renderer.domElement.className = 'gl';
+  renderer.domElement.setAttribute('role', 'img');
+  renderer.domElement.setAttribute('aria-label', tx('Cielo interattivo: trascina per guardarti intorno, tocca un oggetto per le informazioni', 'Interactive sky: drag to look around, tap an object for details', 'Ciel interactif : glissez pour regarder autour, touchez un objet pour les détails'));
   const video = h('video', { class: 'ar-video', playsinline: true, muted: true, autoplay: true }) as HTMLVideoElement;
   app.append(video, renderer.domElement);
   const overlay = h('div', { class: 'overlay' });
@@ -478,6 +482,9 @@ async function main() {
 
   // ------------------------------------------------------------------ missioni
   let holdRef: ObjRef | null = null, holdT = 0, warnedLive = false;
+  let srTimer = 0;
+  const srDesc = h('div', { class: 'sr-only', 'aria-live': 'polite', role: 'status' });
+  ui.appendChild(srDesc);
   function checkMissions(dt: number) {
     const active = activeMissions();
     reticle.classList.toggle('on', state.mode === 'sky' && (active.length > 0 || state.gyro));
@@ -488,6 +495,9 @@ async function main() {
     const hit = hits.find((x) => active.some((m) => sameRef(m.ref, x.ref)) && x.sep < tol(x.ref));
     const closest = hits.find((x) => x.ref.kind !== 'constellation' && x.sep < 3) ?? hits.find((x) => x.sep < tol(x.ref));
     name.textContent = state.gyro && closest ? refName(closest.ref) : hit ? refName(hit.ref) : '';
+    // descrizione per VoiceOver/TalkBack: direzione e oggetti al centro, solo quando cambiano
+    const desc = `${tx('Guardi verso', 'Looking', 'Vous regardez vers')} ${azName(sky.viewAz)}, ${Math.round(sky.viewAlt)}°${hits.length ? ' · ' + hits.slice(0, 3).map((x) => refName(x.ref)).join(', ') : ''}`;
+    if (desc !== srDesc.dataset.last) { srDesc.dataset.last = desc; clearTimeout(srTimer); srTimer = window.setTimeout(() => { srDesc.textContent = desc; }, 1200); }
     if (hit && sameRef(hit.ref, holdRef)) holdT += dt;
     else { holdRef = hit?.ref ?? null; holdT = 0; }
     reticle.style.setProperty('--hold', String(Math.min(1, holdT / 1.5)));
@@ -602,7 +612,8 @@ async function main() {
   else if (!location.hash) afterOpening();
   setTimeout(() => loader?.remove(), 1300);
 
-  // dati di rete in secondo piano
+  // dati di rete in secondo piano; aggiornamenti del catalogo dal sito (usati al prossimo avvio)
+  setTimeout(() => checkDataUpdates().then((g) => { if (g.length) console.info('Vastity: dati aggiornati', g); }), 9000);
   loadISS().then(() => { ensureDailyMissions(); updateHud(); refreshAlerts(); }).catch(() => { ensureDailyMissions(); updateHud(); });
   bus.on('alerts', (ev: any[]) => {
     const today = ev.filter((e) => e.quality > 0 && e.date.getTime() - Date.now() < 12 * 3600e3 && e.date.getTime() > Date.now());

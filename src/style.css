@@ -928,3 +928,8 @@ body.idle .trip-card { opacity: .35; }
 .tc-a .btn { padding: 8px 14px; font-size: 13.5px; }
 body.touring-tour .telemetry { opacity: .55; }
 @media (max-height: 430px) { .tour-card { bottom: calc(70px + var(--safe-b)); } .tc-p { font-size: 13px; max-height: 22vh; } }
+
+/* accessibilità: testo solo per i lettori di schermo; fuoco visibile da tastiera */
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sheet-title:focus { outline: none; }

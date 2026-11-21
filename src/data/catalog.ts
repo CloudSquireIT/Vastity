@@ -1,4 +1,5 @@
 // Caricamento dei cataloghi (stelle HYG, costellazioni, Messier) e utilità.
+import { dataFetch } from '../core/remote';
 import { lang, tx } from '../i18n';
 import { EXTRA_STARS, GalaxyShape, deepObjects } from './deep';
 import { localName } from './names';
@@ -85,7 +86,7 @@ export function setLoadProgress(cb: (p: number) => void) { onLoadProgress = cb; 
 
 /** Scarica un file riportando l'avanzamento (se il server indica la dimensione). */
 async function fetchBuffer(url: string, weight: number, done: { v: number }): Promise<ArrayBuffer> {
-  const r = await fetch(url);
+  const r = await dataFetch(url);
   const total = +(r.headers.get('content-length') ?? 0);
   if (!r.body || !total) { const b = await r.arrayBuffer(); done.v += weight; onLoadProgress?.(done.v); return b; }
   const reader = r.body.getReader();

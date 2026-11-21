@@ -1,0 +1,38 @@
+# Aggiornamento mensile dei dati senza un server: rigenera il catalogo degli esopianeti dall'archivio
+# NASA e ripubblica il sito statico (GitHub Pages). Le app installate confrontano data/version.json
+# e scaricano in background i file cambiati (src/core/remote.ts).
+name: Data refresh
+
+on:
+  schedule:
+    - cron: '17 4 3 * *'   # il 3 di ogni mese alle 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency: { group: pages, cancel-in-progress: false }
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Esopianeti confermati (NASA Exoplanet Archive)
+        run: node scripts/build-exoplanets.mjs || echo "Archivio NASA non raggiungibile: si tengono i dati attuali"
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dist }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.deploy.outputs.page_url }}' }
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
