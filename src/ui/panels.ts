@@ -349,7 +349,7 @@ export function openWorlds() {
 function toggle(label: string, value: boolean, on: (v: boolean) => void) {
   const inp = h('input', { type: 'checkbox' }) as HTMLInputElement;
   inp.checked = value;
-  inp.addEventListener('change', () => on(inp.checked));
+  inp.addEventListener('change', () => { feel.toggle(inp.checked); on(inp.checked); });
   return h('label', { class: 'toggle' }, h('span', {}, label), inp, h('span', { class: 'switch' }));
 }
 
@@ -391,7 +391,8 @@ export function openSettings() {
       h('button', { class: 'btn', onclick: () => api.tutorial() }, icon('eye'), tx('Rivedi il tutorial', 'Replay the tutorial', 'Revoir le tutoriel')),
       h('button', { class: 'btn', onclick: () => api.opening() }, icon('play'), tx('Rivedi l\'apertura', 'Replay the opening', 'Revoir l\'ouverture'))),
     h('h3', {}, tx('Suoni e vibrazioni', 'Sound and haptics', 'Sons et vibrations')),
-    toggle(tx('Suoni ambientali ed effetti', 'Ambient sound and effects', 'Sons d\'ambiance et effets'), st.sound !== false, (v) => { st.sound = v; saveSettings(); feel.refresh(); }),
+    toggle(tx('Suoni ed effetti', 'Sound and effects', 'Sons et effets'), st.sound !== false, (v) => { st.sound = v; saveSettings(); feel.refresh(); }),
+    toggle(tx('Musica ambientale', 'Ambient music', 'Musique d\'ambiance'), st.music !== false, (v) => { st.music = v; saveSettings(); feel.refresh(); }),
     toggle(tx('Vibrazioni leggere', 'Light haptics', 'Vibrations légères'), st.haptics !== false, (v) => { st.haptics = v; saveSettings(); }),
     h('h3', {}, tx('Accessibilità', 'Accessibility', 'Accessibilité')),
     toggle(tx('Riduci movimento (meno scosse, scie e flash)', 'Reduce motion (fewer shakes, streaks and flashes)', 'Réduire les animations (moins de secousses, traînées et flashs)'), reducedMotion(), (v) => { st.reduceMotion = v; saveSettings(); applyAccessibility(); }),

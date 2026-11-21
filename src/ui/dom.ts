@@ -1,6 +1,7 @@
 // Piccole utilità DOM: creazione elementi, pannelli a scomparsa, notifiche "toast".
 import { IconName, icons } from './icons';
 import { bus } from '../state';
+import { feel } from '../core/feel';
 import { LOCALE, tx } from '../i18n';
 
 type Child = Node | string | null | undefined | false;
@@ -80,6 +81,7 @@ export function initSheet(root: HTMLElement) {
 
 export function openSheet(id: string, title: string, body: Node, opts: { wide?: boolean; onClose?: () => void; compact?: boolean; peek?: boolean } = {}) {
   if (current && current !== id) onCloseCb?.();
+  if (!current) feel.open();
   current = id;
   onCloseCb = opts.onClose ?? null;
   sheetTitle.textContent = title;
@@ -96,6 +98,7 @@ export function openSheet(id: string, title: string, body: Node, opts: { wide?: 
 
 export function closeSheet() {
   if (!current) return;
+  feel.close();
   const cb = onCloseCb;
   current = null;
   onCloseCb = null;

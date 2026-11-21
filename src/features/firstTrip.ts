@@ -4,6 +4,7 @@ import { h } from '../ui/dom';
 import { tx } from '../i18n';
 import { bus, saveSettings, state } from '../state';
 import { awardSecret } from './missions';
+import { feel } from '../core/feel';
 import type { ObjRef } from './objects';
 
 interface Step { title: string; hint: string; done: (ev: string, r: ObjRef | null) => boolean }
@@ -40,6 +41,7 @@ export function startFirstTrip(root: HTMLElement) {
     state.settings.firstTrip = i + 1;
     saveSettings();
     if (i + 1 >= STEPS.length) awardSecret('trip');
+    else feel.step();
     render(true);
   };
   bus.on('select', on('select'));

@@ -135,14 +135,14 @@ async function main() {
   const searchBtn = iconButton('search', tx('Cerca', 'Search', 'Chercher'), () => (state.mode === 'ship' ? openSearch((r) => { ship.goTo(r); toast(routeTo(r)); }) : openSearch()), 'ibtn lens');
   const gyroBtn = iconButton('compass', tx('Punta il telefono', 'Point your phone', 'Pointez votre téléphone'), async () => {
     const ok = await sky.setGyro(!state.gyro);
-    if (!ok) gyroFail(sky.gyroError);
+    if (!ok) { feel.error(); gyroFail(sky.gyroError); }
   });
   const gyroFail = (why: string) => toast(why === 'denied'
     ? tx('Accesso ai sensori negato. Su iPhone: chiudi e riapri Vastity e tocca «Consenti»; in Safari: Impostazioni › App › Safari › Avanzate › Movimento e orientamento.', 'Sensor access denied. On iPhone: close and reopen Vastity and tap “Allow”; in Safari: Settings › Apps › Safari › Advanced › Motion & Orientation Access.', 'Accès aux capteurs refusé. Sur iPhone : fermez et rouvrez Vastity puis touchez « Autoriser » ; dans Safari : Réglages › Apps › Safari › Avancé › Mouvement et orientation.')
     : why === 'blocked'
       ? tx('In questa anteprima i sensori sono bloccati: apri Vastity a schermo intero o nell\'app.', 'Sensors are blocked in this embedded preview: open Vastity full screen or in the app.', 'Les capteurs sont bloqués dans cet aperçu : ouvrez Vastity en plein écran ou dans l\'app.')
       : tx('Questo dispositivo non invia dati di bussola e giroscopio.', 'This device is not sending compass and gyroscope data.', 'Cet appareil n\'envoie pas de données de boussole et gyroscope.'), 6000);
-  bus.on('gyroFail', (w) => gyroFail(String(w)));
+  bus.on('gyroFail', (w) => { feel.error(); gyroFail(String(w)); });
   const top = h('div', { class: 'top' }, brand, h('div', { class: 'top-r' }, searchBtn, iconButton('journal', tx('Diario', 'Log', 'Journal'), () => openJournal(), 'ibtn journal-btn'), gyroBtn, iconButton('settings', tx('Impostazioni', 'Settings', 'Réglages'), () => openSettings())));
 
   // controlli del tempo: ora (tocco = presente, pressione lunga = macchina del tempo), indietro, pausa, avanti
@@ -151,6 +151,7 @@ async function main() {
   let timeLevel = 0;
   let resumeRate = 1;
   const stepTime = (dir: 1 | -1) => {
+    feel.timeStep(dir);
     const same = !state.live && Math.sign(state.timeRate) === dir && Math.abs(state.timeRate) > 1;
     timeLevel = same ? Math.min(TIME_STEPS.length, timeLevel + 1) : 1;
     state.live = false;
@@ -158,6 +159,7 @@ async function main() {
     updateHud();
   };
   const togglePause = () => {
+    feel.timeStep(0);
     if (!state.live && state.timeRate === 0) { state.timeRate = resumeRate || 1; }
     else { resumeRate = state.live ? 1 : state.timeRate; state.live = false; state.timeRate = 0; }
     updateHud();
@@ -242,6 +244,7 @@ async function main() {
           let dir = sky.viewDirEqj();
           dir = v3.norm(v3.sub(dir, v3.scale(up, v3.dot(dir, up) - 0.12)));
           ship.launchFrom(surface, dir, up);
+          if (!prologue) feel.launch();
         } else if (sky.place.exo) {
           const i = sky.place.exo.hip ? findHip(sky.place.exo.hip) : -1;
           const r = i >= 0 ? { ref: { kind: 'star', index: i } as ObjRef } : search(sky.place.exo.starName)[0];
@@ -265,6 +268,7 @@ async function main() {
     };
     if (instant) return go();
     // transizione: la vista "si tuffa" (zoom + sfocatura) in un velo blu notte, poi riemerge nella nuova modalità
+    feel.whoosh();
     document.body.classList.add('mode-out', m === 'ship' ? 'to-ship' : 'to-sky');
     fade.classList.add('on');
     setTimeout(() => {
@@ -570,6 +574,7 @@ async function main() {
       tunnel.style.setProperty('--warp', tunnelK.toFixed(3));
       const above = sp >= 0.9999;
       if (above && !wasWarp && !reducedMotion()) { flash.classList.remove('on', 'blue'); void flash.offsetWidth; flash.classList.add('on', 'blue'); feel.warpIn(); }
+      if (!above && wasWarp && !reducedMotion()) feel.warpOut();
       wasWarp = above;
     }
     hudT += dt;
@@ -606,7 +611,7 @@ async function main() {
 
   if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});
   (window as any).vastity = {
-    sky, ship, state, setMode, setTime, playOpening: () => playOpening(), get prologue() { return prologue; },
+    sky, ship, state, setMode, setTime, playOpening: () => playOpening(), get prologue() { return prologue; }, feel,
     /** Test: disegna un fotogramma e restituisce l'alfa minimo del canvas (deve essere 255: niente "buchi" trasparenti). */
     debugAlpha() {
       if (state.mode === 'sky') { sky.update(0.016); sky.render(renderer); } else { ship.update(0.016); ship.render(renderer); }

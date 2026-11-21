@@ -105,6 +105,7 @@ export function startPrologue(o: {
     if (fast || reducedMotion()) { land(); return; }
     // ingresso in atmosfera: velo azzurro, poi il cielo
     layer.classList.add('entry');
+    feel.entry();
     setTimeout(land, 650);
   }
 

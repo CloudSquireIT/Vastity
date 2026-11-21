@@ -1,7 +1,7 @@
 // Animazioni dell'interfaccia: badge sbloccato, onda al tocco, stelle cadenti, icone vive,
 // passaggio tra mondi. Rispettano "Riduci movimento".
 import { h } from './dom';
-import { reducedMotion, feel, haptic } from '../core/feel';
+import { reducedMotion, feel } from '../core/feel';
 import { tx } from '../i18n';
 import type { Badge } from '../features/missions';
 
@@ -63,10 +63,11 @@ export function startShootingStars(canShow: () => boolean, onCaught: () => void)
         if (caught) return;
         caught = true;
         s.classList.add('caught');
-        haptic('success');
+        feel.catchStar();
         onCaught();
       });
       layer.appendChild(s);
+      feel.sparkle();
       setTimeout(() => s.remove(), 1700);
     }
     schedule();

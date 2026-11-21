@@ -34,6 +34,8 @@ export interface Settings {
   textScale?: number;
   /** Suoni ambientali ed effetti. */
   sound?: boolean;
+  /** Musica ambientale (con il suono attivo). */
+  music?: boolean;
   /** Apertura cinematografica già vista. */
   prologueDone?: boolean;
   /** Prima missione guidata: passo raggiunto (3 = completata). */
