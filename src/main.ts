@@ -25,8 +25,7 @@ import { startTutorial } from './ui/tutorial';
 import { LOCALE, num, tx } from './i18n';
 
 const app = document.getElementById('app')!;
-const loaderSub = document.querySelector('.loader-s');
-if (loaderSub) loaderSub.textContent = tx('Accendo le stelle…', 'Lighting up the stars…', 'J\'allume les étoiles…');
+
 
 function findHip(hip: string) {
   for (let i = 0; i < stars.count; i++) {
@@ -44,6 +43,8 @@ async function main() {
   // schermata iniziale: barra di avanzamento reale del caricamento dei cataloghi
   // il disco di stelle attorno al buco nero si "accende" mentre i cataloghi arrivano
   setLoadProgress((p) => { loaderEl?.style.setProperty('--p', String(Math.min(1, p / 0.86))); });
+  const ring = document.querySelector('.mini-bh .p') as SVGCircleElement | null;
+  setLoadProgress((p) => { if (ring) ring.style.strokeDashoffset = String(100 - Math.min(100, (p / 0.86) * 100)); });
   await loadCatalogs();
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });

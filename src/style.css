@@ -757,3 +757,15 @@ body.reduce-motion canvas.gl { transition: none !important; animation: none !imp
 .bh-front i { -webkit-mask: radial-gradient(circle, transparent 31%, #000 35%, #000 55%, rgba(0, 0, 0, .5) 76%, transparent 100%);
   mask: radial-gradient(circle, transparent 31%, #000 35%, #000 55%, rgba(0, 0, 0, .5) 76%, transparent 100%); }
 .bh-front { display: none; }
+
+/* ---- Avvio ultra minimale: un sottile anello (il buco nero) che si chiude e la scritta ---- */
+#loader { background: #03050c !important; display: grid; place-content: center; justify-items: center; gap: 22px; }
+.bh-load, .loader-s { display: none !important; }
+.mini-bh { width: 34px; height: 34px; transform: rotate(-90deg); overflow: visible; }
+.mini-bh circle { fill: #000; stroke-width: 1.2; }
+.mini-bh .t { stroke: rgba(255, 255, 255, .1); }
+.mini-bh .p { fill: none; stroke: #f2e6d4; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 97; transition: stroke-dashoffset .4s ease-out;
+  filter: drop-shadow(0 0 3px rgba(255, 200, 140, .55)); }
+#loader .loader-n { font: 300 15px/1 var(--f-text, system-ui); letter-spacing: .7em; text-indent: .7em; text-transform: uppercase; color: rgba(240, 244, 255, .82); animation: vx-fadein 1.4s ease-out both; }
+#loader.done .mini-bh { transform: rotate(-90deg) scale(.6); opacity: 0; transition: transform .8s var(--ease-in-out), opacity .6s; }
+#loader.done .loader-n { opacity: 0; transform: none; letter-spacing: .9em; transition: opacity .7s, letter-spacing .9s; }
