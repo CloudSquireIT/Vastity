@@ -14,7 +14,7 @@ const SCENES_ALL = [
   ['2-saturn', `v.setMode('ship', true); await w(800); v.ship.placeNear({kind:'body',id:'saturn'}); await w(500); v.ship.zoom = 0.22;`],
   ['3-milkyway', `v.setMode('ship', true); await w(800); v.ship.placeNear({kind:'deep',id:'milkyway'});`],
   ['4-andromeda', `v.setMode('ship', true); await w(800); v.ship.placeNear({kind:'deep',id:'m31g'});`],
-  ['5-blackhole', `v.setMode('ship', true); await w(800); v.ship.placeNear({kind:'deep',id:'m87bh'});`],
+  ['5-blackhole', `v.setMode('ship', true); await w(800); v.ship.placeNear({kind:'deep',id:'m87bh'}); await w(500); v.ship.zoom = 0.3;`],
   ['6-story', `v.setTime(Date.parse('2026-08-12T20:40:00Z')); v.sky.setView(150, 20, 75); await w(1500); v.sky.select({kind:'body',id:'saturn'}); await w(1200); const sh = document.querySelector('.sheet'); sh.classList.remove('peek'); await w(900); const sb = sh.querySelector('.sheet-body'); const st = sb.querySelector('.story'); if (st) sb.scrollTop = st.offsetTop - 160;`],
   ['7-exo', `v.setMode('ship', true); await w(800); const ex = await import('/src/data/exoplanets.ts'); const i = ex.exoplanets.findIndex(p => p.name === 'TRAPPIST-1 e'); v.ship.placeNear({kind:'exo',index:i});`],
 ];
