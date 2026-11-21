@@ -24,7 +24,7 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Esopianeti confermati (NASA Exoplanet Archive)
-        run: node scripts/build-exoplanets.mjs || echo "Archivio NASA non raggiungibile: si tengono i dati attuali"
+        run: node scripts/build-exoplanets.mjs || echo "Archivio NASA non raggiungibile, si tengono i dati attuali"
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }
