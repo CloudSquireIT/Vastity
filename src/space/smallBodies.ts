@@ -11,13 +11,15 @@ import type { ObjRef } from '../features/objects';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
-// modelli 3D ufficiali NASA (NASA 3D Resources, pubblico dominio), compressi con meshopt
+// modelli 3D ufficiali NASA (NASA 3D Resources, pubblico dominio), compressi con meshopt.
+// Estensione .glb.wasm: il contenuto è glTF binario (il caricatore lo riconosce dall'intestazione),
+// ma .wasm è servito ovunque, anche dall'anteprima web che non accetta .glb.
 const GLB: Record<string, { file: string; sizeM: number }> = {
-  iss: { file: 'models/iss.glb', sizeM: 109 },
-  hubble: { file: 'models/hubble.glb', sizeM: 13.2 },
-  jwst: { file: 'models/jwst.glb', sizeM: 21.2 },
-  voyager1: { file: 'models/voyager.glb', sizeM: 13 },
-  voyager2: { file: 'models/voyager.glb', sizeM: 13 },
+  iss: { file: 'models/iss.glb.wasm', sizeM: 109 },
+  hubble: { file: 'models/hubble.glb.wasm', sizeM: 13.2 },
+  jwst: { file: 'models/jwst.glb.wasm', sizeM: 21.2 },
+  voyager1: { file: 'models/voyager.glb.wasm', sizeM: 13 },
+  voyager2: { file: 'models/voyager.glb.wasm', sizeM: 13 },
 };
 let gltf: GLTFLoader | null = null;
 const glbCache = new Map<string, Promise<THREE.Group>>();
@@ -221,7 +223,7 @@ function solarWing(w: number, h: number) {
   return g;
 }
 
-function buildModel(id: string): THREE.Group {
+export function buildModel(id: string): THREE.Group {
   const g = new THREE.Group();
   const white = mat(0xe6e8ee, 0.3), grey = mat(0x9aa0aa, 0.6), gold = mat(0xd9a84a, 0.85, 0x3a2400), dark = mat(0x2a2d35, 0.4);
   if (id === 'iss') {
@@ -277,7 +279,6 @@ function buildModel(id: string): THREE.Group {
     const ws = new THREE.Mesh(new THREE.PlaneGeometry(1.25 * M, 0.42 * M), glass);
     ws.material.side = THREE.DoubleSide;
     g.add(at(ws, -0.92, 0.98, 0, 0, Math.PI / 2, -0.95));
-    for (const z of [-0.62, 0.62]) g.add(at(cyl(0.05, 1.0, rim, 8), 0.35, 1.18, z * 0.6, 0, 0, Math.PI / 2));
     // ruote
     for (const x of [-1.25, 1.25]) for (const z of [-0.78, 0.78]) {
       g.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.27 * M, 0.08 * M, 10, 24), tire), x, 0.2, z));
@@ -288,7 +289,7 @@ function buildModel(id: string): THREE.Group {
     g.add(at(new THREE.Mesh(new THREE.CapsuleGeometry(0.2 * M, 0.42 * M, 6, 12), suit), -0.05, 1.12, 0.32, 0, 0, -0.25));
     g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.16 * M, 18, 12), suit), -0.14, 1.52, 0.32));
     g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.115 * M, 16, 10, 0, Math.PI, 0, Math.PI), visor), -0.2, 1.53, 0.32, 0, -Math.PI / 2, 0));
-    g.add(at(new THREE.Mesh(new THREE.CapsuleGeometry(0.06 * M, 0.42 * M, 4, 8), suit), -0.42, 1.08, 0.48, 0, 0, 1.15));
+    g.add(at(new THREE.Mesh(new THREE.CapsuleGeometry(0.06 * M, 0.42 * M, 4, 8), suit), -0.36, 1.05, 0.42, 0, 0, -1.05));
     g.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.17 * M, 0.025 * M, 8, 20), dark), -0.62, 1.0, 0.32, 0, Math.PI / 2, 0.3));
   } else {
     // sonde: antenna parabolica e bracci
