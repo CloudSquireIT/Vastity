@@ -67,11 +67,12 @@ for lang, li in LI.items():
     for scene, caps in CAP.items():
         for dev, (W, H, tf), outname in [('iphone', (2868, 1320, 0.2), 'appstore-iphone69'), ('ipad', (2752, 2064, 0.16), 'appstore-ipad13'), ('iphone', (2400, 1200, 0.2), 'play-phone')]:
             raw = os.path.join(RAW, f'{lang}-{dev}-{scene}.png')
+            if not os.path.exists(raw): raw = os.path.join(RAW, f'xx-{dev}-{scene}.png')  # scene senza interfaccia, comuni
             if not os.path.exists(raw): continue
             os.makedirs(os.path.join(OUT, lang, outname), exist_ok=True)
             compose(raw, caps[li], W, H, tf).save(os.path.join(OUT, lang, outname, f'{scene}.png'), optimize=True)
     # grafica in evidenza di Google Play (1024×500): Andromeda + marchio
-    raw = os.path.join(RAW, f'{lang}-iphone-4-andromeda.png')
+    raw = os.path.join(RAW, 'xx-iphone-4-andromeda.png')
     if os.path.exists(raw):
         im = Image.open(raw).convert('RGB')
         im = im.resize((1024, int(im.height * 1024 / im.width)), Image.LANCZOS)

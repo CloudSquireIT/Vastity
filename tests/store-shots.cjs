@@ -31,7 +31,7 @@ const SCENES = ONLY.length ? SCENES_ALL.filter(([n]) => ONLY.includes(n)) : SCEN
       await p.waitForTimeout(3000);
       await p.evaluate(`(async () => { const v = window.vastity; const w = (ms) => new Promise(r => setTimeout(r, ms)); ${script} })()`);
       await p.waitForTimeout(9000);
-      await p.addStyleTag({ content: '.toasts, .rotate-hint { display: none !important; } body.idle .top, body.idle .bottom { opacity: 1 !important; }' });
+      await p.addStyleTag({ content: '.toasts, .rotate-hint { display: none !important; } body.idle .top, body.idle .bottom { opacity: 1 !important; }' + (LANG === 'xx' ? ' .ui, .overlay .label, .ship-target { display: none !important; }' : '') });
       await p.waitForTimeout(600);
       await p.screenshot({ path: `${OUT}/${LANG}-${dev}-${name}.png` });
       console.log('ok', dev, name);

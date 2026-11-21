@@ -38,6 +38,8 @@ jobs:
   pages:
     needs: web
     runs-on: ubuntu-latest
+    # finché GitHub Pages non è attivato nelle impostazioni, questo passaggio fallisce senza bloccare la release
+    continue-on-error: true
     environment: { name: github-pages, url: '${{ steps.deploy.outputs.page_url }}' }
     steps:
       - id: deploy
