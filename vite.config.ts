@@ -33,8 +33,7 @@ function precache(): Plugin {
         if (fs.existsSync(p)) ver[f] = createHash('sha1').update(fs.readFileSync(p)).digest('hex').slice(0, 12);
       }
       fs.writeFileSync(path.join(dist, 'data/version.json'), JSON.stringify({ built: new Date().toISOString(), files: ver }));
-      // app nativa: le texture 4K restano sul sito (scaricate solo con qualità Ultra) → pacchetto più leggero
-      if (process.env.VASTITY_NATIVE) fs.rmSync(path.join(dist, 'textures/4k'), { recursive: true, force: true });
+      // le texture 4K sono incluse anche nell'app nativa: si caricano solo da vicino (wantHiRes)
     },
   };
 }

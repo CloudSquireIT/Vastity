@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import * as A from 'astronomy-engine';
 import { Background, GALACTIC_CENTER_PC } from '../render/background';
 import { BodySprite } from '../render/bodies';
-import { LOOKS, PT, atmosphereMaterial, bodySphere, planetMaterial, ringMaterial, tempColor } from '../render/planet';
+import { LOOKS, PT, atmosphereMaterial, bodySphere, coronaMesh, planetMaterial, ringMaterial, tempColor } from '../render/planet';
+import { wantHiRes } from '../core/textures';
 import { Streaks } from '../render/streaks';
 import { ExoSystemView } from './exoSystem';
 import { SmallBodies } from './smallBodies';
@@ -34,11 +35,12 @@ interface PlanetObj {
   atm?: THREE.Mesh;
   sprite: BodySprite;
   ring?: THREE.Mesh;
+  corona?: { mesh: THREE.Mesh; mat: THREE.ShaderMaterial };
   pos: V3; // km eliocentrici
   orbit?: { pts: Float64Array; line: THREE.Line; geo: THREE.BufferGeometry };
 }
 
-interface NearStar { index: number; mesh: THREE.Mesh; mat: THREE.ShaderMaterial; sprite: BodySprite; color: THREE.Color }
+interface NearStar { index: number; mesh: THREE.Mesh; mat: THREE.ShaderMaterial; sprite: BodySprite; color: THREE.Color; corona: { mesh: THREE.Mesh; mat: THREE.ShaderMaterial } }
 
 export interface Telemetry {
   speed: number; beta: number; warp: number; gamma: number;
@@ -109,6 +111,7 @@ export class ShipView {
   private followPrev: V3 | null = null;
   private followKey = '';
   private near: NearStar[] = [];
+  private starSphere = bodySphere(96);
   /** Sistema di esopianeti vicino alla navicella. */
   exo = new ExoSystemView();
   private nearScanT = 0;
@@ -184,7 +187,8 @@ export class ShipView {
     this.labels = new LabelLayer<ObjRef>(overlay);
     this.labels.el.style.display = 'none';
     this.labels.onPick = (r) => bus.emit('ship-select', r);
-    const sphere = bodySphere(quality.sphereSegments);
+    // sfere fitte: da vicino (in orbita bassa) il bordo resta liscio, senza poligoni
+    const sphere = bodySphere(Math.max(128, quality.sphereSegments * 2));
     for (const b of BODIES) {
       const look = LOOKS[b.id];
       const mat = planetMaterial(look);
@@ -205,8 +209,12 @@ export class ShipView {
         this.root.add(atm);
         p.atm = atm;
       }
+      if (b.id === 'sun') {
+        p.corona = coronaMesh(new THREE.Color(1, 0.72, 0.38), 1.7, 0.9);
+        this.root.add(p.corona.mesh);
+      }
       if (b.rings) {
-        const ring = new THREE.Mesh(new THREE.RingGeometry(74500, 140220, 160, 1), ringMaterial(74500, 140220));
+        const ring = new THREE.Mesh(new THREE.RingGeometry(74500, 140220, 256, 1), ringMaterial(74500, 140220));
         ring.frustumCulled = false;
         ring.renderOrder = 6;
         this.root.add(ring);
@@ -797,6 +805,14 @@ export class ShipView {
       u.uLight.value.copy(toSun).transformDirection(view);
       u.uTime.value = this.time;
       u.uCloudOffset.value = this.cloudOffset;
+      // texture 4K solo quando il corpo è grande sullo schermo
+      if (visibleMesh && disc > 260) { wantHiRes(u.uMap.value); if (b.id === 'earth') wantHiRes(u.uSCL.value); }
+      if (p.corona) {
+        p.corona.mesh.visible = visibleMesh && disc > 5;
+        p.corona.mesh.position.copy(p.mesh.position);
+        p.corona.mesh.scale.setScalar(b.radiusKm);
+        p.corona.mat.uniforms.uTime.value = this.time;
+      }
       if (b.id === 'sun') {
         p.sprite.mesh.visible = false;
         const glowPx = Math.max(disc * 1.7 + 20 * dpr, 26 * dpr);
@@ -843,21 +859,22 @@ export class ShipView {
       }
       found.sort((a, b) => a.d - b.d);
       const want = found.slice(0, 6).map((f) => f.i);
-      for (const n of this.near) if (!want.includes(n.index)) { this.root.remove(n.mesh, n.sprite.mesh); n.mat.dispose(); }
+      for (const n of this.near) if (!want.includes(n.index)) { this.root.remove(n.mesh, n.sprite.mesh, n.corona.mesh); n.mat.dispose(); n.corona.mat.dispose(); }
       this.near = this.near.filter((n) => want.includes(n.index));
       for (const i of want) {
         if (this.near.some((n) => n.index === i)) continue;
         const ph = starPhysical(i);
         const col = tempColor(ph.T);
-        const mat = planetMaterial({ type: PT.star, map: 'sun', color: col.getHex(), bright: 1.15 });
+        const mat = planetMaterial({ type: PT.star, map: 'sun', color: col.getHex(), bright: 1.0 });
         mat.transparent = true;
-        const mesh = new THREE.Mesh(bodySphere(64), mat);
+        const mesh = new THREE.Mesh(this.starSphere, mat);
         mesh.renderOrder = 3;
         mesh.scale.setScalar(Math.min(1500, ph.R) * 696340);
         mesh.frustumCulled = false;
         const sprite = new BodySprite(i);
-        this.root.add(mesh, sprite.mesh);
-        this.near.push({ index: i, mesh, mat, sprite, color: col });
+        const corona = coronaMesh(col, 1.7, 0.85);
+        this.root.add(mesh, sprite.mesh, corona.mesh);
+        this.near.push({ index: i, mesh, mat, sprite, color: col, corona });
       }
     }
     for (const n of this.near) {
@@ -871,6 +888,10 @@ export class ShipView {
       n.mesh.rotation.z = this.time * 0.01;
       n.mesh.visible = disc > 1.2;
       n.mat.uniforms.uTime.value = this.time;
+      n.corona.mesh.visible = disc > 5;
+      n.corona.mesh.position.copy(n.mesh.position);
+      n.corona.mesh.scale.setScalar(R);
+      n.corona.mat.uniforms.uTime.value = this.time;
       const fade = Math.max(0, Math.min(1, 1 - Math.log10(dist / AU_IN_KM / 50) / 3));
       // alone sobrio: da lontano la stella "brilla", da vicino resta una corona sottile attorno al disco
       // (niente bagliore che copre lo sfondo)

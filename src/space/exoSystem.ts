@@ -2,7 +2,7 @@
 // i suoi pianeti appaiono in 3D sulle loro orbite (render generato dai dati reali).
 import * as THREE from 'three';
 import { BodySprite } from '../render/bodies';
-import { PT, bodySphere, planetMaterial, tempColor } from '../render/planet';
+import { PT, bodySphere, coronaMesh, planetMaterial, tempColor } from '../render/planet';
 import { ExoClass, exoHosts, exoPosPc, exoTexture, exoplanets, hostPosPc } from '../data/exoplanets';
 import { PC_IN_KM, stars } from '../data/catalog';
 import { V3, v3 } from '../astro/astro';
@@ -20,9 +20,9 @@ export class ExoSystemView {
   activeHost = -1;
   visible: ExoVisible[] = [];
   private planets: { index: number; mesh: THREE.Mesh; mat: THREE.ShaderMaterial; sprite: BodySprite; color: THREE.Color }[] = [];
-  private star: { mesh: THREE.Mesh; mat: THREE.ShaderMaterial; sprite: BodySprite; color: THREE.Color } | null = null;
+  private star: { mesh: THREE.Mesh; mat: THREE.ShaderMaterial; sprite: BodySprite; color: THREE.Color; corona: { mesh: THREE.Mesh; mat: THREE.ShaderMaterial } } | null = null;
   private scanT = 0;
-  private sphere = bodySphere(96);
+  private sphere = bodySphere(160);
   private tv = new THREE.Vector3();
 
   /** Il pianeta più vicino a una stella con esopianeti entro la distanza indicata (pc). */
@@ -58,6 +58,11 @@ export class ExoSystemView {
       this.star.mesh.position.set(rel[0], rel[1], rel[2]);
       this.star.mesh.visible = disc > 1.2;
       this.star.mat.uniforms.uTime.value = time;
+      const co = this.star.corona;
+      co.mesh.visible = disc > 5;
+      co.mesh.position.copy(this.star.mesh.position);
+      co.mesh.scale.setScalar(R);
+      co.mat.uniforms.uTime.value = time;
       setSprite(this.star.sprite, rel, 0, Math.max(disc * 1.7 + 18 * dpr, 22 * dpr), 0.9 * Math.max(0, 1 - disc / 45), this.star.color, true, pixPerRad);
       this.star.sprite.mesh.renderOrder = 5;
     }
@@ -85,7 +90,7 @@ export class ExoSystemView {
   private activate(h: number) {
     for (const p of this.planets) { this.group.remove(p.mesh, p.sprite.mesh); p.mat.dispose(); }
     this.planets = [];
-    if (this.star) { this.group.remove(this.star.mesh, this.star.sprite.mesh); this.star.mat.dispose(); this.star = null; }
+    if (this.star) { this.group.remove(this.star.mesh, this.star.sprite.mesh, this.star.corona.mesh); this.star.mat.dispose(); this.star.corona.mat.dispose(); this.star = null; }
     this.activeHost = h;
     if (h < 0) return;
     const host = exoHosts[h];
@@ -98,15 +103,16 @@ export class ExoSystemView {
     }
     if (!inCatalog) {
       const color = tempColor(host.teff);
-      const mat = planetMaterial({ type: PT.star, map: 'sun', color: color.getHex(), bright: 1.15 });
+      const mat = planetMaterial({ type: PT.star, map: 'sun', color: color.getHex(), bright: 1.0 });
       mat.transparent = true;
       const mesh = new THREE.Mesh(this.sphere, mat);
       mesh.scale.setScalar(Math.max(0.08, host.radiusSun) * 696340);
       mesh.renderOrder = 3;
       mesh.frustumCulled = false;
       const sprite = new BodySprite(h);
-      this.group.add(mesh, sprite.mesh);
-      this.star = { mesh, mat, sprite, color };
+      const corona = coronaMesh(color, 1.7, 0.85);
+      this.group.add(mesh, sprite.mesh, corona.mesh);
+      this.star = { mesh, mat, sprite, color, corona };
     }
     for (const i of host.planets.slice(0, 12)) {
       const e = exoplanets[i];

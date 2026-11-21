@@ -2,7 +2,6 @@
 // foto delle galassie) e le texture 4K stanno anche sul sito statico di Vastity (GitHub Pages),
 // che un'azione programmata rigenera ogni mese dai dati NASA. L'app confronta le versioni, scarica
 // in background solo i file cambiati e li usa dal prossimo avvio. Senza rete usa quelli inclusi.
-import { native } from './native';
 
 export const REMOTE_BASE = 'https://cloudsquireit.github.io/Vastity/';
 const CACHE = 'vastity-data-remote-v1';
@@ -48,5 +47,6 @@ export async function checkDataUpdates(): Promise<string[]> {
 
 /** Le texture 4K non sono incluse nell'app nativa (pacchetto più leggero): arrivano dal sito, se c'è rete. */
 export function texture4kUrl(name: string) {
-  return native.isNative ? `${REMOTE_BASE}textures/4k/${name}.webp` : `textures/4k/${name}.webp`;
+  // incluse nell'app (anche nativa): il sito statico può non essere attivo
+  return `textures/4k/${name}.webp`;
 }

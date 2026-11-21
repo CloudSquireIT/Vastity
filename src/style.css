@@ -1154,3 +1154,10 @@ body.missions-ready.idle .ui > .mission-chip, body.missions-ready.ui-hidden .ui 
 #loader { background: #03050c !important; }
 #loader::before, #loader::after { content: none !important; display: none !important; }
 #loader .loader-n { position: relative; z-index: 1; }
+
+/* tutorial: l'area spiegata è illuminata (alone che pulsa, luce interna) e il resto più scuro */
+.tour-hole { box-shadow: 0 0 0 9999px rgba(2, 4, 10, .74), 0 0 0 2px rgba(190, 215, 255, .95), 0 0 26px 6px rgba(140, 185, 255, .75), inset 0 0 22px rgba(190, 215, 255, .35);
+  background: rgba(170, 200, 255, .08); animation: tour-glow 1.8s ease-in-out infinite; }
+.tour-hole.none { animation: none; }
+@keyframes tour-glow { 50% { box-shadow: 0 0 0 9999px rgba(2, 4, 10, .74), 0 0 0 2px rgba(220, 235, 255, 1), 0 0 40px 12px rgba(150, 195, 255, .9), inset 0 0 30px rgba(200, 225, 255, .45); } }
+.tour-lit { filter: brightness(1.35) saturate(1.15); transition: filter .4s ease; }

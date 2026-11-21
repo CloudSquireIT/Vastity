@@ -2,6 +2,23 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.5.9
+
+- Tutorial ridotto a 5 passi in tutto (4 sull'interfaccia + 1 sulle missioni); l'area spiegata si illumina con un
+  alone che pulsa e il resto si scurisce di più.
+- Stelle come palle di fuoco: plasma animato con filamenti, granulazione e macchie, nel colore della loro
+  temperatura (blu, bianche, gialle, arancioni, rosse), con una corona di fiamme che si muove; luminose ma non
+  accecanti. Vale per il Sole, le stelle vicine e le stelle degli esopianeti.
+- Giganti gassosi vivi: vortici che si avvolgono lungo le bande, turbolenza fine e tempeste che si muovono;
+  ombra degli anelli su Saturno.
+- Mondi rocciosi dettagliati da vicino: crateri e rugosità procedurali oltre la risoluzione delle mappe
+  (Mercurio, Luna, Marte, Plutone, lune ed esopianeti rocciosi).
+- Terra: mappe 4K nuove (giorno, luci notturne, nuvole, oceani), luci delle città vere sul lato notturno,
+  ombra delle nuvole, crepuscolo, riflesso del Sole sugli oceani più realistico; sfere molto più fitte
+  (niente poligoni sul bordo anche in orbita bassa).
+- Texture 4K incluse nell'app anche su iPhone e Android (prima non arrivavano): Terra, Luna, Mercurio, Marte,
+  Giove, Saturno, Venere, Sole. Si caricano solo quando il corpo è grande sullo schermo.
+
 ## 0.5.8
 
 - Android: le APK ora sono sempre firmate. La `-release.apk` usciva senza firma (manca la chiave del Play Store)

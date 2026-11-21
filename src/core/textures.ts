@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import { quality } from './quality';
 import { texture4kUrl } from './remote';
 
-const HI_RES = new Set(['earth', 'moon', 'mars', 'jupiter', 'milkyway']);
+// texture 4K (incluse nell'app): si caricano solo quando il corpo è grande sullo schermo, per la memoria
+const HI_RES = new Set(['earth', 'earth_scl', 'moon', 'mars', 'mercury', 'jupiter', 'saturn', 'sun', 'venus', 'milkyway']);
 const cache = new Map<string, THREE.Texture>();
 const loader = new THREE.TextureLoader();
 // decodifica delle immagini fuori dal thread principale (niente scatti mentre arrivano le texture)
@@ -41,7 +42,7 @@ export function planetTexture(name: string, color = true): THREE.Texture {
   tex.wrapS = THREE.RepeatWrapping;
   tex.userData.ready = false;
   cache.set(key, tex);
-  const final = folderFor(name);
+  const final = folderFor(name) === '4k' ? '2k' : folderFor(name);
   const apply = (img: any, isBitmap: boolean) => {
     tex.image = img;
     tex.flipY = !isBitmap; // le ImageBitmap arrivano già capovolte
@@ -51,10 +52,24 @@ export function planetTexture(name: string, color = true): THREE.Texture {
   if (final !== '1k') {
     loadImage(`textures/1k/${name}.webp`, (img, b) => { if (!tex.userData.final) apply(img, b); });
   }
-  const done = (img: any, b: boolean) => { tex.userData.final = true; apply(img, b); };
-  if (final === '4k') loadImage(texture4kUrl(name), done, () => loadImage(`textures/2k/${name}.webp`, done));
-  else loadImage(`textures/${final}/${name}.webp`, done);
+  const done = (img: any, b: boolean) => { if (!tex.userData.hi) { tex.userData.final = true; apply(img, b); } };
+  loadImage(`textures/${final}/${name}.webp`, done);
+  // il 4K resta in attesa: lo chiede `wantHiRes` quando il corpo si avvicina
+  tex.userData.hiName = quality.tex === '4k' && HI_RES.has(name) ? name : '';
   return tex;
+}
+
+/** Carica la versione 4K di una texture (una volta sola), quando il corpo occupa molto schermo. */
+export function wantHiRes(tex: THREE.Texture | null | undefined) {
+  const name = tex?.userData?.hiName as string | undefined;
+  if (!tex || !name || tex.userData.hiReq) return;
+  tex.userData.hiReq = true;
+  loadImage(texture4kUrl(name), (img, b) => {
+    tex.userData.hi = true;
+    tex.image = img;
+    tex.flipY = !b;
+    tex.needsUpdate = true;
+  });
 }
 
 export function ringTexture(): THREE.Texture {

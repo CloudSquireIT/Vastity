@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { Background } from '../render/background';
 import { BodySprite } from '../render/bodies';
 import { Place, SkyFrame, V3, bodyAxes, bodyById, horToEqj, placeById, skyFrame, v3 } from '../astro/astro';
-import { planetTexture } from '../core/textures';
+import { planetTexture, wantHiRes } from '../core/textures';
 import { deepForMessier, deepObjects } from '../data/deep';
 import { LOOKS, bodySphere, planetMaterial, ringMaterial } from '../render/planet';
 import { damp } from '../core/motion';
@@ -98,7 +98,7 @@ export class SkyView {
   private sprites = new Map<string, BodySprite>();
   /** Modelli 3D (sfere con texture, anelli) per i corpi abbastanza grandi sullo schermo. */
   private meshes = new Map<string, { mesh: THREE.Mesh; mat: THREE.ShaderMaterial; ring?: THREE.Mesh }>();
-  private sphereGeo = bodySphere(96);
+  private sphereGeo = bodySphere(192);
   private m4 = new THREE.Matrix4();
   private vA = new THREE.Vector3();
   private vB = new THREE.Vector3();
@@ -719,6 +719,7 @@ export class SkyView {
     m.mat.uniforms.uLight.value.copy(L);
     m.mat.uniforms.uTime.value = this.time;
     m.mat.uniforms.uBright.value = 1;
+    if (disc > 260) wantHiRes(m.mat.uniforms.uMap.value);
     // il rilievo dipende dalla scala del modello: nel cielo la sfera misura pochi "metri", nella navicella
     // il raggio vero in km. Si riporta il rilievo alla stessa intensità della navicella, altrimenti a forte
     // ingrandimento diventa un rumore granuloso
