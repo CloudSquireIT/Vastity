@@ -2,6 +2,15 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.6.7
+
+- Via Lattea vista dall'interno del disco (allontanandosi dal Sole di centinaia o migliaia di anni luce): il braccio
+  diventava una striscia bianca saturata con un nucleo giallo, perché si sommavano di taglio tutte le particelle fino
+  al centro galattico. Ora c'è l'estinzione della polvere (le stelle lontane nel piano si attenuano con la distanza),
+  solo quando si è dentro il piano del disco: la vista da fuori e dall'alto resta identica.
+- Rimessa la galassia nana del Sagittario, con un render adatto: una nube allungata e tenue (è sfilacciata dalle
+  maree della Via Lattea), non più una sfera luminosa.
+
 ## 0.6.6
 
 - Via Lattea: tolta la «palla gialla» vicino al centro. Era la galassia nana del Sagittario (aggiunta nella 0.5.5),

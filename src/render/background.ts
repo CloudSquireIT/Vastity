@@ -10,6 +10,9 @@ import { DeepRenderer } from './deepRender';
 import { quality } from '../core/quality';
 import { planetTexture } from '../core/textures';
 
+/** Polo nord galattico (EQJ): serve per sapere quanto si è sopra o sotto il piano del disco. */
+const NGP = radecToVec(192.85948, 27.12825);
+
 const BLACKBODY = /* glsl */ `
 vec3 blackbody(float T) {
   float t = T / 100.0;
@@ -164,6 +167,7 @@ uniform float uMaxPx;
 uniform float uBoost;
 uniform float uOther;
 uniform float uPF[5];
+uniform float uInside;
 attribute float aGal;
 uniform float uDim;
 uniform float uDimBelow;
@@ -197,6 +201,9 @@ void main() {
   float shimmer = 0.92 + 0.08 * sin(uTime * (0.3 + aSeed * 0.6) + aSeed * 40.0);
   // la Via Lattea vista da fuori viene schiarita; le altre galassie restano naturali
   vAlpha = alpha * shimmer / max(1.0, D) * (aKind < 0.5 ? uBoost : uOther) * uPF[int(aGal + 0.5)];
+  // dall'interno del disco la polvere nasconde le stelle lontane: senza questa estinzione, sommando di taglio
+  // tutte le particelle fino al centro galattico, il braccio diventava una striscia bianca con un nucleo giallo
+  if (aKind < 0.5) vAlpha *= mix(1.0, 0.1 + 0.9 * exp(-d / 2600.0), uInside);
   vColor = color * clamp(sqrt(D), 0.4, 1.4);
   vSoft = aKind > 1.5 ? 1.0 : 0.0;
 }
@@ -790,7 +797,7 @@ export class Background {
     const shared = {
       uObs: obs, uBeta: beta, uPixPerRad: pixPerRad, uTime: time, uDim: dim, uHz: hz.uHz, uDimBelow: hz.uDimBelow,
       uGalToEq: { value: galToEqM }, uSunGal: { value: new THREE.Vector3(...SUN_GAL) }, uSpin: { value: 0 },
-      uPF: this.pf,
+      uPF: this.pf, uInside: { value: 1 },
     };
     const mobile = quality.tier === 'low' || quality.tier === 'mid';
     this.galMat = new THREE.ShaderMaterial({
@@ -937,6 +944,9 @@ export class Background {
     this.igMat.uniforms.uScale.value = Math.min(2, Math.max(0.6, u.pixPerRad / 900));
     this.intergalactic.visible = ig > 0.01;
     gu.uBoost.value = 1 + 1.8 * out + 6 * far;
+    // estinzione solo dentro il piano del disco: salendo sopra il piano la galassia si vede pulita
+    const zGal = Math.abs(u.obsPc.x * NGP[0] + u.obsPc.y * NGP[1] + u.obsPc.z * NGP[2] + 20);
+    gu.uInside.value = (1 - out) * (1 - Math.max(0, Math.min(1, (zGal - 400) / 1600)));
     this.dustMat.uniforms.uBoost.value = 1 + 4 * out;
     // fondale di galassie lontane: compare quando ci si allontana dal Sole
     const fromSun = u.obsPc.length();

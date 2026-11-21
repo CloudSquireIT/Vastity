@@ -128,16 +128,18 @@ export function deepCatalog(): DeepObject[] {
       ['ic10', 'IC 10', 5.0721, 59.3039, 2.2e6, 3500, 'irregular'],
       ['wlm', 'Wolf-Lundmark-Melotte', 0.4925, -15.461, 3.04e6, 5500, 'irregular'],
       ['leo1', tx('Nana del Leone I', 'Leo I Dwarf', 'Naine du Lion I'), 152.117, 12.3065, 820000, 2500, 'elliptical'],
+      ['sagdeg', tx('Nana del Sagittario', 'Sagittarius Dwarf', 'Naine du Sagittaire'), 283.83, -30.545, 65000, 10000, 'irregular'],
       ['fornaxd', tx('Nana della Fornace', 'Fornax Dwarf', 'Naine du Fourneau'), 39.997, -34.449, 460000, 4500, 'elliptical'],
       ['sculptord', tx('Nana dello Scultore', 'Sculptor Dwarf', 'Naine du Sculpteur'), 15.039, -33.709, 290000, 3000, 'elliptical'],
       ['pegdig', tx('Nana irregolare di Pegaso', 'Pegasus Dwarf Irregular', 'Naine irrégulière de Pégase'), 352.1512, 14.7431, 3.0e6, 3500, 'irregular'],
     ] as [string, string, number, number, number, number, string][]).map(([id, name, ra, dec, ly, r, shape], i): DeepObject => ({
       // le nane sferoidali hanno una luminosità superficiale bassissima: appena percettibili, mai "palle" gialle
-      id, name, type: 'galaxy', ra, dec, ly, radiusLy: r, bright: shape === 'irregular' ? 0.55 : 0.18,
+      id, name, type: 'galaxy', ra, dec, ly, radiusLy: r, bright: id === 'sagdeg' ? 0.1 : shape === 'irregular' ? 0.55 : 0.18,
       desc: tx('Una galassia nana del Gruppo Locale, la "famiglia" di una cinquantina di galassie a cui appartiene la Via Lattea.',
         'A dwarf galaxy of the Local Group, the "family" of about fifty galaxies the Milky Way belongs to.',
         'Une galaxie naine du Groupe local, la « famille » d\'une cinquantaine de galaxies à laquelle appartient la Voie lactée.'),
-      galaxy: G(shape as GalaxyShape, 30 + (i * 37) % 50, (i * 53) % 180, 1, shape === 'irregular' ? [0.8, 0.88, 1] : [1, 0.9, 0.78]),
+      // la nana del Sagittario è sfilacciata dalle maree della Via Lattea: una nube lunga, molto inclinata e tenue
+      galaxy: id === 'sagdeg' ? G('irregular', 80, 105, 1, [0.92, 0.88, 0.82]) : G(shape as GalaxyShape, 30 + (i * 37) % 50, (i * 53) % 180, 1, shape === 'irregular' ? [0.8, 0.88, 1] : [1, 0.9, 0.78]),
     })),
     { id: 'm51g', name: tx('Galassia Vortice', 'Whirlpool Galaxy', 'Galaxie du Tourbillon'), type: 'galaxy', ra: 202.4696, dec: 47.1952, ly: 23e6, radiusLy: 38000, messier: 'M51',
       desc: tx('Una spirale perfetta vista di fronte, che interagisce con una galassia compagna.', 'A perfect face-on spiral interacting with a companion galaxy.', 'Une spirale parfaite vue de face, en interaction avec une galaxie compagne.'),
