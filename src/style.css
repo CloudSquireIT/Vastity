@@ -729,3 +729,31 @@ body.mode-in.to-sky canvas.gl { animation-name: vx-mode-in-sky; }
 .dbtn.on .ico, .tbtn.on .ico { animation: vx-breathe 2.4s ease-in-out infinite; }
 @keyframes vx-breathe { 50% { transform: scale(1.08); } }
 body.reduce-motion canvas.gl { transition: none !important; animation: none !important; transform: none !important; filter: none !important; }
+
+/* ---- Avvio: solo il buco nero; il disco di stelle si riempie con il caricamento ---- */
+.bh-ring { display: none; }
+#loader { --p: 0.04; }
+.bh-load { width: 200px; height: 200px; }
+.bh-back, .bh-front { width: 190px; height: 190px; margin: -95px 0 0 -95px; transform: scaleY(.24);
+  /* avanzamento: la parte di disco già "accesa" segue il giro, il resto resta un'ombra tenue */
+  -webkit-mask: conic-gradient(from 180deg, #000 calc(var(--p) * 360deg), rgba(0, 0, 0, .14) calc(var(--p) * 360deg + 6deg));
+  mask: conic-gradient(from 180deg, #000 calc(var(--p) * 360deg), rgba(0, 0, 0, .14) calc(var(--p) * 360deg + 6deg));
+  transition: -webkit-mask .3s, mask .3s; }
+.bh-back i, .bh-front i {
+  /* ammasso di stelle: punti luminosi di grandezze e colori diversi (passi diversi = niente griglia) */
+  background:
+    radial-gradient(circle, #fff 0 .8px, transparent 1.4px) 2px 5px / 11px 13px,
+    radial-gradient(circle, rgba(255, 228, 185, .95) 0 1.1px, transparent 1.9px) 7px 1px / 17px 19px,
+    radial-gradient(circle, rgba(200, 220, 255, .85) 0 .6px, transparent 1.1px) 4px 9px / 7px 9px,
+    radial-gradient(circle, rgba(255, 255, 255, .9) 0 1.5px, transparent 2.4px) 13px 6px / 29px 23px,
+    radial-gradient(circle, rgba(255, 200, 140, .7) 0 .7px, transparent 1.2px) 9px 3px / 13px 5px,
+    conic-gradient(from 0deg, rgba(255, 243, 220, .55), rgba(255, 178, 92, .5) 12%, rgba(162, 70, 26, .35) 30%, rgba(255, 154, 69, .5) 46%, rgba(255, 240, 208, .6) 52%, rgba(255, 178, 92, .5) 64%, rgba(109, 42, 16, .3) 80%, rgba(255, 210, 154, .5) 92%, rgba(255, 243, 220, .55));
+  -webkit-mask: radial-gradient(circle, transparent 30%, #000 34%, #000 55%, rgba(0, 0, 0, .5) 76%, transparent 100%);
+  mask: radial-gradient(circle, transparent 30%, #000 34%, #000 55%, rgba(0, 0, 0, .5) 76%, transparent 100%);
+  animation: vx-spin 3s linear infinite; filter: saturate(1.1); }
+.bh-core { width: 56px; height: 56px; margin: -28px 0 0 -28px; }
+.bh-lens { width: 86px; height: 86px; margin: -43px 0 0 -43px; }
+/* il disco davanti non copre il buco nero: passa solo ai lati */
+.bh-front i { -webkit-mask: radial-gradient(circle, transparent 31%, #000 35%, #000 55%, rgba(0, 0, 0, .5) 76%, transparent 100%);
+  mask: radial-gradient(circle, transparent 31%, #000 35%, #000 55%, rgba(0, 0, 0, .5) 76%, transparent 100%); }
+.bh-front { display: none; }

@@ -38,12 +38,12 @@ function findHip(hip: string) {
 const routeTo = (r: ObjRef) => tx(`Rotta verso ${refName(r)}`, `Course set for ${refName(r)}`, `Cap sur ${refName(r)}`);
 const LYS = tx('anni luce', 'light years', 'années-lumière');
 const loader = document.getElementById('loader');
-const loaderRing = document.querySelector('.bh-ring .fg') as SVGCircleElement | null;
+const loaderEl = document.getElementById('loader');
 
 async function main() {
   // schermata iniziale: barra di avanzamento reale del caricamento dei cataloghi
-  // l'anello attorno al buco nero si riempie mentre i cataloghi arrivano
-  setLoadProgress((p) => { if (loaderRing) loaderRing.style.strokeDashoffset = String(100 - Math.min(100, (p / 0.86) * 100)); });
+  // il disco di stelle attorno al buco nero si "accende" mentre i cataloghi arrivano
+  setLoadProgress((p) => { loaderEl?.style.setProperty('--p', String(Math.min(1, p / 0.86))); });
   await loadCatalogs();
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
