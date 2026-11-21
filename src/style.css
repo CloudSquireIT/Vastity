@@ -981,10 +981,10 @@ body[data-mode="ship"] .throttle-wrap { top: calc(50% + 30px); height: min(46vh,
 .tri { position: absolute; left: 0; top: 0; width: calc(var(--s) * 2 + 10px); height: calc(var(--s) * 2 + 10px); transform: translate(-50%, -50%); overflow: visible; pointer-events: none;
   animation: tri-spin 18s linear infinite, tri-in .5s ease-out; transition: width .35s var(--ease-out, ease), height .35s var(--ease-out, ease); }
 .tri path { fill: none; stroke-linecap: square; vector-effect: non-scaling-stroke; }
-.tri .tri-glow { stroke: rgba(80, 220, 255, .55); stroke-width: 6px; filter: blur(3px); }
-.tri .tri-line { stroke: #8ff0ff; stroke-width: 2.2px; }
-.ship-target.locked .tri .tri-line { stroke: #9fe8c2; }
-.ship-target.locked .tri .tri-glow { stroke: rgba(127, 224, 176, .55); }
+.tri .tri-glow { display: none; }
+.tri .tri-line { stroke: rgba(235, 242, 255, .9); stroke-width: 1.2px; }
+.ship-target.locked .tri .tri-line { stroke: #ffffff; }
+
 .ship-target.locked .tri { animation-duration: 7s; }
 .ship-target span { top: calc(var(--s) + 12px); }
 .ship-target.top span { top: calc(var(--s) * -1 - 38px); }

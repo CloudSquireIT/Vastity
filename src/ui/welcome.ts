@@ -32,7 +32,7 @@ export function showWelcome(o: { root: HTMLElement; locate: () => Promise<boolea
       const st = states[r.key] ?? 'ask';
       // la posizione è obbligatoria: se negata si può riprovare
       const retry = r.key === 'loc' && st === 'no';
-      const btn = h('button', { class: `wl-btn ${st}${r.key === 'loc' ? ' req' : ''}`, disabled: st === 'ok' || (st === 'no' && !retry), onclick: async () => {
+      const btn = h('button', { class: `wl-btn ${st}`, disabled: st === 'ok' || (st === 'no' && !retry), onclick: async () => {
         btn.classList.add('busy');
         const ok = await r.run().catch(() => false);
         states[r.key] = ok ? 'ok' : 'no';
@@ -43,17 +43,14 @@ export function showWelcome(o: { root: HTMLElement; locate: () => Promise<boolea
     }));
   };
   const need = h('p', { class: 'wl-need', role: 'status' });
+  // la posizione è facoltativa: se negata si usa un luogo predefinito e lo si dice
   const paintAll = () => {
     paint();
-    const ok = states.loc === 'ok';
-    start.disabled = !ok;
-    start.classList.toggle('off', !ok);
-    need.textContent = ok ? '' : states.loc === 'no'
-      ? tx('Senza la posizione non possiamo mostrarti il tuo cielo. Attivala in Impostazioni › Vastity › Posizione, poi tocca «Riprova».', 'Without your location we can\'t show you your sky. Turn it on in Settings › Vastity › Location, then tap “Try again”.', 'Sans votre position, impossible de vous montrer votre ciel. Activez-la dans Réglages › Vastity › Position, puis touchez « Réessayer ».')
-      : tx('Per iniziare serve almeno la posizione.', 'To begin, location access is required.', 'Pour commencer, la position est nécessaire.');
+    need.textContent = states.loc === 'no'
+      ? tx('Senza la posizione useremo il cielo di Roma: puoi attivarla quando vuoi in Impostazioni › Vastity › Posizione.', 'Without your location we will show the sky over Rome: you can turn it on any time in Settings › Vastity › Location.', 'Sans votre position, nous afficherons le ciel de Rome : vous pouvez l\'activer à tout moment dans Réglages › Vastity › Position.')
+      : '';
   };
-  const start = h('button', { class: 'wl-start off', disabled: true, onclick: () => {
-    if (states.loc !== 'ok') return;
+  const start = h('button', { class: 'wl-start', onclick: () => {
     feel.unlock();
     state.settings.welcomeDone = true;
     saveSettings();
