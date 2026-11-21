@@ -43,8 +43,11 @@ function precache(): Plugin {
 // importiamo solo il propagatore SGP4 in JavaScript puro.
 const satDir = fileURLToPath(new URL('./node_modules/satellite.js/dist/', import.meta.url));
 
+const pkg = JSON.parse(fs.readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+
 export default defineConfig({
   base: './',
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   resolve: {
     alias: [
       { find: /^satellite\.js$/, replacement: fileURLToPath(new URL('./src/vendor/satellite.ts', import.meta.url)) },

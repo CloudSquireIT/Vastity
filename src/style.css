@@ -1023,3 +1023,17 @@ body.native-dock .bottom .dock { visibility: hidden; }
 .icon-opt img { width: 56px; height: 56px; border-radius: 13px; box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
 .icon-opt.on { background: rgba(143, 180, 255, .14); color: var(--ink); }
 .icon-opt.on img { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ================================================================ segnalazioni */
+.fb-form { display: flex; flex-direction: column; gap: 12px; }
+.fb-kinds { display: flex; flex-wrap: wrap; gap: 8px; }
+.fb-kind { display: inline-flex; gap: 6px; align-items: center; padding: 8px 12px; }
+.fb-kind.on { background: rgba(143, 180, 255, .22); color: var(--ink); }
+.fb-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.fb-l { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.fb-h { font-size: 11.5px; color: var(--ink-3); }
+.fb-form .txt { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05); color: var(--ink); font: inherit; font-size: 15px; resize: vertical; }
+.fb-form .txt:focus { outline: none; border-color: var(--accent); }
+.fb-group { display: flex; flex-direction: column; gap: 12px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .06); }
+.fb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fb-status:empty { display: none; }

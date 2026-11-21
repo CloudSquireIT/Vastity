@@ -1,3 +1,4 @@
+import { APP_VERSION, openFeedback } from './feedback';
 import { AppIcon, native } from '../core/native';
 import { openTours } from '../features/tours';
 import { story } from '../data/stories';
@@ -432,7 +433,9 @@ export function openSettings() {
       h('button', { class: 'btn', onclick: () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}); } }, icon('fullscreen'), tx('Schermo intero', 'Full screen', 'Plein écran')),
       h('button', { class: 'btn', onclick: () => api.share() }, icon('share'), tx('Condividi questa vista', 'Share this view', 'Partager cette vue')),
       h('button', { class: 'btn', onclick: () => api.tutorial() }, icon('eye'), tx('Rivedi il tutorial', 'Replay the tutorial', 'Revoir le tutoriel')),
-      h('button', { class: 'btn', onclick: () => api.opening() }, icon('play'), tx('Rivedi l\'apertura', 'Replay the opening', 'Revoir l\'ouverture'))),
+      h('button', { class: 'btn', onclick: () => api.opening() }, icon('play'), tx('Rivedi l\'apertura', 'Replay the opening', 'Revoir l\'ouverture')),
+      h('button', { class: 'btn', onclick: () => openFeedback() }, icon('bell'), tx('Segnala un problema o suggerisci un\'idea', 'Report a problem or suggest an idea', 'Signaler un problème ou suggérer une idée'))),
+    h('p', { class: 'muted small' }, `Vastity ${APP_VERSION}`),
     native.isNative && native.platform === 'ios' ? iconPicker() : null,
     h('h3', {}, tx('Suoni e vibrazioni', 'Sound and haptics', 'Sons et vibrations')),
     toggle(tx('Suoni ed effetti', 'Sound and effects', 'Sons et effets'), st.sound !== false, (v) => { st.sound = v; saveSettings(); feel.refresh(); }),
