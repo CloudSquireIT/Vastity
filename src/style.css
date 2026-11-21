@@ -1112,11 +1112,10 @@ body.sheet-open .bottom { opacity: 0; transform: translateY(12px); pointer-event
 /* niente pinch-zoom né doppio tocco sulla pagina: lo zoom è solo quello del cielo */
 html, body { touch-action: pan-x pan-y; }
 
-/* missioni in alto a sinistra, sotto il luogo: compaiono con una dissolvenza dopo il primo tutorial */
-.brand .mission-chip { position: static; transform: translateY(-4px); margin-top: 8px; align-self: flex-start; max-width: min(46vw, 300px);
-  opacity: 0; pointer-events: none; transition: opacity .9s var(--ease-out, ease), transform .9s var(--ease-out, ease); }
-body.missions-ready .brand .mission-chip { opacity: 1; transform: none; pointer-events: auto; }
-body.missions-ready.idle .brand .mission-chip, body.missions-ready.ui-hidden .brand .mission-chip { opacity: 0; pointer-events: none; }
+/* obiettivo attuale in alto al centro: compare con una dissolvenza dopo il primo tutorial */
+.ui > .mission-chip { opacity: 0; pointer-events: none; transition: opacity .9s var(--ease-out, ease); }
+body.missions-ready .ui > .mission-chip { opacity: 1; pointer-events: auto; }
+body.missions-ready.idle .ui > .mission-chip, body.missions-ready.ui-hidden .ui > .mission-chip { opacity: 0; pointer-events: none; }
 
 /* badge sbloccato: scheda compatta in vetro liquido, leggibile su qualsiasi sfondo */
 .badge-pop.glass-pop { left: 50%; top: calc(64px + var(--safe-t)); width: auto; max-width: min(340px, calc(100vw - 32px)); margin: 0; transform: translateX(-50%);

@@ -7,6 +7,7 @@ Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.
 - Android: le APK ora sono sempre firmate. La `-release.apk` usciva senza firma (manca la chiave del Play Store)
   e Android la rifiutava come «pacchetto non valido». Le build di prova usano una chiave di test fissa, quindi le
   prossime versioni si installano sopra la precedente senza disinstallare.
+- L'obiettivo attuale (es. «Trova Capella») torna in alto al centro; resta la dissolvenza dopo il primo tutorial.
 
 ## 0.5.7
 

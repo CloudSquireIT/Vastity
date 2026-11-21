@@ -275,9 +275,8 @@ async function main() {
   throttle.addEventListener('input', () => ship.setThrottle(+throttle.value));
 
   const zoomBadge = h('div', { class: 'zoom-badge', 'aria-hidden': 'true' });
-  // le missioni stanno in alto a sinistra, sotto il luogo; compaiono con una dissolvenza dopo il primo tutorial
-  brand.append(missionChip);
-  ui.append(top, reticle, zoomPill, zoomBadge, telemetry, throttleWrap, bottom, timeCtl, hideBtn);
+  // l'obiettivo attuale resta in alto al centro; compare con una dissolvenza dopo il primo tutorial
+  ui.append(top, reticle, missionChip, zoomPill, zoomBadge, telemetry, throttleWrap, bottom, timeCtl, hideBtn);
 
   // ------------------------------------------------------------------ modalità
   function setMode(m: 'sky' | 'ship', instant = false) {

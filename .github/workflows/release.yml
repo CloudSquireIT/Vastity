@@ -120,6 +120,10 @@ jobs:
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
           for t in v1.0.0 v1.1.0; do gh release delete "$t" --cleanup-tag -y -R "$GITHUB_REPOSITORY" || true; done
+      # se la stessa versione viene ricompilata, la release precedente (e il suo tag) si sostituisce
+      - name: Sostituisci la release della stessa versione
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: gh release delete "$TAG" --cleanup-tag -y -R "$GITHUB_REPOSITORY" || true
       # crea (o aggiorna) la release e il suo tag anche quando la pipeline è avviata a mano
       - uses: softprops/action-gh-release@v2
         with:
