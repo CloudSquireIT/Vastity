@@ -48,6 +48,8 @@ uniform vec3 uEmit;
 uniform sampler2D uRingMap;
 uniform vec2 uRing;
 uniform float uDetail;
+uniform float uStarSeed;
+uniform float uGran;
 varying vec2 vUv;
 varying vec3 vNormalV;
 varying vec3 vPosV;
@@ -102,30 +104,42 @@ void main() {
   if (uType > 3.5 && uType < 4.5) {
     float mu = max(dot(n, V), 0.0);
     vec3 sp0 = normalize(vObj);
-    vec3 p = sp0 * 2.4;
+    // ogni stella ha il suo disegno (seme) e la sua scala: le supergiganti hanno poche celle enormi,
+    // le nane una granulazione fine
+    vec3 so = vec3(uStarSeed, uStarSeed * 1.7, uStarSeed * 0.6);
+    vec3 p = sp0 * 2.4 * uGran + so;
     float tt = t * 0.05;
     // plasma con domain warping animato e filamenti "di fuoco" (turbolenza a creste)
     vec3 q = vec3(fbm3(p + vec3(0.0, 0.0, tt), 2), fbm3(p + vec3(5.2, 1.3, -tt), 2), fbm3(p + vec3(2.1, 7.7, tt * 0.7), 2));
     float pl = fbm3(p * 1.8 + q * 2.6 + vec3(tt * 1.4, 0.0, 0.0), 4);
     float ridge = 1.0 - abs(pl * 2.0 - 1.0);
     float fire = pow(ridge, 3.0);
-    float gran = vn3(sp0 * 80.0 + vec3(t * 0.3, -t * 0.22, t * 0.17)) * 0.6 + vn3(sp0 * 170.0 - vec3(t * 0.4)) * 0.4;
-    float spots = smoothstep(0.68, 0.82, fbm3(sp0 * 3.5 + vec3(0.0, 0.0, t * 0.01), 3));
+    float gran = vn3(sp0 * 80.0 * uGran + so + vec3(t * 0.3, -t * 0.22, t * 0.17)) * 0.6 + vn3(sp0 * 170.0 * uGran - vec3(t * 0.4)) * 0.4;
+    float spots = smoothstep(0.68, 0.82, fbm3(sp0 * 3.5 + so + vec3(0.0, 0.0, t * 0.01), 3));
     float heat = clamp(0.25 + fire * 0.75 + (gran - 0.5) * 0.35 + (pl - 0.5) * 0.4 - spots * 0.55, 0.0, 1.0);
-    if (uHasMap > 0.5) heat = clamp(mix(heat, lum(texture2D(uMap, uv + vec2(t * 0.0004, 0.0)).rgb) * 1.15, 0.25), 0.0, 1.0);
+    if (uHasMap > 0.5 && uStarSeed == 0.0) heat = clamp(mix(heat, lum(texture2D(uMap, uv + vec2(t * 0.0004, 0.0)).rgb) * 1.15, 0.25), 0.0, 1.0);
+    // supergiganti: celle convettive enormi separate da corsie scure, superficie più irregolare
+    float giant = smoothstep(0.75, 0.35, uGran);
+    heat = mix(heat, clamp(pow(ridge, 1.6) * 1.15 - 0.12 + (pl - 0.5) * 0.6, 0.0, 1.0), giant * 0.7);
     // rampa satura nel colore della stella: brace scura → colore pieno → quasi bianco al calor bianco
     float l0 = dot(uColor, vec3(0.299, 0.587, 0.114));
     vec3 satc = clamp(mix(vec3(l0), uColor, 2.6), 0.0, 1.0);
+    // stelle fredde (giganti rosse, nane rosse): rosso-arancio pieno, il calor bianco solo nei punti più caldi
+    float red = clamp((uColor.r - uColor.b) * 2.6 - 0.6, 0.0, 1.0);
+    satc = mix(satc, vec3(1.0, 0.28, 0.04), red * 0.8);
+    heat *= 1.0 - 0.35 * red;
     float blue = clamp((uColor.b - uColor.r) * 2.5 + 0.2, 0.0, 1.0);
     vec3 ember = mix(vec3(0.42, 0.06, 0.01), vec3(0.04, 0.09, 0.35), blue);
-    vec3 mid = mix(satc * vec3(1.0, 0.62, 0.35), satc * vec3(0.55, 0.75, 1.0), blue);
-    vec3 hot = mix(satc, vec3(1.0), 0.45);
+    vec3 mid = mix(satc * mix(vec3(1.0, 0.84, 0.6), vec3(1.0, 0.48, 0.22), red), satc * vec3(0.55, 0.75, 1.0), blue);
+    vec3 hot = mix(satc, vec3(1.0, 0.94, 0.82), 0.5 * (1.0 - red) * (1.0 - red));
     vec3 c = mix(ember, mid, smoothstep(0.08, 0.45, heat));
     c = mix(c, hot, smoothstep(0.5, 0.92, heat));
     // bordo più scuro (oscuramento al lembo) e lingue luminose sul contorno
     c *= 0.5 + 0.5 * pow(mu, 0.55);
     c += satc * pow(1.0 - mu, 4.0) * (0.4 + 0.6 * vn3(sp0 * 12.0 + t * 0.35));
-    gl_FragColor = vec4(min(c * 1.1 * uBright, vec3(1.0)), 1.0);
+    // la rampa è pensata in valori "da schermo" (sRGB): si porta in lineare prima della conversione finale,
+    // altrimenti i rossi e gli arancio diventano color pesca slavato
+    gl_FragColor = vec4(pow(min(c * 1.1 * uBright, vec3(1.0)), vec3(2.2)), 1.0);
     #include <colorspace_fragment>
     return;
   }
@@ -292,7 +306,7 @@ export interface PlanetLook {
 const RELIEF_EXAG = 3;
 
 export const LOOKS: Record<string, PlanetLook & { shell?: [number, number, number] }> = {
-  sun: { type: PT.star, map: 'sun', color: 0xffd08a, bright: 1.0 },
+  sun: { type: PT.star, map: 'sun', color: 0xffe6b8, bright: 1.0 },
   mercury: { type: PT.rocky, map: 'mercury', bump: 2.4 },
   venus: { type: PT.venus, map: 'venus', atm: 0xffe0a8, atmK: 0.45, shell: [0xffcf8a, 1.04, 0.9] },
   earth: { type: PT.earth, map: 'earth', atm: 0x6fa8ff, atmK: 0.7, bump: 0.5, shell: [0x6aa2ff, 1.022, 0.7] },
@@ -321,6 +335,8 @@ export function planetMaterial(look: PlanetLook) {
       uRingMap: { value: look.ring ? ringTexture() : blankTexture }, uRing: { value: new THREE.Vector2(look.ring?.[0] ?? 0, look.ring?.[1] ?? 0) },
       // dettaglio procedurale da vicino (crateri, rugosità) per i mondi rocciosi
       uDetail: { value: look.detail ?? (look.type === PT.rocky || look.type === PT.mars ? 1 : 0) },
+      // stelle: seme del disegno (0 = il Sole, con la sua mappa) e scala delle celle convettive
+      uStarSeed: { value: 0 }, uGran: { value: 1 },
     },
   });
 }
@@ -495,7 +511,7 @@ void main() {
   vec3 sat = clamp(mix(vec3(l0), uColor, 2.4), 0.0, 1.0);
   float I = (glow + tongues * fall * 1.3) * inner * uK;
   vec3 c = mix(sat * vec3(1.0, 0.7, 0.5), mix(sat, vec3(1.0), 0.35), fall);
-  gl_FragColor = vec4(c * I, 1.0);
+  gl_FragColor = vec4(pow(c, vec3(2.2)) * I, 1.0);
   #include <colorspace_fragment>
 }
 `;
@@ -511,4 +527,11 @@ export function coronaMesh(color: THREE.Color, size = 1.7, k = 0.9) {
   mesh.frustumCulled = false;
   mesh.renderOrder = 2.9;
   return { mesh, mat };
+}
+
+/** Disegno della superficie di una stella: seme diverso per ciascuna e celle più grandi per le giganti. */
+export function starSurface(mat: THREE.ShaderMaterial, seed: number, radiusSun: number) {
+  mat.uniforms.uStarSeed.value = 1 + (Math.abs(seed * 12.9898) % 97);
+  // Sole → 1; nane → celle fini; giganti e supergiganti → poche celle enormi
+  mat.uniforms.uGran.value = Math.max(0.25, Math.min(1.6, 1 / (1 + Math.log10(Math.max(0.1, radiusSun)) * 0.55)));
 }

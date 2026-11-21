@@ -476,7 +476,8 @@ export class DeepRenderer {
       (g.core.material as THREE.ShaderMaterial).uniforms.uR.value = g.coreR * grow;
       if (g.edge) (g.edge.material as THREE.ShaderMaterial).uniforms.uR.value = g.R * grow;
       const visible = smooth(1.5, 6, px);
-      const k = far * visible * dim * (g.obj.bright ?? 1);
+      // nel filmato d'apertura le nane del Gruppo Locale sono un po' più visibili
+      const k = far * visible * dim * Math.max(g.obj.bright ?? 1, grow > 1 ? 0.6 * this.localBoost : 0);
       // quanto è "di taglio": il disco piatto lascia il posto allo strato con spessore e polveri
       const cosv = Math.abs(this.tmp.normalize().dot(g.normal));
       const tilted = (g.disk.material as THREE.ShaderMaterial).uniforms.uMinCos.value > 0;

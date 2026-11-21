@@ -2,6 +2,17 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.6.6
+
+- Via Lattea: tolta la «palla gialla» vicino al centro. Era la galassia nana del Sagittario (aggiunta nella 0.5.5),
+  disegnata come un'ellittica luminosa proprio dietro il centro galattico; le altre nane sferoidali ora sono tenui
+  come nella realtà (restano visibili nel filmato d'apertura).
+- Pulsante «occhio» di nuovo allineato alla colonna dei comandi a destra anche con la tacca dell'iPhone in
+  orizzontale (usava un margine mai definito).
+- Stelle tutte diverse: disegno e scala delle celle convettive propri di ogni stella (poche celle enormi per le
+  supergiganti come Betelgeuse e Antares, granulazione fine per le nane); colori corretti, prima schiariti e
+  "color pesca": giganti e nane rosse rosso-arancio, Sole giallo-oro, Rigel e Sirio blu-bianche.
+
 ## 0.6.5
 
 - Badge dello zoom («1.2X») spostato in basso al centro, sopra il menu: in alto copriva la telemetria della

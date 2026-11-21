@@ -2,7 +2,7 @@
 // i suoi pianeti appaiono in 3D sulle loro orbite (render generato dai dati reali).
 import * as THREE from 'three';
 import { BodySprite } from '../render/bodies';
-import { PT, bodySphere, coronaMesh, planetMaterial, tempColor } from '../render/planet';
+import { PT, bodySphere, coronaMesh, planetMaterial, starSurface, tempColor } from '../render/planet';
 import { ExoClass, exoHosts, exoPosPc, exoTexture, exoplanets, hostPosPc } from '../data/exoplanets';
 import { PC_IN_KM, stars } from '../data/catalog';
 import { V3, v3 } from '../astro/astro';
@@ -105,6 +105,7 @@ export class ExoSystemView {
       const color = tempColor(host.teff);
       const mat = planetMaterial({ type: PT.star, map: 'sun', color: color.getHex(), bright: 1.0 });
       mat.transparent = true;
+      starSurface(mat, h + 7, host.radiusSun);
       const mesh = new THREE.Mesh(this.sphere, mat);
       mesh.scale.setScalar(Math.max(0.08, host.radiusSun) * 696340);
       mesh.renderOrder = 3;

@@ -1172,3 +1172,8 @@ body.missions-ready.idle .ui > .mission-chip, body.missions-ready.ui-hidden .ui 
    l'obiettivo attuale e i messaggi) */
 .zoom-badge { top: auto !important; bottom: calc(100px + var(--safe-b, env(safe-area-inset-bottom, 0px))); }
 @media (max-height: 430px) { .zoom-badge { bottom: calc(96px + var(--safe-b, env(safe-area-inset-bottom, 0px))); } }
+
+/* occhio (nascondi interfaccia): stessa colonna dei comandi a destra, anche con la tacca dell'iPhone in orizzontale
+   (prima usava una variabile mai definita e ignorava il margine di sicurezza) */
+.hide-ui { right: calc(14px + env(safe-area-inset-right, 0px)) !important; }
+body[data-mode="ship"] .hide-ui { right: calc(max(18px, env(safe-area-inset-right, 0px)) + 2px) !important; }

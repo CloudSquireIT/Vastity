@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import * as A from 'astronomy-engine';
 import { Background, GALACTIC_CENTER_PC } from '../render/background';
 import { BodySprite } from '../render/bodies';
-import { LOOKS, PT, atmosphereMaterial, bodySphere, coronaMesh, planetMaterial, ringMaterial, tempColor } from '../render/planet';
+import { LOOKS, PT, atmosphereMaterial, bodySphere, coronaMesh, planetMaterial, ringMaterial, starSurface, tempColor } from '../render/planet';
 import { wantHiRes } from '../core/textures';
 import { Streaks } from '../render/streaks';
 import { ExoSystemView } from './exoSystem';
@@ -210,7 +210,9 @@ export class ShipView {
         p.atm = atm;
       }
       if (b.id === 'sun') {
-        p.corona = coronaMesh(new THREE.Color(1, 0.72, 0.38), 1.7, 0.9);
+        // stesso calcolo del colore delle altre stelle: giallo-oro (non arancio come le giganti rosse)
+        mat.uniforms.uColor.value.copy(tempColor(5300));
+        p.corona = coronaMesh(tempColor(5300), 1.7, 0.9);
         this.root.add(p.corona.mesh);
       }
       if (b.rings) {
@@ -867,6 +869,7 @@ export class ShipView {
         const col = tempColor(ph.T);
         const mat = planetMaterial({ type: PT.star, map: 'sun', color: col.getHex(), bright: 1.0 });
         mat.transparent = true;
+        starSurface(mat, i, ph.R);
         const mesh = new THREE.Mesh(this.starSphere, mat);
         mesh.renderOrder = 3;
         mesh.scale.setScalar(Math.min(1500, ph.R) * 696340);
