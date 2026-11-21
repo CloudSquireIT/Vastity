@@ -1167,3 +1167,8 @@ body.missions-ready.idle .ui > .mission-chip, body.missions-ready.ui-hidden .ui 
 #loader .loader-n { font-family: -apple-system, "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif !important; font-weight: 300 !important;
   letter-spacing: .42em !important; text-indent: .42em !important; color: rgba(240, 244, 255, .88) !important; text-shadow: 0 1px 8px rgba(0, 0, 0, .6) !important; animation: none !important; transform: none !important; }
 #loader.done .loader-n { opacity: 0 !important; transition: opacity .9s ease !important; }
+
+/* badge dello zoom: in basso al centro, sopra il menu (in alto coprirebbe la telemetria della navicella,
+   l'obiettivo attuale e i messaggi) */
+.zoom-badge { top: auto !important; bottom: calc(100px + var(--safe-b, env(safe-area-inset-bottom, 0px))); }
+@media (max-height: 430px) { .zoom-badge { bottom: calc(96px + var(--safe-b, env(safe-area-inset-bottom, 0px))); } }

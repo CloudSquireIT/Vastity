@@ -2,6 +2,11 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.6.5
+
+- Badge dello zoom («1.2X») spostato in basso al centro, sopra il menu: in alto copriva la telemetria della
+  navicella, l'obiettivo attuale e i messaggi.
+
 ## 0.6.4
 
 - Zoom e scheda informativa: con la scheda aperta (mezzo schermo in orizzontale) un dito del pinch finiva sulla
