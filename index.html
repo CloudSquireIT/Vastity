@@ -22,6 +22,8 @@
       text-transform: uppercase; color: rgba(240, 244, 255, .88); text-shadow: 0 1px 8px rgba(0, 0, 0, .6); white-space: nowrap; position: relative; z-index: 1; }
     /* le lettere sono l'indicatore: si accendono una dopo l'altra, dalla V alla Y */
     #loader .loader-n span { display: inline-block; opacity: .12; }
+    /* prima il cielo, poi la scritta (la fa comparire lo script qui sotto) */
+    #loader .loader-n { opacity: 0; }
     /* cielo del caricamento: disegnato su canvas, dietro la scritta (nessun bagliore che "lampeggia") */
     #ld-sky { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
   </style>
@@ -44,17 +46,21 @@
         c: COL[i % COL.length], f1: 1.5 + Math.random() * 5, f2: 4 + Math.random() * 9, p: Math.random() * 6.283 });
       var T0 = performance.now();
       // stelle cadenti: attraversano tutto lo schermo, dietro la scritta
-      var SH = still ? [] : [{ t: 1.15, d: 1.25, a: [-0.12, 0.16], b: [1.12, 0.7], w: 1 }, { t: 2.85, d: 0.9, a: [1.08, 0.08], b: [0.18, 0.42], w: 0.6 }];
+      var SH = still ? [] : [{ t: 2.4, d: 1.3, a: [-0.12, 0.16], b: [1.12, 0.7], w: 1 }, { t: 4.6, d: 1.0, a: [1.08, 0.08], b: [0.18, 0.42], w: 0.6 }];
       function frame(now) {
         if (!document.getElementById('loader')) return;
         var t = (now - T0) / 1000;
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.clearRect(0, 0, W, H);
-        // velo appena percettibile verso il centro (sempre uguale: niente lampi)
+        // tutto entra in dissolvenza lenta (niente lampi): velo appena percettibile, poi le stelle
+        var fade = Math.min(1, t / 1.4); fade = fade * fade * (3 - 2 * fade);
         var neb = g.createRadialGradient(W / 2, H * 0.58, 0, W / 2, H * 0.58, Math.max(W, H) * 0.7);
-        neb.addColorStop(0, 'rgba(18,30,70,0.55)'); neb.addColorStop(1, 'rgba(3,5,12,0)');
+        neb.addColorStop(0, 'rgba(18,30,70,' + (0.5 * fade).toFixed(3) + ')'); neb.addColorStop(1, 'rgba(3,5,12,0)');
         g.fillStyle = neb; g.fillRect(0, 0, W, H);
-        var fade = Math.min(1, t / 0.9), drift = still ? 0 : t * 0.05, cx = W / 2, cy = H / 2, F = Math.max(W, H) * 0.5;
+        // la scritta compare dopo il cielo (da 1,2 s, in 1 s)
+        var tn = document.querySelector('#loader .loader-n');
+        if (tn && !document.getElementById('loader').classList.contains('done')) { var k = Math.max(0, Math.min(1, (t - 1.2) / 1.0)); tn.style.opacity = (k * k * (3 - 2 * k)).toFixed(3); }
+        var drift = still ? 0 : t * 0.05, cx = W / 2, cy = H / 2, F = Math.max(W, H) * 0.5;
         for (var i = 0; i < S.length; i++) {
           var s = S[i], z = ((s.z - drift - 0.06) % 0.94 + 0.94) % 0.94 + 0.06;
           var px = cx + (s.x / z) * F * 0.42, py = cy + (s.y / z) * F * 0.42;

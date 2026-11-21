@@ -220,18 +220,22 @@ void main() {
     vec2 sh = normalize(vLightObj.xy + 1e-5) * 0.0018;
     float shadow = texture2D(uSCL, uv + vec2(uCloudOffset, 0.0) - vec2(sh.x, sh.y * 0.5)).g;
     vec3 day = base * (1.0 - shadow * 0.4);
-    // oceani più profondi e blu, terre un po' più calde
-    day = mix(day, day * vec3(0.78, 0.9, 1.12), ocean * 0.6);
+    // oceani blu notte profondi, terre leggermente più sature (come nelle foto dall'orbita)
+    day = mix(day, day * vec3(0.5, 0.66, 0.95), ocean * 0.8);
+    float dl = dot(day, vec3(0.299, 0.587, 0.114));
+    day = mix(vec3(dl), day, 1.12) * 0.95;
     vec3 H = normalize(L + V);
-    float spec = pow(max(dot(n, H), 0.0), 160.0) * ocean * (1.0 - clouds) * 0.55;
+    float spec = pow(max(dot(n, H), 0.0), 220.0) * ocean * (1.0 - clouds) * 0.4;
     float fres = pow(1.0 - NdV, 5.0);
     col = mix(day, vec3(0.97), clouds * 0.95) * light;
     col += vec3(1.0, 0.9, 0.75) * (spec + fres * 0.05 * ocean) * smoothstep(0.0, 0.2, NdL);
     // notte: luci delle città calde, più intense nel buio pieno, attenuate dalle nuvole
     float nightSide = 1.0 - smoothstep(-0.18, 0.06, NdL);
     // solo le luci vere: la mappa notturna ha anche un leggero chiarore delle terre, che si toglie
-    float cities = pow(max(scl.b - 0.1, 0.0) / 0.9, 1.7) * 1.3;
-    col += vec3(1.0, 0.68, 0.32) * cities * nightSide * (1.0 - clouds * 0.75) * 1.9;
+    // Black Marble 2016 (NASA, VIIRS): nucleo bianco delle grandi città, alone arancio delle luci al sodio
+    float cities = pow(scl.b, 1.25);
+    vec3 cityCol = mix(vec3(1.0, 0.5, 0.16), vec3(1.0, 0.93, 0.82), smoothstep(0.45, 0.95, cities));
+    col += cityCol * cities * nightSide * (1.0 - clouds * 0.75) * 1.7;
     col += vec3(0.25, 0.32, 0.55) * clouds * nightSide * cities * 0.25;
     // crepuscolo: fascia arancio-rosata sul terminatore
     float dusk = smoothstep(0.28, 0.0, NdL) * smoothstep(-0.16, 0.04, NdL);

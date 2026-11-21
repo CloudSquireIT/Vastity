@@ -2,6 +2,16 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.6.0
+
+- Caricamento senza lampo: prima compare il cielo stellato (in dissolvenza), poi la scritta V A S T I T Y, poi le
+  lettere si accendono una dopo l'altra; 7 secondi in tutto. La scritta non cambia più carattere a metà.
+- Terra di notte con le luci vere di NASA Black Marble 2016 (VIIRS): nucleo bianco delle grandi città, alone arancio;
+  di giorno oceani blu notte profondi, terre più sature, riflesso del Sole più sobrio.
+- Luna con il colore LROC (NASA SVS CGI Moon Kit, 8K → 4K).
+- iOS: `npm run ios` prepara tutto per Xcode (dipendenze, build, Pods) e apre il workspace giusto; tolto l'avviso
+  "[CP] Embed Pods Frameworks". Istruzioni nel README.
+
 ## 0.5.9
 
 - Tutorial ridotto a 5 passi in tutto (4 sull'interfaccia + 1 sulle missioni); l'area spiegata si illumina con un

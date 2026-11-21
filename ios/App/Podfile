@@ -23,3 +23,20 @@ end
 post_install do |installer|
   assertDeploymentTarget(installer)
 end
+
+# le fasi "[CP] ..." di CocoaPods non dichiarano output: le segniamo come "sempre da eseguire",
+# così Xcode non mostra l'avviso "will be run during every build" (dopo l'integrazione nel progetto)
+post_integrate do |installer|
+  installer.aggregate_targets.each do |agg|
+    project = agg.user_project
+    changed = false
+    project.native_targets.each do |t|
+      t.shell_script_build_phases.each do |ph|
+        next unless ph.name.to_s.start_with?('[CP]') && ph.respond_to?(:always_out_of_date=)
+        ph.always_out_of_date = '1'
+        changed = true
+      end
+    end
+    project.save if changed
+  end
+end

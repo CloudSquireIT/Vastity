@@ -86,13 +86,28 @@ e conserva texture e foto alla prima visualizzazione: dopo il primo utilizzo l'a
 
 ## App nativa (iOS / Android)
 
-Capacitor è già configurato (`capacitor.config.ts`, plugin haptics, notifiche locali, sensori di movimento):
+Capacitor è già configurato (`capacitor.config.ts`, plugin haptics, notifiche locali, sensori di movimento).
+
+### iOS in Xcode (simulatore o iPhone)
+
+Serve un Mac con Xcode e CocoaPods. Dalla cartella del progetto:
 
 ```bash
-npm i -D @capacitor/ios @capacitor/android
-npm run build && npx cap add ios && npx cap add android
-npm run cap:sync            # dopo ogni modifica
-npx cap open ios            # Xcode (serve un Mac) · npx cap open android
+npm run ios
+```
+
+Lo script installa le dipendenze, compila l'app, la copia nel progetto Xcode, genera `ios/App/Pods`
+(`pod install`) e apre **`ios/App/App.xcworkspace`**. Apri sempre il *workspace*, non `App.xcodeproj`:
+senza Pods Xcode dà l'errore *"Unable to open base configuration reference file … Pods-App.debug.xcconfig"*.
+Poi scegli un simulatore in alto e premi ▶.
+
+In alternativa, senza compilare: scarica `vastity-…-simulator.app.zip` dalla release, estrailo e trascina
+`App.app` sul simulatore aperto (oppure `xcrun simctl install booted App.app`).
+
+### Android
+
+```bash
+VASTITY_NATIVE=1 npm run build && npx cap sync android && npx cap open android
 ```
 
 Nell'app nativa: vibrazioni del Taptic Engine, notifiche di sistema degli avvisi per 7 giorni (anche ad app chiusa),
@@ -111,7 +126,10 @@ si copia un rapporto anonimo (dispositivo, GPU, qualità, errori) da allegare a 
 - Meteo: [Open-Meteo](https://open-meteo.com); orbite ISS: [CelesTrak](https://celestrak.org)
 - Foto nelle schede: NASA, ESA, ESO, Hubble via Wikimedia Commons (fonte di ogni immagine in `public/photos/credits.json`)
 - Font: Inter, Space Grotesk, JetBrains Mono (SIL Open Font License) tramite Fontsource
-- Texture di pianeti, Luna e Sole e panorama della Via Lattea: [Solar System Scope](https://www.solarsystemscope.com/textures/), CC BY 4.0, basate su dati NASA/ESO (convertite in WebP in 3 risoluzioni in `public/textures`)
+- Texture di pianeti e Sole e panorama della Via Lattea: [Solar System Scope](https://www.solarsystemscope.com/textures/), CC BY 4.0, basate su dati NASA/ESO (convertite in WebP in 3 risoluzioni in `public/textures`)
+- Luna: colore LROC WAC dal [CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/) di NASA SVS (pubblico dominio); quote LOLA (PDS Geosciences)
+- Terra di notte: [Black Marble 2016](https://earthobservatory.nasa.gov/features/NightLights) (NASA Earth Observatory, Suomi NPP VIIRS), pubblico dominio
+- Marte: quote MOLA (NASA MGS, PDS Geosciences), pubblico dominio
 - Esopianeti confermati (6.438): [NASA Exoplanet Archive](https://exoplanetarchive.ipac.caltech.edu/) (dati pubblici), `node scripts/build-exoplanets.mjs`; render 3D generati dai dati reali (raggio, temperatura)
 - Foto reali delle galassie (66): solo immagini in pubblico dominio, CC0 o CC BY da Wikimedia Commons (NASA/ESA Hubble, Webb, ESO, NOIRLab…), elaborate con `python3 scripts/galaxy_photos.py`; elenco con autori e licenze in `public/data/galaxy-photos.json` e in Impostazioni
 - Render delle galassie viste da fuori: foto di M101 (NASA/ESA Hubble), M83 (NOIRLab/CTIO), NGC 1300 (NASA/ESA Hubble) via Wikimedia Commons e illustrazione della Via Lattea di NASA/JPL-Caltech/R. Hurt, con stelle in primo piano rimosse (`public/textures/*/gal_*.webp`)

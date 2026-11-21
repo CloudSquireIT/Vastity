@@ -51,16 +51,18 @@ const loaderEl = document.getElementById('loader');
 /**
  * Caricamento: le sette lettere V A S T I T Y si accendono una dopo l'altra e fanno da indicatore.
  * L'avanzamento mostrato è il minore tra il tempo (4 s in tutto) e il caricamento reale, così la Y si
- * accende solo quando l'app è davvero pronta; a quel punto si entra.
+ * accende solo quando l'app è davvero pronta (7 s in tutto); a quel punto si entra.
  */
-const LOAD_MS = 4000;
+const LOAD_MS = 7000;
+// le lettere cominciano ad accendersi quando la scritta è comparsa (dopo il cielo stellato)
+const LETTERS_FROM = 2000;
 let loadReal = 0;
 const loaderReady = new Promise<void>((resolve) => {
   const letters = [...document.querySelectorAll<HTMLElement>('#loader .loader-n span')];
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let shown = 0;
   const step = () => {
-    const target = Math.min(loadReal, performance.now() / LOAD_MS);
+    const target = Math.min(loadReal, Math.max(0, (performance.now() - LETTERS_FROM) / (LOAD_MS - LETTERS_FROM)));
     // avanza in modo continuo (mai all'indietro), con un leggero inseguimento per non scattare
     shown = Math.min(1, Math.max(shown, shown + (target - shown) * 0.18));
     if (target >= 1 && shown > 0.995) shown = 1;

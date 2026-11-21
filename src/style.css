@@ -1161,3 +1161,8 @@ body.missions-ready.idle .ui > .mission-chip, body.missions-ready.ui-hidden .ui 
 .tour-hole.none { animation: none; }
 @keyframes tour-glow { 50% { box-shadow: 0 0 0 9999px rgba(2, 4, 10, .74), 0 0 0 2px rgba(220, 235, 255, 1), 0 0 40px 12px rgba(150, 195, 255, .9), inset 0 0 30px rgba(200, 225, 255, .45); } }
 .tour-lit { filter: brightness(1.35) saturate(1.15); transition: filter .4s ease; }
+
+/* la scritta del caricamento resta identica anche quando arriva questo foglio di stile (niente cambio di carattere) */
+#loader .loader-n { font-family: -apple-system, "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif !important; font-weight: 300 !important;
+  letter-spacing: .42em !important; text-indent: .42em !important; color: rgba(240, 244, 255, .88) !important; text-shadow: 0 1px 8px rgba(0, 0, 0, .6) !important; animation: none !important; transform: none !important; }
+#loader.done .loader-n { opacity: 0 !important; transition: opacity .9s ease !important; }
