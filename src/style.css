@@ -1108,3 +1108,6 @@ body.sheet-open .bottom { opacity: 0; transform: translateY(12px); pointer-event
 #loader .mini-bh { display: none !important; }
 #loader .loader-n span { animation: none !important; opacity: .12; will-change: opacity, transform; }
 #loader.done .loader-n { opacity: 0; letter-spacing: .62em; transition: opacity .9s ease, letter-spacing 1.2s var(--ease-in-out); }
+
+/* niente pinch-zoom né doppio tocco sulla pagina: lo zoom è solo quello del cielo */
+html, body { touch-action: pan-x pan-y; }

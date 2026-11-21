@@ -2,6 +2,15 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.5.6
+
+- Tocchi più affidabili dopo lo zoom: se durante un pinch un dito "si perde" (esce dallo schermo o finisce su un
+  pannello) i tocchi successivi non vengono più scambiati per un secondo dito, quindi funzionano subito.
+- Pannelli: la scheda non resta più bloccata a metà trascinamento; toccare il cielo vuoto chiude il pannello aperto;
+  deselezionare un oggetto chiude la sua scheda.
+- Niente più zoom involontario della pagina (pinch su un pannello o doppio tocco) che spostava l'interfaccia.
+- Cursore dello zoom e manetta non restano "agganciati" se il dito scivola via.
+
 ## 0.5.5
 
 - Caricamento: niente più cerchio; le lettere V A S T I T Y si accendono una dopo l'altra e sono l'indicatore.

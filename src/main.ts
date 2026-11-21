@@ -76,6 +76,11 @@ const loaderReady = new Promise<void>((resolve) => {
   requestAnimationFrame(step);
 });
 
+// niente zoom della pagina (pinch su un pannello, doppio tocco): su iPhone l'interfaccia si ingrandirebbe
+// tutta, i pannelli finirebbero fuori posto e i tocchi non arriverebbero più dove sembrano
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', (e) => { if ((e as TouchEvent & { scale?: number }).scale !== undefined && (e as TouchEvent & { scale?: number }).scale !== 1) e.preventDefault(); }, { passive: false });
+
 async function main() {
   // i cataloghi valgono l'85% del caricamento, la costruzione della scena il resto
   setLoadProgress((p) => { loadReal = Math.max(loadReal, Math.min(0.85, p * 0.85)); });
@@ -246,7 +251,7 @@ async function main() {
   let zoomDrag = false;
   const nudgeZoom = (dz: number) => { zView().zoom = Math.max(0, Math.min(1, zView().zoom + dz)); };
   zoomRange.addEventListener('pointerdown', () => { zoomDrag = true; });
-  zoomRange.addEventListener('pointerup', () => { zoomDrag = false; });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) zoomRange.addEventListener(ev, () => { zoomDrag = false; });
   zoomRange.addEventListener('input', () => { zView().zoom = +zoomRange.value; });
   const zoomCtl = h('div', { class: 'zoom-ctl' },
     zoomLbl,
@@ -265,7 +270,7 @@ async function main() {
   const throttleWrap = h('div', { class: 'throttle-wrap' }, throttleMarks, throttle);
   let throttleActive = false;
   throttle.addEventListener('pointerdown', () => { throttleActive = true; });
-  throttle.addEventListener('pointerup', () => { throttleActive = false; });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) throttle.addEventListener(ev, () => { throttleActive = false; });
   throttle.addEventListener('input', () => ship.setThrottle(+throttle.value));
 
   const zoomBadge = h('div', { class: 'zoom-badge', 'aria-hidden': 'true' });
@@ -412,6 +417,10 @@ async function main() {
   // costellazioni che si disegnano quando le riattivi
   let consOn = state.settings.constellations;
   bus.on('settings', () => { if (state.settings.constellations && !consOn) bg.drawConstellations(); consOn = state.settings.constellations; });
+  // toccare il cielo vuoto chiude il pannello aperto; deselezionare chiude la scheda dell'oggetto
+  bus.on('tap-empty', () => { if (sheetOpen()) closeSheet(); });
+  bus.on('select', (r: ObjRef | null) => { if (!r && sheetOpen('info')) closeSheet(); });
+  bus.on('ship-deselect', () => { if (sheetOpen('info')) closeSheet(); });
   bus.on('ship-select', (r: ObjRef) => { ship.target = r; rippleAtLastTap(); feel.select(); showInfo(r); });
   bus.on('badge', (b: Badge) => badgeUnlocked(b));
   // icone della barra: ognuna ha la sua piccola animazione al tocco

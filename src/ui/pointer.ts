@@ -18,7 +18,11 @@ export function attachPointer(el: HTMLElement, getHandlers: () => PointerHandler
   let vx = 0, vy = 0, lastMoveT = 0;
 
   el.addEventListener('pointerdown', (e) => {
-    el.setPointerCapture(e.pointerId);
+    // un nuovo gesto (primo dito, o il mouse) riparte da zero: se un "su" è andato perso durante un
+    // pinch (succede su iPhone quando un dito esce dallo schermo o finisce su un pannello) il punto
+    // rimasto in memoria farebbe credere a un secondo dito e nessun tocco funzionerebbe più
+    if (e.isPrimary || e.pointerType === 'mouse') pts.clear();
+    try { el.setPointerCapture(e.pointerId); } catch { /* */ }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) { moved = 0; downT = performance.now(); vx = vy = 0; }
     if (pts.size === 2) {
@@ -67,8 +71,16 @@ export function attachPointer(el: HTMLElement, getHandlers: () => PointerHandler
     }
     if (pts.size < 2) pinchD = 0;
   };
+  // dito perso (gesto di sistema, cattura persa): si chiude il gesto senza generare un tocco
+  const cancel = (e: PointerEvent) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId);
+    if (pts.size === 0) { moved = 99; getHandlers().dragEnd?.(0, 0); }
+    if (pts.size < 2) pinchD = 0;
+  };
   el.addEventListener('pointerup', up);
-  el.addEventListener('pointercancel', up);
+  el.addEventListener('pointercancel', cancel);
+  el.addEventListener('lostpointercapture', cancel);
   el.addEventListener('wheel', (e) => {
     e.preventDefault();
     getHandlers().wheel?.(e.deltaY);

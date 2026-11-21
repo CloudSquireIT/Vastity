@@ -54,6 +54,7 @@ export function liquidDock(dock: HTMLElement) {
   };
   dock.addEventListener('pointerup', (e) => end(e));
   dock.addEventListener('pointercancel', (e) => end(e, true));
+  dock.addEventListener('lostpointercapture', (e) => end(e, true));
   // evita il doppio click: con la cattura attiva il browser non genera click sul pulsante
   dock.addEventListener('click', (e) => { if (e.isTrusted && performance.now() - lastEnd < 450 && (e.target as HTMLElement).closest('.dbtn')) { e.stopPropagation(); e.preventDefault(); } }, true);
 }

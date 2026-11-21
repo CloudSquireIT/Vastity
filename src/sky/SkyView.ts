@@ -407,7 +407,7 @@ export class SkyView {
       // la selezione resta finché non si ritocca lo stesso oggetto (toccare il vuoto non la toglie)
       tap: (x, y) => {
         const p = this.pick(x, y);
-        if (!p) return;
+        if (!p) { bus.emit('tap-empty'); return; }
         if (this.selected && sameRef(p, this.selected)) this.select(null);
         else this.select(p);
       },

@@ -52,7 +52,10 @@ export function initSheet(root: HTMLElement) {
   head.addEventListener('pointerdown', (e) => {
     // i pulsanti nell'intestazione (X) devono ricevere il loro click anche con il mouse
     if ((e.target as HTMLElement).closest('button')) return;
-    y0 = e.clientY; dy = 0; dragging = true; head.setPointerCapture(e.pointerId);
+    // un secondo dito durante il trascinamento non ricomincia il gesto
+    if (dragging && !e.isPrimary) return;
+    y0 = e.clientY; dy = 0; dragging = true;
+    try { head.setPointerCapture(e.pointerId); } catch { /* */ }
     sheetEl.classList.add('dragging');
   });
   head.addEventListener('pointermove', (e) => {
@@ -74,6 +77,8 @@ export function initSheet(root: HTMLElement) {
   };
   head.addEventListener('pointerup', endDrag);
   head.addEventListener('pointercancel', endDrag);
+  // se il dito "si perde" (pinch, gesto di sistema) la scheda non resta bloccata a metà
+  head.addEventListener('lostpointercapture', endDrag);
   // scorrendo il contenuto di una scheda a metà, si apre del tutto
   sheetBody.addEventListener('scroll', () => { if (sheetEl.classList.contains('peek') && sheetBody.scrollTop > 12) sheetEl.classList.remove('peek'); }, { passive: true });
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });

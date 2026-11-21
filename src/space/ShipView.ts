@@ -516,7 +516,7 @@ export class ShipView {
       wheel: (d) => { if (d < 0) this.aimTarget(); this.baseFov = Math.max(ShipView.FOV_TELE, Math.min(ShipView.FOV_WIDE, this.baseFov * Math.exp(d * 0.001))); },
       tap: (x, y) => {
         const r = this.pick(x, y);
-        if (!r) return;
+        if (!r) { bus.emit('tap-empty'); return; }
         // ritoccare il bersaglio attuale lo deseleziona
         if (this.target && sameRef(r, this.target) && !this.autopilot) { this.target = null; this.arrived = null; bus.emit('ship-deselect'); return; }
         bus.emit('ship-select', r);
