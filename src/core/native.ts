@@ -2,12 +2,24 @@
 // vibrazioni e notifiche locali (anche ad app chiusa). I sensori di orientamento usano
 // direttamente gli eventi della WebView (bussola vera su iOS, orientamento assoluto su Android).
 // Sul web ogni funzione restituisce false/null e l'app usa le API del browser.
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Geolocation } from '@capacitor/geolocation';
 
 const isNative = Capacitor.isNativePlatform();
+
+// plugin nativi di Vastity (solo iOS, nel progetto Xcode): icona alternativa e dock in vetro liquido
+interface AppIconPlugin { set(o: { name: string }): Promise<void>; get(): Promise<{ name: string }> }
+export interface DockItemSpec { id: string; title: string; symbol: string; accent?: boolean }
+interface GlassDockPlugin {
+  show(o: { items: DockItemSpec[] }): Promise<void>;
+  setVisible(o: { visible: boolean }): Promise<void>;
+  hide(): Promise<void>;
+  addListener(ev: 'tap', cb: (d: { id: string }) => void): Promise<{ remove: () => void }>;
+}
+export const AppIcon = registerPlugin<AppIconPlugin>('AppIcon');
+export const GlassDock = registerPlugin<GlassDockPlugin>('GlassDock');
 
 export interface NativeNotification { id: number; title: string; body: string; at: Date }
 

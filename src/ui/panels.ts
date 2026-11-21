@@ -1,4 +1,4 @@
-import { native } from '../core/native';
+import { AppIcon, native } from '../core/native';
 import { openTours } from '../features/tours';
 import { story } from '../data/stories';
 // Pannelli dell'interfaccia: scheda oggetto, ricerca, Stasera, Missioni, Avvisi, Mondi, Impostazioni, Macchina del tempo.
@@ -380,6 +380,21 @@ function toggle(label: string, value: boolean, on: (v: boolean) => void) {
   return h('label', { class: 'toggle' }, h('span', {}, label), inp, h('span', { class: 'switch' }));
 }
 
+/** Scelta dell'icona dell'app (iPhone): quattro stili, cambiano subito nella schermata Home. */
+function iconPicker() {
+  const styles: [string, string, string][] = [
+    ['', 'night', tx('Notte', 'Night', 'Nuit')], ['AppIcon-Aurora', 'aurora', 'Aurora'], ['AppIcon-Gold', 'gold', tx('Oro', 'Gold', 'Or')], ['AppIcon-Minimal', 'minimal', 'Minimal'],
+  ];
+  const row = h('div', { class: 'icon-pick' });
+  const paint = (cur: string) => row.replaceChildren(...styles.map(([name, file, label]) => h('button', {
+    class: 'icon-opt' + (cur === name ? ' on' : ''), 'aria-pressed': String(cur === name),
+    onclick: () => AppIcon.set({ name }).then(() => paint(name)).catch(() => toast(tx('Non è stato possibile cambiare l\'icona', 'Couldn\'t change the icon', 'Impossible de changer l\'icône'))),
+  }, h('img', { src: `icons/alt/${file}.png`, alt: '' }), h('span', {}, label))));
+  paint('');
+  AppIcon.get().then((r) => paint(r.name)).catch(() => {});
+  return h('div', {}, h('h3', {}, tx('Icona dell\'app', 'App icon', 'Icône de l\'app')), row);
+}
+
 export function openSettings() {
   const st = state.settings;
   const set = (k: keyof typeof st) => (v: boolean) => { (st as any)[k] = v; saveSettings(); };
@@ -418,6 +433,7 @@ export function openSettings() {
       h('button', { class: 'btn', onclick: () => api.share() }, icon('share'), tx('Condividi questa vista', 'Share this view', 'Partager cette vue')),
       h('button', { class: 'btn', onclick: () => api.tutorial() }, icon('eye'), tx('Rivedi il tutorial', 'Replay the tutorial', 'Revoir le tutoriel')),
       h('button', { class: 'btn', onclick: () => api.opening() }, icon('play'), tx('Rivedi l\'apertura', 'Replay the opening', 'Revoir l\'ouverture'))),
+    native.isNative && native.platform === 'ios' ? iconPicker() : null,
     h('h3', {}, tx('Suoni e vibrazioni', 'Sound and haptics', 'Sons et vibrations')),
     toggle(tx('Suoni ed effetti', 'Sound and effects', 'Sons et effets'), st.sound !== false, (v) => { st.sound = v; saveSettings(); feel.refresh(); }),
     toggle(tx('Musica ambientale', 'Ambient music', 'Musique d\'ambiance'), st.music !== false, (v) => { st.music = v; saveSettings(); feel.refresh(); }),

@@ -46,6 +46,7 @@ export function showWelcome(o: { root: HTMLElement; locate: () => Promise<boolea
     state.settings.welcomeDone = true;
     saveSettings();
     el.classList.add('out');
+    document.body.classList.remove('welcome-on');
     setTimeout(() => { el.remove(); o.onStart(); }, 650);
   } }, tx('Iniziamo', 'Let\'s begin', 'Commençons'));
   const el = h('div', { class: 'welcome', role: 'dialog', 'aria-label': tx('Benvenuto', 'Welcome', 'Bienvenue') },
@@ -62,5 +63,6 @@ export function showWelcome(o: { root: HTMLElement; locate: () => Promise<boolea
         h('p', { class: 'wl-note' }, tx('Puoi cambiare idea quando vuoi nelle impostazioni del telefono.', 'You can change your mind any time in your phone settings.', 'Vous pouvez changer d\'avis à tout moment dans les réglages du téléphone.')),
         start)));
   o.root.appendChild(el);
+  document.body.classList.add('welcome-on');
   requestAnimationFrame(() => el.classList.add('in'));
 }
