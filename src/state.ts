@@ -36,6 +36,8 @@ export interface Settings {
   sound?: boolean;
   /** Musica ambientale (con il suono attivo). */
   music?: boolean;
+  /** Linea dell'eclittica nel cielo. */
+  ecliptic?: boolean;
   /** Tutorial delle missioni già visto. */
   missionTutorialDone?: boolean;
   /** Benvenuto e permessi già mostrati. */

@@ -1,3 +1,4 @@
+import { SkyOverlay } from './skyOverlay';
 // Vista "Cielo": planetario in tempo reale dalla Terra o da altri mondi.
 import * as THREE from 'three';
 import { Background } from '../render/background';
@@ -121,6 +122,7 @@ export class SkyView {
   /** Oggetto inseguito durante lo spostamento (si aggiorna se il tempo scorre). */
   private trackRef: ObjRef | null = null;
   private groundAlpha = 0.78;
+  skyOverlay!: SkyOverlay;
   private gyroQ = new THREE.Quaternion();
   private gyroHas = false;
   private alphaOffset: number | null = null;
@@ -166,8 +168,11 @@ export class SkyView {
 
     this.labels = new LabelLayer<ObjRef>(overlay);
     this.labels.onPick = (r) => this.select(r);
+    this.skyOverlay = new SkyOverlay(overlay);
+    this.skyOverlay.onPick = (r) => this.select(r);
     this.ring = document.createElement('div');
-    this.ring.className = 'sel-ring';
+    this.ring.className = 'sel-ring ticks';
+    this.ring.innerHTML = '<i></i><i></i><i></i><i></i>';
     this.arrow = document.createElement('div');
     this.arrow.className = 'sel-arrow';
     this.arrow.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3l7 12h-14z"/></svg><span></span>';
@@ -178,7 +183,7 @@ export class SkyView {
   }
 
   attach() { this.celestial.add(this.bg.group); this.labels.el.style.display = ''; }
-  detach() { this.labels.clear(); this.labels.el.style.display = 'none'; this.ring.style.display = 'none'; this.arrow.style.display = 'none'; }
+  detach() { this.skyOverlay.clear(); this.skyOverlay.svg.style.display = 'none'; this.labels.clear(); this.labels.el.style.display = 'none'; this.ring.style.display = 'none'; this.arrow.style.display = 'none'; }
 
   setPlace(id: string) {
     this.place = placeById(id);
@@ -407,6 +412,8 @@ export class SkyView {
   pick(x: number, y: number): ObjRef | null {
     // gerarchia dei tocchi: con il campo largo i pianeti, la Luna e le stelle brillanti hanno
     // un'area di tocco più ampia; gli oggetti deboli diventano facili da toccare zoomando
+    // lune e satelliti disegnati sopra il cielo: un tocco preciso su di loro vince
+    for (const k of this.skyOverlay.hits) if (Math.hypot(k.x - x, k.y - y) < 14) return k.ref;
     let best: ObjRef | null = null;
     let bs = 30;
     const wide = Math.max(0, Math.min(1, (this.fov - 20) / 60));
@@ -766,6 +773,8 @@ export class SkyView {
     }
     L.end();
 
+    this.skyOverlay.svg.style.display = '';
+    this.skyOverlay.update({ proj: (d) => this.project(d), w: this.w, h: this.h, fov: this.fov, observerPc: this.frame.observerPc, showGround: this.groundOn(), earth: this.place.id === 'earth', selected: this.selected });
     // selezione
     const sel = this.selected;
     const dir = sel ? refDirection(sel, this.frame, this.issDir) : null;
@@ -776,6 +785,10 @@ export class SkyView {
       const big = sel.kind === 'constellation' ? 0 : 1;
       this.ring.style.display = big ? '' : 'none';
       this.ring.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
+      // le lineette stanno appena fuori dal disco (pianeti, Luna, Sole) o attorno al punto
+      const body = sel.kind === 'body' ? this.frame.bodies.find((b) => b.id === sel.id) : null;
+      const pxr = this.h / (2 * Math.tan((this.fov * D2R) / 2));
+      this.ring.style.setProperty('--s', `${Math.round(Math.max(34, Math.min(this.h * 0.9, (body ? body.angRadius * pxr * 2 : 0) + 22)))}px`);
       this.arrow.style.display = 'none';
     } else {
       this.ring.style.display = 'none';

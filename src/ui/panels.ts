@@ -411,6 +411,7 @@ export function openSettings() {
     h('h3', {}, tx('Immersione', 'Immersion', 'Immersion')),
     toggle(tx('Modalità notte (rossa, protegge la vista al buio)', 'Night mode (red, protects your dark vision)', 'Mode nuit (rouge, préserve la vision nocturne)'), st.nightMode, set('nightMode')),
     toggle(tx('Relatività realistica (le stelle si comprimono davanti a te vicino alla velocità della luce)', 'Realistic relativity (stars bunch up ahead of you near light speed)', 'Relativité réaliste (les étoiles se resserrent devant vous près de la vitesse de la lumière)'), st.realRelativity, set('realRelativity')),
+    toggle(tx('Eclittica (il percorso del Sole e dei pianeti)', 'Ecliptic (the path of the Sun and planets)', 'Écliptique (le chemin du Soleil et des planètes)'), st.ecliptic !== false, (v) => { st.ecliptic = v; saveSettings(); }),
     toggle(tx('Realtà aumentata con la fotocamera', 'Augmented reality with the camera', 'Réalité augmentée avec la caméra'), api.ar(), async (v) => { const ok = await api.setAR(v); if (!ok && v) toast(tx('Fotocamera non disponibile', 'Camera unavailable', 'Caméra indisponible')); }),
     h('div', { class: 'actions' },
       h('button', { class: 'btn', onclick: () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}); } }, icon('fullscreen'), tx('Schermo intero', 'Full screen', 'Plein écran')),

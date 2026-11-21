@@ -972,3 +972,34 @@ body[data-mode="ship"] .throttle-wrap { top: calc(50% + 30px); height: min(46vh,
   .wl-txt span { font-size: 11.5px; }
   .wl-start { padding: 11px 18px; }
 }
+
+/* ================================================================ marcatore a lineette (stile minimale) */
+/* quattro trattini radiali che ruotano lentamente attorno all'oggetto, in cielo e in navicella */
+@keyframes tick-spin { from { transform: rotate(var(--a)) translateY(var(--r)); } to { transform: rotate(calc(var(--a) + 360deg)) translateY(var(--r)); } }
+@keyframes tick-in { from { opacity: 0; } }
+.sel-ring.ticks { left: 0; top: 0; width: 0; height: 0; border: 0; box-shadow: none; animation: none; border-radius: 0; --s: 36px; pointer-events: none; }
+.sel-ring.ticks i, .ship-target i {
+  position: absolute; left: -1px; top: -5px; width: 2px; height: 10px; border: 0 !important; border-radius: 1px !important;
+  background: rgba(225, 236, 255, .92); box-shadow: 0 0 6px rgba(150, 190, 255, .45);
+  --r: calc(var(--s) / -2 - 4px); transform: rotate(var(--a)) translateY(var(--r));
+  animation: tick-spin 14s linear infinite, tick-in .45s ease-out; transition: none;
+}
+.sel-ring.ticks i:nth-child(1), .ship-target i:nth-child(1) { --a: 45deg; }
+.sel-ring.ticks i:nth-child(2), .ship-target i:nth-child(2) { --a: 135deg; }
+.sel-ring.ticks i:nth-child(3), .ship-target i:nth-child(3) { --a: 225deg; }
+.sel-ring.ticks i:nth-child(4), .ship-target i:nth-child(4) { --a: 315deg; }
+.ship-target.locked i { background: #9fe8c2; box-shadow: 0 0 8px rgba(127, 224, 176, .6); animation: tick-spin 6s linear infinite; }
+.ship-target.snap i { animation: tick-spin 14s linear infinite, tick-in .45s ease-out; }
+@media (prefers-reduced-motion: reduce) { .sel-ring.ticks i, .ship-target i { animation: none; } }
+
+/* ================================================================ disegni sopra il cielo */
+.sky-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.sky-overlay .ecliptic { fill: none; stroke: #e0a956; stroke-width: 1.6; stroke-dasharray: 9 7; opacity: .75; }
+.sky-overlay .moon-orbit { fill: none; stroke-width: 1.2; }
+.sky-overlay .sat-track { fill: none; stroke: #8fd0ff; stroke-width: 1.3; stroke-dasharray: 1.5 5; stroke-linecap: round; opacity: .8; }
+.sky-overlay .moon-pt, .sky-overlay .sat-pt { pointer-events: auto; cursor: pointer; }
+.sky-overlay .moon-pt circle:not(.hit), .sky-overlay .sat-pt circle:not(.hit) { fill: #f4f6ff; }
+.sky-overlay .hit { fill: transparent; }
+.sky-overlay text { font: 500 11px var(--f-text); text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, .7); stroke-width: 3px; }
+.sky-overlay .sat-pt text { fill: #8fd0ff; }
+body.night .sky-overlay { filter: grayscale(1) sepia(1) hue-rotate(-50deg) saturate(4); }
