@@ -110,9 +110,11 @@ jobs:
     needs: [web, android, ios]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with: { sparse-checkout: package.json, sparse-checkout-cone-mode: false }
       - uses: actions/download-artifact@v4
         with: { path: artifacts }
-      - run: echo "TAG=${VER:-v1.0.0}" >> $GITHUB_ENV
+      - run: echo "TAG=${VER:-v$(node -p "require('./package.json').version")}" >> $GITHUB_ENV
       # crea (o aggiorna) la release e il suo tag anche quando la pipeline è avviata a mano
       - uses: softprops/action-gh-release@v2
         with:
