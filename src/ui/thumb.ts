@@ -209,6 +209,29 @@ const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2
 const cross = (a: number[], b: number[]): [number, number, number] => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const norm = (a: number[]): [number, number, number] => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 
+const MOON_TINT: Record<string, [number, number, number]> = { io: [0.88, 0.77, 0.36], europa: [0.86, 0.8, 0.7], titan: [0.85, 0.63, 0.29], enceladus: [0.95, 0.97, 1], triton: [0.9, 0.85, 0.82], callisto: [0.54, 0.48, 0.41] };
+function drawMoonBody(id: string) {
+  const { c, g } = canvas();
+  const col = MOON_TINT[id] ?? [0.72, 0.7, 0.68];
+  const R = SIZE * 0.34, cx = SIZE / 2, cy = SIZE / 2;
+  const gr = g.createRadialGradient(cx - R * 0.45, cy - R * 0.4, R * 0.1, cx, cy, R);
+  gr.addColorStop(0, css(col[0], col[1], col[2]));
+  gr.addColorStop(0.75, css(col[0] * 0.55, col[1] * 0.55, col[2] * 0.55));
+  gr.addColorStop(1, css(col[0] * 0.15, col[1] * 0.15, col[2] * 0.15));
+  g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+  const r = rng(id.length * 31 + id.charCodeAt(0));
+  for (let k = 0; k < 14; k++) { const a = r() * 6.28, d = r() * R * 0.8, s = 3 + r() * 10; g.fillStyle = 'rgba(0,0,0,0.16)'; g.beginPath(); g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, s, 0, 6.28); g.fill(); }
+  return c;
+}
+function drawCraft() {
+  const { c, g } = canvas();
+  g.strokeStyle = 'rgba(200,220,255,0.9)'; g.lineWidth = 3; g.lineCap = 'round';
+  const cx = SIZE / 2, cy = SIZE / 2;
+  g.strokeRect(cx - 18, cy - 14, 36, 28);
+  for (const s of [-1, 1]) { g.strokeRect(cx + s * 30 - (s < 0 ? 56 : 0), cy - 24, 56, 48); g.beginPath(); g.moveTo(cx + s * 18, cy); g.lineTo(cx + s * 30, cy); g.stroke(); }
+  return c;
+}
+
 export function objectThumb(ref: ObjRef): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'thumb';
@@ -234,6 +257,8 @@ export function objectThumb(ref: ObjRef): HTMLElement {
     else cv = drawMessier(o.type === 'nebula' ? 'en' : o.type, seed);
   }
   else if (ref.kind === 'exo') cv = drawExoplanet(ref.index);
+  else if (ref.kind === 'moon') cv = drawMoonBody(ref.id);
+  else if (ref.kind === 'craft') cv = drawCraft();
   else cv = drawMessier('oc', 1);
   wrap.appendChild(cv);
   wrap.classList.add('render');

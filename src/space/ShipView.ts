@@ -7,6 +7,9 @@ import { BodySprite } from '../render/bodies';
 import { LOOKS, PT, atmosphereMaterial, bodySphere, planetMaterial, ringMaterial, tempColor } from '../render/planet';
 import { Streaks } from '../render/streaks';
 import { ExoSystemView } from './exoSystem';
+import { SmallBodies } from './smallBodies';
+import { craftById, loadEphem, moonById } from '../data/ephem';
+import { refHelioKm, resetSearchIndex } from '../features/objects';
 import { exoHosts, exoplanets, hostPosPc } from '../data/exoplanets';
 import { BODIES, BodyInfo, V3, bodyAxes, v3 } from '../astro/astro';
 import { AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, galaxyPhotos, messier, radecToVec, starName, starPhysical, stars } from '../data/catalog';
@@ -101,6 +104,9 @@ export class ShipView {
 
   private root = new THREE.Group();
   private planets: PlanetObj[] = [];
+  small = new SmallBodies();
+  private followPrev: V3 | null = null;
+  private followKey = '';
   private near: NearStar[] = [];
   /** Sistema di esopianeti vicino alla navicella. */
   exo = new ExoSystemView();
@@ -205,6 +211,8 @@ export class ShipView {
     this.sunGlow = new BodySprite(1);
     this.root.add(this.sunGlow.mesh);
     this.root.add(this.exo.group);
+    this.root.add(this.small.group);
+    loadEphem().then(() => { this.small.build(); resetSearchIndex(); bus.emit('ephem'); });
     this.root.add(this.streaks.lines);
     this.buildOrbits();
 
@@ -280,6 +288,16 @@ export class ShipView {
 
   /** Posizione (km) e raggio di "arrivo" per un oggetto. */
   targetInfo(ref: ObjRef): { pos: V3; standoff: number; radius: number; look?: V3 } | null {
+    if (ref.kind === 'moon') {
+      const m = moonById(ref.id);
+      const p = refHelioKm(ref, state.time);
+      return m && p ? { pos: p, standoff: m.r * 4, radius: m.r } : null;
+    }
+    if (ref.kind === 'craft' || ref.kind === 'iss') {
+      const c = craftById(ref.kind === 'iss' ? 'iss' : ref.id);
+      const p = refHelioKm(ref, state.time);
+      return c && p ? { pos: p, standoff: Math.max(0.008, c.sizeKm * 2.4), radius: c.sizeKm / 2 } : null;
+    }
     if (ref.kind === 'exo') {
       const e = exoplanets[ref.index];
       if (!e) return null;
@@ -340,6 +358,8 @@ export class ShipView {
     const dir = v3.norm(v3.add(away, v3.scale(side, photoGal ? 0.06 : 0.45)));
     this.launch = null;
     this.pos = v3.add(t.pos, v3.scale(dir, t.standoff * 1.3));
+    this.followPrev = [...t.pos] as V3;
+    this.followKey = JSON.stringify(ref);
     this.lookAt(t.pos);
     this.stop(true);
     this.target = ref;
@@ -467,6 +487,17 @@ export class ShipView {
       this.quat.slerp(this.tq, 1 - Math.exp(-2 * dt));
       if (this.quat.angleTo(this.tq) < 0.005) this.settleLook = null;
     }
+    // co-moto: vicino a un bersaglio che si muove (pianeta, luna, satellite) la navicella lo accompagna,
+    // così la ISS a 28 000 km/h resta lì davanti invece di scappare
+    if (this.target && (this.target.kind === 'body' || this.target.kind === 'moon' || this.target.kind === 'craft' || this.target.kind === 'iss')) {
+      const ti = this.targetInfo(this.target);
+      const key = JSON.stringify(this.target);
+      if (ti) {
+        if (this.followPrev && this.followKey === key && v3.len(v3.sub(ti.pos, this.pos)) < Math.max(ti.standoff * 400, 2e5)) this.pos = v3.add(this.pos, v3.sub(ti.pos, this.followPrev));
+        this.followPrev = [...ti.pos] as V3;
+        this.followKey = key;
+      }
+    } else this.followPrev = null;
     // decollo
     if (this.launch) {
       const L = this.launch;
@@ -604,6 +635,7 @@ export class ShipView {
     });
     this.streaks.update(this.obsV, this.fwdV, warp);
     this.updateSolarSystem(date, pixPerRad, dpr, dt);
+    this.small.update(this.pos, state.time, pixPerRad, this.camera.matrixWorldInverse, this.target, dt);
     this.updateNearStars(dt, pixPerRad, dpr);
     this.exo.update(this.pos, state.time, this.time, dt, pixPerRad, dpr, this.camera.matrixWorldInverse,
       (sp, rel, disc, glowPx, glow, color, star, ppr) => this.setSprite(sp, rel, disc, glowPx, glow, color, star, ppr));
@@ -804,7 +836,7 @@ export class ShipView {
       const rel = v3.sub(p.pos, this.pos);
       c({ kind: 'body', id: p.info.id }, rel, this.discPxCss(p.info.radiusKm * (p.info.rings ? 2.3 : 1), v3.len(rel)), 12);
     }
-    for (const sat of this.satPickables()) c(sat.ref, sat.rel, sat.radiusPx, 10);
+    for (const sat of this.small.visible) c(sat.ref, sat.rel, Math.max(sat.radiusPx, 0), 14, sat.dist);
     const obs = v3.scale(this.pos, 1 / PC_IN_KM);
     for (let i = 0; i < stars.count; i++) {
       const dx = stars.pos[i * 3] - obs[0], dy = stars.pos[i * 3 + 1] - obs[1], dz = stars.pos[i * 3 + 2] - obs[2];
@@ -894,6 +926,10 @@ export class ShipView {
         const show = p.info.id === 'sun' ? sunDist < 2000 * AU_IN_KM : (p.info.id === 'moon' ? d < 3e7 : sunDist < 200 * AU_IN_KM);
         const isTarget = this.target?.kind === 'body' && this.target.id === p.info.id;
         if (show && !isTarget && !hidden(rel, d)) put(rel, p.info.name, 'pill' + (p.info.id === 'sun' ? ' star' : ''), true, { kind: 'body', id: p.info.id }, this.discPxCss(p.info.radiusKm, d));
+      }
+      for (const v of this.small.visible) {
+        const isT = this.target && JSON.stringify(this.target) === JSON.stringify(v.ref);
+        if (!isT && !hidden(v.rel, v.dist)) put(v.rel, v.label, v.cls, true, v.ref, v.radiusPx);
       }
       this.labelScanT -= 1;
       const obs = v3.scale(this.pos, 1 / PC_IN_KM);

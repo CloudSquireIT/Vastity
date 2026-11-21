@@ -1,6 +1,6 @@
 // Riferimenti agli oggetti del cielo, ricerca e dati per la scheda informativa.
 import {
-  AU_IN_KM, C_KMS, LY_IN_KM, MESSIER_EXTRA, MESSIER_TYPES, PC_IN_LY, constellationById, constellations, messier,
+  AU_IN_KM, C_KMS, LY_IN_KM, PC_IN_KM, MESSIER_EXTRA, MESSIER_TYPES, PC_IN_LY, constellationById, constellations, messier,
   messierName, radecToVec, starAppMag, starDistPc, starName, starPhysical, starRaDec, starSpectrum, starSubtitle, stars,
 } from '../data/catalog';
 import { BODIES, SkyFrame, V3, bodyById, v3 } from '../astro/astro';
@@ -9,6 +9,8 @@ import { DEEP_TYPE_NAME, deepById, deepForMessier, deepObjects } from '../data/d
 import { GALACTIC_CENTER_PC } from '../render/background';
 import { EXO_CLASS_DESC, EXO_CLASS_NAME, exoHosts, exoPosPc, exoplanets } from '../data/exoplanets';
 import { state } from '../state';
+import * as A from 'astronomy-engine';
+import { CRAFT, allMoons, craftById, craftHelioKm, moonById, moonOffsetKm } from '../data/ephem';
 
 export type ObjRef =
   | { kind: 'body'; id: string }
@@ -17,7 +19,9 @@ export type ObjRef =
   | { kind: 'constellation'; id: string }
   | { kind: 'iss' }
   | { kind: 'deep'; id: string }
-  | { kind: 'exo'; index: number };
+  | { kind: 'exo'; index: number }
+  | { kind: 'moon'; id: string }
+  | { kind: 'craft'; id: string };
 
 export const sameRef = (a: ObjRef | null, b: ObjRef | null) => !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
 
@@ -30,6 +34,8 @@ export function refName(r: ObjRef): string {
     case 'iss': return tx('Stazione Spaziale', 'Space Station', 'Station spatiale');
     case 'deep': return deepById(r.id)?.name ?? r.id;
     case 'exo': return exoplanets[r.index]?.name ?? '';
+    case 'moon': return moonById(r.id)?.name ?? r.id;
+    case 'craft': return craftById(r.id)?.name ?? r.id;
   }
 }
 
@@ -42,11 +48,26 @@ export function refPosPc(r: ObjRef): V3 | null {
     return v3.scale(radecToVec(m.ra, m.dec), ly / PC_IN_LY);
   }
   if (r.kind === 'exo') return exoplanets[r.index] ? exoPosPc(r.index, state.time) : null;
+  if (r.kind === 'moon' || r.kind === 'craft') { const k = refHelioKm(r, state.time); return k ? v3.scale(k, 1 / PC_IN_KM) : null; }
   if (r.kind === 'deep') {
     const o = deepById(r.id);
     if (!o) return null;
     if (o.id === 'milkyway') return [...GALACTIC_CENTER_PC] as V3;
     return v3.scale(radecToVec(o.ra, o.dec), o.ly / PC_IN_LY);
+  }
+  return null;
+}
+
+/** Posizione eliocentrica EQJ in km di lune e veicoli spaziali. */
+export function refHelioKm(r: ObjRef, t: number): V3 | null {
+  if (r.kind === 'craft') return craftHelioKm(r.id, t);
+  if (r.kind === 'iss') return craftHelioKm('iss', t);
+  if (r.kind === 'moon') {
+    const m = moonById(r.id), b = m && bodyById(m.planet);
+    if (!m || !b?.body) return null;
+    const h = A.HelioVector(b.body, new Date(t));
+    const o = moonOffsetKm(m, t);
+    return [h.x * AU_IN_KM + o[0], h.y * AU_IN_KM + o[1], h.z * AU_IN_KM + o[2]];
   }
   return null;
 }
@@ -59,6 +80,10 @@ export function refDirection(r: ObjRef, frame: SkyFrame, issDir?: V3 | null): V3
     const c = constellationById(r.id);
     if (!c) return null;
     return v3.norm(v3.sub(v3.scale(radecToVec(c.c[0], c.c[1]), 300), frame.observerPc));
+  }
+  if (r.kind === 'moon' || r.kind === 'craft') {
+    const k = refHelioKm(r, state.time);
+    return k ? v3.norm(v3.sub(k, v3.scale(frame.observerPc, PC_IN_KM))) : null;
   }
   const p = refPosPc(r);
   return p ? v3.norm(v3.sub(p, frame.observerPc)) : null;
@@ -73,6 +98,8 @@ const KM_LY = 1 / 9.4607e12;
 const BODY_MAG: Record<string, number> = { sun: -26.7, moon: -12.7, venus: -4.4, jupiter: -2.7, mars: -1.5, mercury: -0.4, saturn: 0.5, uranus: 5.7, neptune: 7.8, pluto: 14.4 };
 
 let index: SearchItem[] | null = null;
+/** Da chiamare quando arrivano nuovi dati (lune, veicoli): l'indice di ricerca e le categorie si ricostruiscono. */
+export function resetSearchIndex() { index = null; cats = null; }
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export function searchIndex(): SearchItem[] {
@@ -86,6 +113,8 @@ export function searchIndex(): SearchItem[] {
   for (const o of deepObjects()) items.push({ ref: { kind: 'deep', id: o.id }, name: o.name, sub: DEEP_TYPE_NAME(o.type, o.galaxy), key: norm(o.name + ' ' + o.id + ' ' + (o.messier ?? '') + ' ' + (messier.find((m) => m.id === o.messier)?.ngc ?? '') + ' ' + (messier.find((m) => m.id === o.messier)?.ngc ?? '').replace(' ', '') + ' ' + DEEP_TYPE_NAME(o.type, o.galaxy) + (o.id === 'milkyway' ? ' milky way voie lactee via lattea' : '')), rank: o.id === 'milkyway' ? 0.2 : 1.2,
     dist: o.id === 'milkyway' ? 26000 : o.ly, size: o.radiusLy, mag: messier.find((m) => m.id === o.messier)?.mag });
   items.push({ ref: { kind: 'iss' }, name: tx('Stazione Spaziale (ISS)', 'Space Station (ISS)', 'Station spatiale (ISS)'), sub: tx('Satellite', 'Satellite', 'Satellite'), key: 'iss stazione spaziale internazionale space station station spatiale', rank: 0 });
+  for (const m of allMoons()) items.push({ ref: { kind: 'moon', id: m.id }, name: m.name, sub: `${tx('Luna di', 'Moon of', 'Lune de')} ${bodyById(m.planet)?.name ?? m.planet}`, key: norm(`${m.name} ${m.id} ${bodyById(m.planet)?.name ?? ''} luna moon lune`), rank: 0.8, size: m.r * KM_LY });
+  for (const c of CRAFT) if (c.id !== 'iss') items.push({ ref: { kind: 'craft', id: c.id }, name: c.name, sub: tx('Veicolo spaziale', 'Spacecraft', 'Engin spatial'), key: norm(`${c.name} ${c.id} satellite sonda probe sonde`), rank: 0.6 });
   for (const c of constellations) items.push({ ref: { kind: 'constellation', id: c.id }, name: c.name, sub: `${tx('Costellazione', 'Constellation', 'Constellation')} · ${c.la}`, key: norm(c.name + ' ' + c.la + ' ' + c.id), rank: 1 + c.rank * 0.1 });
   for (const m of messier) if (!deepForMessier(m.id)) items.push({ ref: { kind: 'messier', id: m.id }, name: messierName(m), sub: `${m.id} · ${MESSIER_TYPES[m.type] ?? tx('Oggetto', 'Object', 'Objet')}`, key: norm(messierName(m) + ' ' + m.id + ' ' + m.alt + ' ' + (m.ngc ?? '') + ' ' + (m.ngc ?? '').replace(' ', '')), rank: (m.id[0] === 'C' ? 2.3 : 2) + Math.min(m.mag, 15) * 0.01,
     dist: MESSIER_EXTRA[m.id]?.ly, mag: m.mag < 50 ? m.mag : undefined });
@@ -127,6 +156,8 @@ export function categories(): Category[] {
   const C = (id: string, name: string, icon: string): Category => ({ id, name, icon, items: [] });
   const list = [
     C('solar', tx('Sistema solare', 'Solar System', 'Système solaire'), '☉'),
+    C('moons', tx('Lune', 'Moons', 'Lunes'), '☾'),
+    C('craft', tx('Satelliti e sonde', 'Satellites & probes', 'Satellites et sondes'), '⌁'),
     C('stars', tx('Stelle', 'Stars', 'Étoiles'), '✦'),
     C('constellations', tx('Costellazioni', 'Constellations', 'Constellations'), '✧'),
     C('galaxies', tx('Galassie', 'Galaxies', 'Galaxies'), '◎'),
@@ -141,7 +172,9 @@ export function categories(): Category[] {
   for (const it of searchIndex()) {
     const r = it.ref;
     let g = '';
-    if (r.kind === 'body' || r.kind === 'iss') g = 'solar';
+    if (r.kind === 'body') g = 'solar';
+    else if (r.kind === 'moon') g = 'moons';
+    else if (r.kind === 'iss' || r.kind === 'craft') g = 'craft';
     else if (r.kind === 'star') g = 'stars';
     else if (r.kind === 'constellation') g = 'constellations';
     else if (r.kind === 'deep') g = deepById(r.id)?.id === 'milkyway' ? 'galaxies' : DEEP_GROUP[deepById(r.id)?.type ?? ''] ?? 'nebulae';
@@ -223,6 +256,8 @@ function kindName(k: string, long: boolean) {
 }
 
 export function formatDistanceKm(km: number): string {
+  if (km < 1) return `${fmt(km * 1000)} m`;
+  if (km < 10) return `${fmt(km, 1)} km`;
   if (km < 1e6) return `${fmt(km)} km`;
   if (km < 0.05 * LY_IN_KM) {
     const au = km / AU_IN_KM;
@@ -234,6 +269,30 @@ export function formatDistanceKm(km: number): string {
 }
 
 export function info(r: ObjRef, frame: SkyFrame): InfoData {
+  if (r.kind === 'moon' || r.kind === 'craft') {
+    const here = v3.scale(frame.observerPc, PC_IN_KM);
+    const pos = refHelioKm(r, state.time);
+    const distKm = pos ? v3.len(v3.sub(pos, here)) : 0;
+    const dist = distKm > 1e7 ? `${num(distKm / AU_IN_KM, 2)} ${tx('UA', 'AU', 'UA')}` : `${fmt(distKm)} km`;
+    if (r.kind === 'moon') {
+      const m = moonById(r.id)!;
+      const pl = bodyById(m.planet)?.name ?? m.planet;
+      const per = 360 / m.n / 86400;
+      return { title: m.name, subtitle: `${tx('Luna di', 'Moon of', 'Lune de')} ${pl}`, canFly: true, lightSeconds: distKm / C_KMS,
+        facts: [[tx('Distanza', 'Distance', 'Distance'), dist], [tx('Raggio', 'Radius', 'Rayon'), `${fmt(m.r)} km`],
+          [tx('Distanza dal pianeta', 'Distance from planet', 'Distance à la planète'), `${fmt(m.a)} km`],
+          [tx('Orbita', 'Orbit', 'Orbite'), per < 2 ? `${num(per * 24, 1)} ${tx('ore', 'hours', 'heures')}` : `${num(per, 1)} ${tx('giorni', 'days', 'jours')}`]] };
+    }
+    const c = craftById(r.id)!;
+    const facts: [string, string][] = [[tx('Distanza', 'Distance', 'Distance'), dist], [tx('Dimensioni', 'Size', 'Taille'), `${fmt(c.sizeKm * 1000)} m`]];
+    if (c.kind === 'leo' && pos) {
+      const e = A.HelioVector(A.Body.Earth, new Date(state.time));
+      const alt = v3.len(v3.sub(pos, [e.x * AU_IN_KM, e.y * AU_IN_KM, e.z * AU_IN_KM])) - 6371;
+      facts.push([tx('Quota', 'Altitude', 'Altitude'), `${fmt(alt)} km`]);
+    }
+    return { title: c.name, subtitle: c.kind === 'leo' ? tx('Satellite · in tempo reale', 'Satellite · live', 'Satellite · en temps réel') : tx('Sonda · in tempo reale', 'Probe · live', 'Sonde · en temps réel'),
+      facts, desc: c.desc, canFly: !!pos, lightSeconds: distKm / C_KMS };
+  }
   if (r.kind === 'exo') {
     const p = exoplanets[r.index], hst = exoHosts[p.host];
     const ly = hst.distPc * PC_IN_LY;
