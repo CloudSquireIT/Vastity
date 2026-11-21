@@ -25,6 +25,7 @@ import { initTextures } from './core/textures';
 import { startTutorial } from './ui/tutorial';
 import { Prologue, startPrologue } from './ui/prologue';
 import { startFirstTrip } from './features/firstTrip';
+import { initTours, openTours } from './features/tours';
 import { LOCALE, num, tx } from './i18n';
 
 const app = document.getElementById('app')!;
@@ -280,6 +281,7 @@ async function main() {
     }, 420);
   }
 
+  initTours({ root: ui, flyTo: (r) => flyTo(r), stopShip: () => ship.stop() });
   let prologue: Prologue | null = null;
   /** Apertura cinematografica (primo avvio o dalle impostazioni). */
   function playOpening(then?: () => void) {
@@ -326,7 +328,8 @@ async function main() {
       ['TON 618', tx('Quasar a 10 miliardi di anni luce', 'Quasar 10 billion light years away', 'Quasar à 10 milliards d\'années-lumière'), () => ship.placeNear({ kind: 'deep', id: 'ton618' })],
     ];
     const grid = h('div', { class: 'worlds' }, ...presets.map(([n, s, f]) => h('button', { class: 'world', onclick: () => { closeSheet(); fade.classList.add('on'); setTimeout(() => { f(); fade.classList.remove('on'); }, 300); } }, h('div', { class: 'world-n' }, n), h('div', { class: 'world-s' }, s))));
-    openSheet('place', tx('Posiziona la navicella', 'Place the spaceship', 'Placer le vaisseau'), h('div', {}, h('p', { class: 'muted' }, tx('Teletrasportati ovunque, poi pilota liberamente: trascina per girare, usa la manetta a destra per accelerare (fino a e oltre la velocità della luce).', 'Teleport anywhere, then fly freely: drag to turn and use the throttle on the right to accelerate (up to and beyond the speed of light).', 'Téléportez-vous n\'importe où, puis pilotez librement : glissez pour tourner, utilisez la manette à droite pour accélérer (jusqu\'à la vitesse de la lumière et au-delà).')), grid), { wide: true });
+    const toursBtn = h('button', { class: 'btn block tours-btn', onclick: () => openTours() }, tx('Tour guidati', 'Guided tours', 'Visites guidées'), ' ›');
+    openSheet('place', tx('Posiziona la navicella', 'Place the spaceship', 'Placer le vaisseau'), h('div', {}, toursBtn, h('p', { class: 'muted' }, tx('Teletrasportati ovunque, poi pilota liberamente: trascina per girare, usa la manetta a destra per accelerare (fino a e oltre la velocità della luce).', 'Teleport anywhere, then fly freely: drag to turn and use the throttle on the right to accelerate (up to and beyond the speed of light).', 'Téléportez-vous n\'importe où, puis pilotez librement : glissez pour tourner, utilisez la manette à droite pour accélérer (jusqu\'à la vitesse de la lumière et au-delà).')), grid), { wide: true });
   }
   function byHip(hip: string) {
     const i = findHip(hip);

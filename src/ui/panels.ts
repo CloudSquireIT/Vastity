@@ -1,6 +1,8 @@
+import { openTours } from '../features/tours';
+import { story } from '../data/stories';
 // Pannelli dell'interfaccia: scheda oggetto, ricerca, Stasera, Missioni, Avvisi, Mondi, Impostazioni, Macchina del tempo.
 import { closeSheet, fmtTime, h, icon, iconButton, openSheet, sheetOpen, toast } from './dom';
-import { galaxyPhotos } from '../data/catalog';
+import { galaxyPhotos, stars } from '../data/catalog';
 import { feel, reducedMotion } from '../core/feel';
 import { diagnosticsReport, issueCount } from '../core/diagnostics';
 import { detectedTier } from '../core/quality';
@@ -39,6 +41,16 @@ export function initPanels(a: AppApi) { api = a; }
 // ---------------------------------------------------------------------------
 // Scheda dell'oggetto (con il "Viaggio della luce")
 // ---------------------------------------------------------------------------
+function storyKey(ref: ObjRef): string {
+  switch (ref.kind) {
+    case 'body': case 'deep': case 'messier': return `${ref.kind}:${ref.id}`;
+    case 'constellation': return `cons:${ref.id}`;
+    case 'iss': return 'iss';
+    case 'star': { const ni = stars.name[ref.index]; return ni >= 0 ? `hip:${stars.names[ni][2]}` : ''; }
+    default: return '';
+  }
+}
+
 export function showInfo(ref: ObjRef) {
   const d = info(ref, api.frame());
   const body = h('div', { class: 'info' });
@@ -75,6 +87,8 @@ export function showInfo(ref: ObjRef) {
   // le azioni subito sotto il titolo: visibili anche con la scheda a metà altezza
   body.append(actions);
   if (d.desc) body.append(h('p', { class: 'info-desc' }, d.desc));
+  const st = story(storyKey(ref));
+  if (st) body.append(h('div', { class: 'story' }, h('div', { class: 'story-k' }, tx('La storia', 'The story', 'L\'histoire')), h('p', {}, st)));
 
   // Idea 2: viaggio della luce
   const LJ = tx('Viaggio della luce', 'Light\'s journey', 'Voyage de la lumière');
@@ -230,6 +244,17 @@ export async function openTonight() {
     const moon = h('p', { class: 'muted small' }, `${tx('Luna', 'Moon', 'Lune')}: ${t.moon.phase} (${Math.round(t.moon.illum * 100)}%)${t.moon.rise ? ` · ${tx('sorge', 'rises', 'lever')} ${fmtTime(t.moon.rise)}` : ''}${t.moon.set ? ` · ${tx('tramonta', 'sets', 'coucher')} ${fmtTime(t.moon.set)}` : ''}`);
     const go = h('button', { class: 'btn primary block', onclick: () => { closeSheet(); setTime(t.best.getTime()); bus.emit('time-ui'); } }, icon('clock'), tx(`Mostrami il cielo delle ${fmtTime(t.best)}`, `Show me the sky at ${fmtTime(t.best)}`, `Montrez-moi le ciel à ${fmtTime(t.best)}`));
     body.replaceChildren(head, h('div', { class: 'chart' }, bars, axis, tip), factors, h('h3', {}, tx('Cosa guardare', 'What to look at', 'Quoi observer')), sugg, moon, go);
+    // da non perdere questo mese: i migliori eventi dei prossimi 30 giorni
+    refreshAlerts().then((ev) => {
+      const top = ev.filter((e) => e.quality >= 2 && e.type !== 'iss').slice(0, 4);
+      if (!top.length || !sheetOpen('tonight')) return;
+      const month = h('div', { class: 'list' });
+      for (const e of top) month.append(h('button', { class: 'row', onclick: () => { closeSheet(); api.setMode('sky'); setTime(e.date.getTime()); bus.emit('time-ui'); if (e.ref) { api.selectSky(e.ref); api.centerSky(e.ref); } } },
+        h('div', { class: 'row-ico' }, icon('calendar')),
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, e.title), h('div', { class: 'row-s' }, `${fmtDay(e.date)} · ${e.desc}`))));
+      body.append(h('h3', {}, tx('Da non perdere nei prossimi 30 giorni', 'Not to miss in the next 30 days', 'À ne pas manquer dans les 30 prochains jours')), month,
+        h('button', { class: 'btn block', onclick: () => openAlerts() }, icon('bell'), tx('Tutti gli eventi e i promemoria', 'All events and reminders', 'Tous les événements et rappels')));
+    }).catch(() => {});
   } catch (e) {
     body.replaceChildren(h('p', { class: 'muted' }, tx('Non riesco a calcolare la serata in questo momento.', 'I can\'t work out tonight\'s conditions right now.', 'Impossible d\'évaluer la soirée pour le moment.')));
     console.error(e);
@@ -247,6 +272,7 @@ export function openMissions() {
     h('div', { class: 'rank-n' }, r.name),
     h('div', { class: 'muted small' }, `${progress.xp} XP${r.next ? ' · ' + tx(`${r.toNext} XP per diventare ${r.next}`, `${r.toNext} XP to become ${r.next}`, `${r.toNext} XP pour devenir ${r.next}`) : ''}`),
     h('div', { class: 'progress' }, h('div', { style: { width: `${Math.round(r.progress * 100)}%` } }))));
+  body.append(h('button', { class: 'btn block tours-btn', onclick: () => openTours() }, icon('ship'), tx('Tour guidati con la navicella', 'Guided spaceship tours', 'Visites guidées en vaisseau')));
   body.append(h('h3', {}, tx('Missioni di oggi', 'Today\'s missions', 'Missions du jour')));
   const list = h('div', { class: 'list' });
   if (!ms.length) list.append(h('p', { class: 'muted' }, tx('Nessuna missione disponibile oggi dalla tua posizione.', 'No missions available today from your location.', 'Aucune mission disponible aujourd\'hui depuis votre position.')));
