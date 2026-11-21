@@ -15,6 +15,7 @@ import { closeSheet, h, icon, iconButton, initSheet, initToasts, openSheet, shee
 import { AppApi, applyAccessibility, initPanels, openJournal, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
 import { ObjRef, refName, sameRef, search } from './features/objects';
 import { Badge, activeMissions, awardSecret, ensureDailyMissions, flag, tryComplete } from './features/missions';
+import { deepById } from './data/deep';
 import { animateIcon, badgeUnlocked, initFx, rippleAtLastTap, startShootingStars, trackPointer } from './ui/fx';
 import { loadISS } from './features/iss';
 import { AU_IN_KM, C_KMS, setLoadProgress, stars } from './data/catalog';
@@ -274,7 +275,9 @@ async function main() {
   throttle.addEventListener('input', () => ship.setThrottle(+throttle.value));
 
   const zoomBadge = h('div', { class: 'zoom-badge', 'aria-hidden': 'true' });
-  ui.append(top, reticle, missionChip, zoomPill, zoomBadge, telemetry, throttleWrap, bottom, timeCtl, hideBtn);
+  // le missioni stanno in alto a sinistra, sotto il luogo; compaiono con una dissolvenza dopo il primo tutorial
+  brand.append(missionChip);
+  ui.append(top, reticle, zoomPill, zoomBadge, telemetry, throttleWrap, bottom, timeCtl, hideBtn);
 
   // ------------------------------------------------------------------ modalità
   function setMode(m: 'sky' | 'ship', instant = false) {
@@ -344,6 +347,7 @@ async function main() {
       sky.landIn();
       setMode('sky');
       toast(`${tx('Atterrato su', 'Landed on', 'Posé sur')} ${site.name}${coords ? ` · ${coords}` : ''}`);
+      if (site.placeId === 'moon') setTimeout(() => awardSecret('smallstep'), 1800);
     };
     feel.whoosh();
     if (site.body && !reducedMotion()) {
@@ -409,7 +413,11 @@ async function main() {
   }
 
   // ------------------------------------------------------------------ input
-  attachPointer(renderer.domElement, () => (state.mode === 'sky' ? sky.handlers() : ship.handlers()));
+  attachPointer(renderer.domElement, () => (state.mode === 'sky' ? sky.handlers() : ship.handlers()), {
+    overlay,
+    // pinch riconosciuto: un piccolo "tic" e il badge dello zoom compare subito
+    onPinchStart: () => { feel.tick(); quietZoomUntil = 0; if (!zoomBadge.textContent) return; zoomBadge.classList.add('on'); clearTimeout(zoomBadgeT); zoomBadgeT = window.setTimeout(() => zoomBadge.classList.remove('on'), 1400); },
+  });
   bus.on('select', (r: ObjRef | null) => {
     bg.highlightConstellation(r?.kind === 'constellation' ? r.id : null);
     if (r && state.mode === 'sky') { rippleAtLastTap(); feel.select(); showInfo(r); }
@@ -422,7 +430,7 @@ async function main() {
   bus.on('select', (r: ObjRef | null) => { if (!r && sheetOpen('info')) closeSheet(); });
   bus.on('ship-deselect', () => { if (sheetOpen('info')) closeSheet(); });
   bus.on('ship-select', (r: ObjRef) => { ship.target = r; rippleAtLastTap(); feel.select(); showInfo(r); });
-  bus.on('badge', (b: Badge) => badgeUnlocked(b));
+  bus.on('badge', (b: Badge) => badgeUnlocked(b, !!b.secret));
   // icone della barra: ognuna ha la sua piccola animazione al tocco
   document.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('.dbtn, .tbtn, .ibtn') as HTMLElement | null; if (b) animateIcon(b); }, { capture: true });
   // stelle cadenti nelle notti limpide: toccane una per esprimere un desiderio
@@ -443,6 +451,7 @@ async function main() {
     toast(`${tx('Arrivato', 'Arrived', 'Arrivé')}: ${refName(r)}`);
     if (r.kind === 'star') flag('star');
     if (r.kind === 'messier' && r.id === 'M31') flag('andromeda');
+    if (r.kind === 'deep' && deepById(r.id)?.type === 'quasar') awardSecret('ancient');
   });
   bus.on('settings', () => { document.body.classList.toggle('night', state.settings.nightMode); });
   bus.on('place', () => updateHud());
@@ -696,9 +705,11 @@ async function main() {
       startFirstTrip(ui);
       if (!state.settings.missionTutorialDone) setTimeout(() => startTutorial(ui, 'missions'), 1100);
     };
-    if (!state.settings.tutorialDone) setTimeout(() => startTutorial(ui, 'ui', () => setTimeout(missions, 400)), 1400);
-    else setTimeout(missions, 900);
+    if (!state.settings.tutorialDone) setTimeout(() => startTutorial(ui, 'ui', () => { revealMissions(); setTimeout(missions, 400); }), 1400);
+    else { setTimeout(revealMissions, 500); setTimeout(missions, 900); }
   };
+  function revealMissions() { document.body.classList.add('missions-ready'); }
+  if (location.hash && state.settings.tutorialDone) revealMissions();
   if (!location.hash && !state.settings.welcomeDone) {
     showWelcome({ root: app, locate: () => locate(false), motion: () => sky.requestMotion(), onStart: () => playOpening(afterOpening) });
   } else if (!state.settings.prologueDone && !location.hash) playOpening(afterOpening);

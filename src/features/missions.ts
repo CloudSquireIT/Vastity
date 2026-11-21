@@ -14,7 +14,7 @@ function issHint(t: Date) {
 
 export interface Mission { id: string; ref: ObjRef; title: string; hint: string; xp: number; done?: number }
 export interface JournalEntry { t: number; ref: ObjRef; name: string; live: boolean; gyro: boolean; place: string; lat: number; lon: number; note?: string }
-export interface Badge { id: string; name: string; desc: string; icon: string }
+export interface Badge { id: string; name: string; desc: string; icon: string; secret?: boolean }
 
 interface Progress {
   day: string;
@@ -42,9 +42,13 @@ export const BADGES: Badge[] = [
   { id: 'worlds', name: tx('Turista cosmico', 'Cosmic tourist', 'Touriste cosmique'), desc: tx('Guarda il cielo da 5 mondi diversi', 'View the sky from 5 different worlds', 'Regardez le ciel depuis 5 mondes différents'), icon: '⊕' },
   { id: 'light', name: tx('Quasi luce', 'Almost light', 'Presque la lumière'), desc: tx('Raggiungi il 99% della velocità della luce', 'Reach 99% of the speed of light', 'Atteignez 99 % de la vitesse de la lumière'), icon: 'c' },
   { id: 'star', name: tx('Interstellare', 'Interstellar', 'Interstellaire'), desc: tx('Arriva con la navicella a un\'altra stella', 'Fly the spaceship to another star', 'Rejoignez une autre étoile avec le vaisseau'), icon: '✶' },
-  { id: 'wish', name: tx('Esprimi un desiderio', 'Make a wish', 'Faites un vœu'), desc: tx('Tocca una stella cadente prima che svanisca', 'Tap a shooting star before it fades', 'Touchez une étoile filante avant qu\'elle disparaisse'), icon: '☄' },
+  { id: 'wish', name: tx('Esprimi un desiderio', 'Make a wish', 'Faites un vœu'), desc: tx('Tocca una stella cadente prima che svanisca', 'Tap a shooting star before it fades', 'Touchez une étoile filante avant qu\'elle disparaisse'), icon: '☄', secret: true },
   { id: 'trip', name: tx('Primo viaggio', 'First voyage', 'Premier voyage'), desc: tx('Dalla Luna a fuori dalla galassia', 'From the Moon to beyond the galaxy', 'De la Lune jusqu\'au-delà de la galaxie'), icon: '➶' },
   { id: 'andromeda', name: tx('Fuori dalla galassia', 'Beyond the galaxy', 'Hors de la galaxie'), desc: tx('Raggiungi la Galassia di Andromeda', 'Reach the Andromeda Galaxy', 'Atteignez la galaxie d\'Andromède'), icon: '◎' },
+  { id: 'missions10', name: tx('Cacciatore di missioni', 'Mission hunter', 'Chasseur de missions'), desc: tx('Completa 10 missioni', 'Complete 10 missions', 'Accomplissez 10 missions'), icon: '◈' },
+  // segreti: si scoprono solo sbloccandoli
+  { id: 'smallstep', name: tx('Un piccolo passo', 'One small step', 'Un petit pas'), desc: tx('Atterra sulla Luna con la navicella', 'Land on the Moon with the spaceship', 'Posez-vous sur la Lune avec le vaisseau'), icon: '⚑', secret: true },
+  { id: 'ancient', name: tx('Luce antica', 'Ancient light', 'Lumière ancienne'), desc: tx('Raggiungi un quasar, a miliardi di anni luce', 'Reach a quasar, billions of light years away', 'Atteignez un quasar, à des milliards d\'années-lumière'), icon: '✹', secret: true },
 ];
 
 export const RANKS: [number, string][] = [
@@ -149,6 +153,42 @@ export function awardSecret(id: string) {
   return true;
 }
 
+/** Avanzamento di ogni achievement (valore attuale e obiettivo), per il pannello Missioni. */
+function stats() {
+  const j = progress.journal;
+  const ids = (k: string) => new Set(j.filter((e) => e.ref.kind === k).map((e) => JSON.stringify(e.ref)));
+  const planets = new Set(j.filter((e) => e.ref.kind === 'body' && !['moon', 'sun'].includes((e.ref as any).id)).map((e) => (e.ref as any).id));
+  const phases = new Set(j.filter((e) => e.ref.kind === 'body' && (e.ref as any).id === 'moon').map((e) => Math.floor(A.MoonPhase(new Date(e.t)) / 90)));
+  const days = progress.days.slice().sort();
+  let streak = 1, best = days.length ? 1 : 0;
+  for (let i = 1; i < days.length; i++) {
+    const a = new Date(days[i - 1]), b = new Date(days[i]);
+    streak = Math.round((b.getTime() - a.getTime()) / 86400e3) === 1 ? streak + 1 : 1;
+    best = Math.max(best, streak);
+  }
+  const missionsDone = j.filter((e) => e.note === 'mission').length;
+  return {
+    first: [Math.min(1, missionsDone + j.length), 1], planets: [planets.size, 5], moon: [phases.size, 4],
+    iss: [j.some((e) => e.ref.kind === 'iss') ? 1 : 0, 1], deep: [ids('messier').size, 5], cons: [ids('constellation').size, 12],
+    owl: [j.some((e) => new Date(e.t).getHours() < 4) ? 1 : 0, 1], streak3: [best, 3], streak7: [best, 7],
+    worlds: [progress.places.length, 5], missions10: [missionsDone, 10],
+  } as Record<string, [number, number]>;
+}
+
+export interface AchievementState { b: Badge; cur: number; goal: number; got: boolean; k: number }
+/** Tutti gli achievement con il loro avanzamento 0–1 e il completamento totale (0–100%). */
+export function achievements(): { list: AchievementState[]; total: number } {
+  const st = stats();
+  const list = BADGES.map((b) => {
+    const got = !!progress.badges[b.id];
+    const [cur, goal] = st[b.id] ?? [got ? 1 : 0, 1];
+    const k = got ? 1 : Math.max(0, Math.min(1, cur / goal));
+    return { b, cur: Math.min(cur, goal), goal, got, k };
+  });
+  const total = Math.round((list.reduce((a, x) => a + x.k, 0) / list.length) * 100);
+  return { list, total };
+}
+
 function checkBadges() {
   const j = progress.journal;
   const ids = (k: string) => new Set(j.filter((e) => e.ref.kind === k).map((e) => JSON.stringify(e.ref)));
@@ -171,6 +211,7 @@ function checkBadges() {
   if (best >= 3) award('streak3');
   if (best >= 7) award('streak7');
   if (progress.places.length >= 5) award('worlds');
+  if (j.filter((e) => e.note === 'mission').length >= 10) award('missions10');
 }
 
 export function logObservation(ref: ObjRef, note?: string) {

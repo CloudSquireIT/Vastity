@@ -12,23 +12,25 @@ export function initFx(root: HTMLElement) {
 }
 
 // ---------------------------------------------------------------- 6. badge sbloccato
-export function badgeUnlocked(b: Badge) {
-  const card = h('div', { class: 'badge-pop', role: 'status' },
-    h('div', { class: 'bp-ring' }),
-    h('div', { class: 'bp-coin' }, h('span', {}, b.icon)),
-    h('div', { class: 'bp-k' }, tx('Nuovo badge', 'New badge', 'Nouveau badge')),
-    h('div', { class: 'bp-n' }, b.name),
-    h('div', { class: 'bp-d' }, b.desc));
-  // scintille dorate che esplodono dal centro
-  if (!reducedMotion()) for (let i = 0; i < 22; i++) {
-    const a = (i / 22) * Math.PI * 2 + Math.random() * 0.3;
-    const d = 70 + Math.random() * 70;
-    card.appendChild(h('i', { class: 'bp-spark', style: { '--dx': `${Math.cos(a) * d}px`, '--dy': `${Math.sin(a) * d}px`, animationDelay: `${0.35 + Math.random() * 0.15}s` } }));
+export function badgeUnlocked(b: Badge, secret = false) {
+  // scheda compatta su vetro: si legge su qualsiasi sfondo (cielo chiaro, pianeti, galassie)
+  const coin = h('div', { class: 'bp-coin' }, h('span', {}, b.icon));
+  const card = h('div', { class: 'badge-pop glass-pop' + (secret ? ' secret' : ''), role: 'status' },
+    h('div', { class: 'bp-c' }, h('div', { class: 'bp-ring' }), coin),
+    h('div', { class: 'bp-t' },
+      h('div', { class: 'bp-k' }, secret ? tx('Achievement segreto', 'Secret achievement', 'Succès secret') : tx('Nuovo badge', 'New badge', 'Nouveau badge')),
+      h('div', { class: 'bp-n' }, b.name),
+      h('div', { class: 'bp-d' }, b.desc)));
+  // scintille dorate che esplodono dalla moneta
+  if (!reducedMotion()) for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2 + Math.random() * 0.3;
+    const d = 30 + Math.random() * 26;
+    coin.parentElement!.appendChild(h('i', { class: 'bp-spark', style: { '--dx': `${Math.cos(a) * d}px`, '--dy': `${Math.sin(a) * d}px`, animationDelay: `${0.3 + Math.random() * 0.15}s` } }));
   }
   layer.appendChild(card);
   feel.success();
-  setTimeout(() => card.classList.add('out'), 3200);
-  setTimeout(() => card.remove(), 3800);
+  setTimeout(() => card.classList.add('out'), 3600);
+  setTimeout(() => card.remove(), 4200);
 }
 
 // ---------------------------------------------------------------- 7. onda al tocco

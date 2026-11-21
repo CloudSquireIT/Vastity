@@ -2,6 +2,18 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.5.7
+
+- Caricamento: niente più lampo dello sfondo. Le stelle si vedono come dalla Terra: scintillano, cambiano colore
+  a lampi e si avvicinano lentamente; due stelle cadenti attraversano lo schermo dietro la scritta.
+- Pinch più tollerante: contano anche le dita che finiscono su un'etichetta, un piccolo movimento non avvia il
+  trascinamento, e un gesto a due dita non diventa mai un tocco né sposta la vista. All'inizio del pinch: un "tic"
+  e il badge dello zoom.
+- Missioni in alto a sinistra, sotto il luogo: compaiono con una dissolvenza alla fine del primo tutorial.
+- Badge sbloccati: scheda compatta in vetro liquido, leggibile su qualsiasi sfondo.
+- Achievement nelle Missioni: completamento totale 0–100% e avanzamento di ciascun obiettivo; nuovo «Cacciatore di
+  missioni» e tre achievement segreti da scoprire.
+
 ## 0.5.6
 
 - Tocchi più affidabili dopo lo zoom: se durante un pinch un dito "si perde" (esce dallo schermo o finisce su un

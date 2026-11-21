@@ -17,27 +17,87 @@
     html, body { margin: 0; background: #03050c; }
     body.loading .ui, body.loading .overlay { visibility: hidden; }
     #loader { position: fixed; inset: 0; z-index: 99; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
-      background: radial-gradient(ellipse at 50% 60%, #0b1430 0%, #03050c 70%); color: #eef2ff; }
+      background: #03050c; color: #eef2ff; }
     #loader .loader-n { font: 300 min(calc((100vw - 2 * max(28px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))) / 7.3), 15vh)/1 -apple-system, "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif; letter-spacing: .42em; text-indent: .42em;
       text-transform: uppercase; color: rgba(240, 244, 255, .88); text-shadow: 0 1px 8px rgba(0, 0, 0, .6); white-space: nowrap; position: relative; z-index: 1; }
     /* le lettere sono l'indicatore: si accendono una dopo l'altra, dalla V alla Y */
     #loader .loader-n span { display: inline-block; opacity: .12; }
-    /* campo di stelle che si avvicina lentamente: dà profondità all'attesa */
-    #loader::before { content: ''; position: absolute; inset: -20%; pointer-events: none;
-      background-image: radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 67% 32%, #dfe8ff 50%, transparent 51%),
-        radial-gradient(1.5px 1.5px at 38% 74%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 84% 66%, #fff 50%, transparent 51%),
-        radial-gradient(1px 1px at 22% 52%, #cfdcff 50%, transparent 51%), radial-gradient(1.5px 1.5px at 56% 9%, #fff 50%, transparent 51%),
-        radial-gradient(1px 1px at 91% 12%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 5% 88%, #e8eeff 50%, transparent 51%);
-      background-size: 230px 230px; opacity: .55; animation: ld-drift 4.6s cubic-bezier(.3, .1, .3, 1) both; }
-    #loader::after { content: ''; position: absolute; inset: 0; pointer-events: none;
-      background: radial-gradient(ellipse 60% 40% at 50% 52%, rgba(90, 120, 255, .22), transparent 70%); opacity: var(--p, 0); }
-    @keyframes ld-drift { from { transform: scale(1); opacity: 0; } 15% { opacity: .55; } to { transform: scale(1.35); opacity: .7; } }
-    @media (prefers-reduced-motion: reduce) { #loader::before { animation: none; } }
+    /* cielo del caricamento: disegnato su canvas, dietro la scritta (nessun bagliore che "lampeggia") */
+    #ld-sky { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
   </style>
 </head>
 <body class="loading">
   <div id="app"></div>
-  <div id="loader"><div class="loader-n" aria-label="Vastity"><span style="--i:0">V</span><span style="--i:1">A</span><span style="--i:2">S</span><span style="--i:3">T</span><span style="--i:4">I</span><span style="--i:5">T</span><span style="--i:6">Y</span></div></div>
+  <div id="loader"><canvas id="ld-sky" aria-hidden="true"></canvas><div class="loader-n" aria-label="Vastity"><span style="--i:0">V</span><span style="--i:1">A</span><span style="--i:2">S</span><span style="--i:3">T</span><span style="--i:4">I</span><span style="--i:5">T</span><span style="--i:6">Y</span></div></div>
+    <script>
+    // Stelle viste dalla Terra durante il caricamento: scintillano (luce e colore cambiano come quando
+    // attraversano l'atmosfera), si avvicinano piano, e una stella cadente attraversa lo schermo dietro la scritta.
+    (function () {
+      var c = document.getElementById('ld-sky'); if (!c || !c.getContext) return;
+      var g = c.getContext('2d'), dpr = Math.min(2, window.devicePixelRatio || 1), W = 0, H = 0;
+      function rs() { W = innerWidth; H = innerHeight; c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+      rs(); addEventListener('resize', rs);
+      var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var COL = [[255, 255, 255], [208, 222, 255], [255, 240, 214], [255, 214, 172], [182, 206, 255], [255, 196, 196]];
+      var N = Math.round(Math.max(300, Math.min(620, W * H / 1300))), S = [];
+      for (var i = 0; i < N; i++) S.push({ x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, z: 0.1 + Math.random() * 0.9, m: Math.pow(Math.random(), 3.2),
+        c: COL[i % COL.length], f1: 1.5 + Math.random() * 5, f2: 4 + Math.random() * 9, p: Math.random() * 6.283 });
+      var T0 = performance.now();
+      // stelle cadenti: attraversano tutto lo schermo, dietro la scritta
+      var SH = still ? [] : [{ t: 1.15, d: 1.25, a: [-0.12, 0.16], b: [1.12, 0.7], w: 1 }, { t: 2.85, d: 0.9, a: [1.08, 0.08], b: [0.18, 0.42], w: 0.6 }];
+      function frame(now) {
+        if (!document.getElementById('loader')) return;
+        var t = (now - T0) / 1000;
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.clearRect(0, 0, W, H);
+        // velo appena percettibile verso il centro (sempre uguale: niente lampi)
+        var neb = g.createRadialGradient(W / 2, H * 0.58, 0, W / 2, H * 0.58, Math.max(W, H) * 0.7);
+        neb.addColorStop(0, 'rgba(18,30,70,0.55)'); neb.addColorStop(1, 'rgba(3,5,12,0)');
+        g.fillStyle = neb; g.fillRect(0, 0, W, H);
+        var fade = Math.min(1, t / 0.9), drift = still ? 0 : t * 0.05, cx = W / 2, cy = H / 2, F = Math.max(W, H) * 0.5;
+        for (var i = 0; i < S.length; i++) {
+          var s = S[i], z = ((s.z - drift - 0.06) % 0.94 + 0.94) % 0.94 + 0.06;
+          var px = cx + (s.x / z) * F * 0.42, py = cy + (s.y / z) * F * 0.42;
+          if (px < -8 || px > W + 8 || py < -8 || py > H + 8) continue;
+          var near = Math.min(1, (1 - z) * 1.5 + 0.12);
+          // scintillazione: due oscillazioni a frequenze diverse, più forte per le stelle brillanti
+          var tw = still ? 1 : 0.62 + 0.38 * Math.sin(t * s.f1 + s.p) * Math.sin(t * s.f2 * 0.6 + s.p * 1.7);
+          var a = fade * near * (0.28 + 0.72 * s.m) * tw;
+          // le stelle più brillanti cambiano colore a lampi (rifrazione dell'atmosfera)
+          var col = s.m > 0.55 && !still ? COL[Math.floor(t * s.f2 * 0.9 + s.p * 3) % COL.length] : s.c;
+          var r = (0.45 + s.m * 1.5) * (0.6 + near * 0.7);
+          g.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + a.toFixed(3) + ')';
+          g.beginPath(); g.arc(px, py, r, 0, 6.283); g.fill();
+          if (s.m > 0.5) {
+            var gr = r * (5 + 4 * tw), gl = g.createRadialGradient(px, py, 0, px, py, gr);
+            gl.addColorStop(0, 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + (a * 0.32).toFixed(3) + ')');
+            gl.addColorStop(1, 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0)');
+            g.fillStyle = gl; g.beginPath(); g.arc(px, py, gr, 0, 6.283); g.fill();
+          }
+        }
+        for (var k = 0; k < SH.length; k++) {
+          var m = SH[k], u = (t - m.t) / m.d;
+          if (u < 0 || u > 1) continue;
+          var e = 1 - Math.pow(1 - u, 2.2);
+          var hx = (m.a[0] + (m.b[0] - m.a[0]) * e) * W, hy = (m.a[1] + (m.b[1] - m.a[1]) * e) * H;
+          var dx = (m.b[0] - m.a[0]) * W, dy = (m.b[1] - m.a[1]) * H, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
+          var len = Math.min(W, H) * (0.22 + 0.2 * m.w) * Math.sin(Math.PI * Math.min(1, u * 1.15));
+          var al = Math.sin(Math.PI * u) * m.w;
+          var tr = g.createLinearGradient(hx, hy, hx - ux * len, hy - uy * len);
+          tr.addColorStop(0, 'rgba(255,255,255,' + (0.95 * al).toFixed(3) + ')');
+          tr.addColorStop(0.25, 'rgba(200,220,255,' + (0.45 * al).toFixed(3) + ')');
+          tr.addColorStop(1, 'rgba(160,190,255,0)');
+          g.strokeStyle = tr; g.lineCap = 'round'; g.lineWidth = 1.6 * (0.7 + 0.6 * m.w);
+          g.beginPath(); g.moveTo(hx, hy); g.lineTo(hx - ux * len, hy - uy * len); g.stroke();
+          var hg = g.createRadialGradient(hx, hy, 0, hx, hy, 7);
+          hg.addColorStop(0, 'rgba(255,255,255,' + (0.9 * al).toFixed(3) + ')'); hg.addColorStop(1, 'rgba(200,220,255,0)');
+          g.fillStyle = hg; g.beginPath(); g.arc(hx, hy, 7, 0, 6.283); g.fill();
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    })();
+  </script>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

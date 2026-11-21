@@ -11,7 +11,7 @@ import { detectedTier } from '../core/quality';
 import { Category, ObjRef, SearchItem, SortKey, categories, filterItems, sortItems, info, refName, search } from '../features/objects';
 import { formatLightTime, formatYear, lightJourney } from '../features/history';
 import { computeTonight } from '../features/tonight';
-import { BADGES, activeMissions, ensureDailyMissions, isLogged, logObservation, progress, rankOf, removeJournalEntry, unlogObservation, visitPlace } from '../features/missions';
+import { achievements, activeMissions, ensureDailyMissions, isLogged, logObservation, progress, rankOf, removeJournalEntry, unlogObservation, visitPlace } from '../features/missions';
 import { ALERT_TYPES, SkyEvent, computeEvents, downloadICS, fmtDay, notificationsEnabled, requestNotifications, scheduleNotifications } from '../features/alerts';
 import { PLACES, SkyFrame } from '../astro/astro';
 import { bus, saveSettings, setLocation, setTime, state } from '../state';
@@ -290,8 +290,22 @@ export function openMissions() {
     'Tieni l\'oggetto nel mirino al centro per qualche istante. Con il giroscopio (cielo vero) ottieni il doppio dei punti.',
     'Keep the object in the central reticle for a moment. With the gyroscope (real sky) you earn double points.',
     'Gardez l\'objet dans le viseur central quelques instants. Avec le gyroscope (vrai ciel), vous gagnez le double de points.')));
-  body.append(h('h3', {}, 'Badge'));
-  body.append(h('div', { class: 'badges' }, ...BADGES.map((b) => h('div', { class: 'badge' + (progress.badges[b.id] ? ' got' : ''), title: b.desc }, h('div', { class: 'badge-i' }, b.icon), h('div', { class: 'badge-n' }, b.name), h('div', { class: 'badge-d' }, b.desc)))));
+  // achievement: completamento totale 0–100% e avanzamento di ciascuno; i segreti restano nascosti finché non li sblocchi
+  const ach = achievements();
+  const secretsLeft = ach.list.filter((a) => a.b.secret && !a.got).length;
+  body.append(h('div', { class: 'ach-head' },
+    h('h3', {}, 'Achievement'),
+    h('div', { class: 'ach-total' }, h('b', {}, `${ach.total}%`), h('span', { class: 'muted small' }, tx(`${ach.list.filter((a) => a.got).length} di ${ach.list.length} sbloccati`, `${ach.list.filter((a) => a.got).length} of ${ach.list.length} unlocked`, `${ach.list.filter((a) => a.got).length} sur ${ach.list.length} débloqués`)))),
+    h('div', { class: 'progress ach-bar' }, h('div', { style: { width: `${ach.total}%` } })));
+  body.append(h('div', { class: 'badges ach' }, ...ach.list.map((a) => {
+    const hidden = a.b.secret && !a.got;
+    return h('div', { class: 'badge' + (a.got ? ' got' : '') + (hidden ? ' secret' : ''), title: hidden ? '' : a.b.desc },
+      h('div', { class: 'badge-i' }, hidden ? '?' : a.b.icon),
+      h('div', { class: 'badge-n' }, hidden ? tx('Segreto', 'Secret', 'Secret') : a.b.name),
+      h('div', { class: 'badge-d' }, hidden ? tx('Continua a esplorare per scoprirlo', 'Keep exploring to discover it', 'Continuez à explorer pour le découvrir') : a.b.desc),
+      a.got || hidden ? null : h('div', { class: 'ach-p' }, h('div', { class: 'progress' }, h('div', { style: { width: `${Math.round(a.k * 100)}%` } })), h('span', {}, a.goal > 1 ? `${a.cur}/${a.goal}` : `${Math.round(a.k * 100)}%`)));
+  })));
+  if (secretsLeft) body.append(h('p', { class: 'muted small' }, tx(`${secretsLeft} achievement segreti da scoprire.`, `${secretsLeft} secret achievements to discover.`, `${secretsLeft} succès secrets à découvrir.`)));
   body.append(h('h3', {}, tx('Diario delle osservazioni', 'Observation log', 'Journal d\'observation')),
     h('button', { class: 'btn', onclick: () => openJournal() }, icon('journal'), tx(`Apri il diario (${progress.journal.length})`, `Open the log (${progress.journal.length})`, `Ouvrir le journal (${progress.journal.length})`)));
   openSheet('missions', tx('Caccia al tesoro celeste', 'Celestial treasure hunt', 'Chasse au trésor céleste'), body, { wide: true });
