@@ -2,6 +2,12 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.7.3
+
+- La manetta non si sovrappone più all'occhio: il cursore era più lungo del suo contenitore (in orizzontale) e
+  scendeva fin sopra il pulsante. Ora hanno la stessa lunghezza e la manetta sta sempre sopra l'occhio, anche con
+  la barra di sistema dell'iPhone.
+
 ## 0.7.2
 
 - Arrivo senza «passo indietro»: tolto il rimbalzo dell'obiettivo (si stringeva e poi si riallargava, e sembrava

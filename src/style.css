@@ -1229,3 +1229,12 @@ body[data-mode="ship"] .badge-pop.glass-pop { right: calc(max(18px, env(safe-are
   .info > .actions .btn { flex: 1 1 auto; min-width: 0; padding: 7px 10px; }
   .info > .actions .btn.ghost { flex: 0 0 auto; }
 }
+
+/* 0.7.3: la manetta (input ruotato) e il suo contenitore hanno la stessa lunghezza e restano sopra l'occhio */
+body[data-mode="ship"] .throttle-wrap {
+  --thr-h: min(46vh, 300px, calc(100vh - 150px - var(--safe-b, 0px) - var(--safe-t, 0px)));
+  top: auto; transform: none;
+  bottom: calc(72px + var(--safe-b, 0px));
+  height: var(--thr-h);
+}
+body[data-mode="ship"] .throttle-wrap .throttle { width: var(--thr-h); }
