@@ -137,7 +137,6 @@ async function main() {
     selectSky: (r) => sky.select(r),
     flyTo: (r) => flyTo(r),
     teleport: (r) => { if (state.mode !== 'ship') setMode('ship'); ship.placeNear(r); },
-    trip: (r) => ship.estimateTrip(r),
     setPlace: (id) => sky.setPlace(id),
     setMode: (m) => setMode(m),
     share: () => share(),

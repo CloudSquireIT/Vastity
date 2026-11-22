@@ -442,32 +442,6 @@ export class ShipView {
   }
 
   /**
-   * Stima della durata del pilota automatico (secondi reali) e della distanza da percorrere (km):
-   * stessa legge di velocità del volo vero (logaritmica, smorzata, con frenata), simulata in una dimensione.
-   */
-  estimateTrip(ref: ObjRef): { seconds: number; km: number } | null {
-    const t = this.targetInfo(ref);
-    if (!t) return null;
-    const full = v3.len(v3.sub(t.pos, this.pos));
-    const km = Math.max(0, full - t.standoff);
-    const scale = t.look ? v3.len(v3.sub(t.pos, t.look)) : t.standoff;
-    const tiny = scale < 1;
-    const stopAt = Math.max(tiny ? scale * 0.04 : 1, scale * 0.015);
-    const ls = new SmoothValue(this.speed > 0.5 ? Math.log10(this.speed) : -1, 0.75);
-    let rem = km, sec = 1.2; // ~1 s per virare verso il bersaglio
-    const dt = 1 / 20;
-    for (let i = 0; i < 20 * 900 && rem > stopAt; i++) {
-      const goal = Math.log10(Math.max(tiny ? 0.01 : 1, rem / 0.55));
-      let v = Math.pow(10, ls.to(goal, dt));
-      const cap = rem / 0.32;
-      if (v > cap) { v = cap; ls.value = Math.log10(Math.max(cap, 0.1)); ls.velocity = Math.min(0, ls.velocity); }
-      rem -= v * dt; sec += dt;
-    }
-    // distanza mostrata come nel mirino e nella scheda (al centro da lontano, alla superficie da vicino)
-    return { seconds: sec, km: t.look ? v3.len(v3.sub(t.look, this.pos)) : shownDist(full, t.radius) };
-  }
-
-  /**
    * Il luogo dove si può atterrare da qui: il mondo del Sistema Solare più vicino (Luna, Mercurio, Venere,
    * Marte, Giove, Saturno, Plutone; la Terra riporta a casa) o il pianeta di una stella famosa
    * (Proxima, TRAPPIST-1, Kepler-186). Latitudine e longitudine sono quelle del punto sotto la navicella.

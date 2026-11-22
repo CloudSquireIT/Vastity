@@ -26,8 +26,6 @@ export interface AppApi {
   selectSky(ref: ObjRef | null): void;
   flyTo(ref: ObjRef): void;
   teleport(ref: ObjRef): void;
-  /** Durata stimata del pilota automatico (s) e distanza (km) dalla navicella. */
-  trip(ref: ObjRef): { seconds: number; km: number } | null;
   setPlace(id: string): void;
   setMode(m: 'sky' | 'ship'): void;
   share(): void;
@@ -104,12 +102,8 @@ export function showInfo(ref: ObjRef) {
     actions.append(h('button', { class: 'btn', onclick: () => { api.centerSky(ref); closeSheet(); } }, icon('target'), tx('Centra', 'Centre', 'Centrer')));
     if (d.canFly) actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('ship'), tx('Vola fin lì', 'Fly there', 'Y aller')));
   } else if (d.canFly) {
-    // stima del viaggio: durata reale del pilota automatico e distanza; il teletrasporto è istantaneo
-    const trip = api.trip(ref);
-    const eta = trip ? (trip.seconds < 60 ? `~${Math.max(1, Math.round(trip.seconds))} s` : `~${Math.round(trip.seconds / 60)} min`) : '';
-    const sub = (t: string) => h('span', { class: 'btn-sub' }, t);
-    actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('fly'), tx('Pilota automatico', 'Autopilot', 'Pilote automatique'), trip ? sub(tx(`${eta} di volo`, `${eta} flight`, `${eta} de vol`)) : null));
-    actions.append(h('button', { class: 'btn', onclick: () => { closeSheet(); api.teleport(ref); } }, icon('place'), tx('Teletrasporto', 'Teleport', 'Téléportation'), sub(tx('istantaneo', 'instant', 'instantané'))));
+    actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('fly'), tx('Pilota automatico', 'Autopilot', 'Pilote automatique')));
+    actions.append(h('button', { class: 'btn', onclick: () => { closeSheet(); api.teleport(ref); } }, icon('place'), tx('Teletrasporto', 'Teleport', 'Téléportation')));
   }
   // diario: interruttore (aggiungi / togli)
   const logBtn = h('button', { class: 'btn ghost' });

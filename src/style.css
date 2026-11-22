@@ -1194,9 +1194,6 @@ body[data-mode="ship"] .badge-pop.glass-pop { right: calc(max(18px, env(safe-are
 .sheet-body { padding-bottom: calc(36px + var(--safe-b)) !important; }
 .journey p { overflow-wrap: anywhere; }
 
-/* 0.7.0: stima del viaggio sotto le azioni della scheda */
-.info > .actions .btn .btn-sub { display: block; width: 100%; font: 500 10.5px/1.2 var(--mono, ui-monospace, monospace); opacity: .72; letter-spacing: .02em; margin-top: 1px; }
-.info > .actions .btn:has(.btn-sub) { flex-wrap: wrap; row-gap: 0; }
 
 .journal-row .row-note { font-size: 12.5px; opacity: .86; margin-top: 3px; font-style: italic; }
 .journal-row .row-note:empty { display: none; }

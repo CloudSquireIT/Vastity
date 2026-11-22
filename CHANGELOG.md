@@ -2,6 +2,10 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.7.4
+
+- Tolte dai pulsanti della scheda la stima del tempo di volo e la scritta «istantaneo» del teletrasporto.
+
 ## 0.7.3
 
 - La manetta non si sovrappone più all'occhio: il cursore era più lungo del suo contenitore (in orizzontale) e
