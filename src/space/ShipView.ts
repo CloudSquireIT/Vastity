@@ -335,7 +335,7 @@ export class ShipView {
     }
     if (ref.kind === 'star') {
       const R = Math.min(1500, starPhysical(ref.index).R) * 696340;
-      return { pos: v3.scale([stars.pos[ref.index * 3], stars.pos[ref.index * 3 + 1], stars.pos[ref.index * 3 + 2]], PC_IN_KM), standoff: Math.max(R * 7, 3e5), radius: R };
+      return { pos: v3.scale([stars.pos[ref.index * 3], stars.pos[ref.index * 3 + 1], stars.pos[ref.index * 3 + 2]], PC_IN_KM), standoff: Math.max(R * 3.2, 2e4), radius: R }; // la stella occupa circa metà dello schermo
     }
     if (ref.kind === 'deep') {
       const o = deepById(ref.id);
@@ -1065,6 +1065,16 @@ export class ShipView {
       if (r < 8) continue;
       const q = this.project(rel);
       if (q.front) discs.push(q.x, q.y, r, v3.len(rel));
+    }
+    // le stelle vicine (con la loro corona) coprono i nomi degli oggetti dietro di loro
+    for (const n of this.near) {
+      if (!n.mesh.visible) continue;
+      const rel: V3 = [n.mesh.position.x, n.mesh.position.y, n.mesh.position.z];
+      const d = v3.len(rel);
+      const r = this.discPxCss(n.mesh.scale.x * 1.25, d);
+      if (r < 8) continue;
+      const q = this.project(rel);
+      if (q.front) discs.push(q.x, q.y, r, d);
     }
     // anche una galassia grande sullo schermo copre i nomi degli oggetti molto più lontani dietro di lei
     {

@@ -2,6 +2,12 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.7.1
+
+- Viaggiando verso una stella la navicella si ferma molto più vicino: a circa 3 raggi invece di 7 (la stella occupa
+  metà dello schermo), anche per le nane bianche e le nane rosse piccole.
+- Le stelle vicine coprono i nomi degli oggetti che stanno dietro di loro (niente nebulose scritte sopra il disco).
+
 ## 0.7.0
 
 Pulizia visiva:
