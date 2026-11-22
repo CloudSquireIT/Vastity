@@ -140,7 +140,6 @@ export class ShipView {
   private labelStars: number[] = [];
   private labelScanT = 0;
   private baseFov = 70;
-  private arrivalT = 99;
   static readonly FOV_WIDE = 70;
   static readonly FOV_TELE = 0.3;
   private fov = new SmoothValue(70, 0.6);
@@ -315,23 +314,23 @@ export class ShipView {
     if (ref.kind === 'moon') {
       const m = moonById(ref.id);
       const p = refHelioKm(ref, state.time);
-      return m && p ? { pos: p, standoff: m.r * 4, radius: m.r } : null;
+      return m && p ? { pos: p, standoff: m.r * 2.2, radius: m.r } : null;
     }
     if (ref.kind === 'craft' || ref.kind === 'iss') {
       const c = craftById(ref.kind === 'iss' ? 'iss' : ref.id);
       const p = refHelioKm(ref, state.time);
-      // i veicoli sono minuscoli: ci si ferma a meno di due volte la loro dimensione, così riempiono la vista
-      return c && p ? { pos: p, standoff: Math.max(0.009, c.sizeKm * 1.6), radius: c.sizeKm / 2 } : null;
+      // i veicoli sono minuscoli: ci si ferma appena fuori dalla loro sagoma, così riempiono la vista
+      return c && p ? { pos: p, standoff: Math.max(0.004, c.sizeKm * 0.9), radius: c.sizeKm / 2 } : null;
     }
     if (ref.kind === 'exo') {
       const e = exoplanets[ref.index];
       if (!e) return null;
       const R = e.radiusEarth * 6371;
-      return { pos: v3.scale(refPosPc(ref)!, PC_IN_KM), standoff: R * (e.radiusEarth > 6 ? 3.2 : 4), radius: R };
+      return { pos: v3.scale(refPosPc(ref)!, PC_IN_KM), standoff: R * (e.radiusEarth > 6 ? 2.6 : 2.2), radius: R };
     }
     if (ref.kind === 'body') {
       const b = BODIES.find((x) => x.id === ref.id)!;
-      return { pos: this.bodyPosKm(ref.id), standoff: b.radiusKm * (b.id === 'sun' ? 10 : b.rings ? 6.5 : 3.6), radius: b.radiusKm };
+      return { pos: this.bodyPosKm(ref.id), standoff: b.radiusKm * (b.id === 'sun' ? 5 : b.rings ? 4.2 : 2.2), radius: b.radiusKm };
     }
     if (ref.kind === 'star') {
       const R = Math.min(1500, starPhysical(ref.index).R) * 696340;
@@ -347,7 +346,7 @@ export class ShipView {
         if (!this.mwView) this.mwView = this.milkyWayViewpoint();
         return { pos: this.mwView, standoff: 0, radius: 0, look: c };
       }
-      const k = o.type === 'galaxy' ? 1.7 : o.type === 'blackhole' || o.type === 'quasar' ? 1.9 : o.type === 'pulsar' ? 6 : 2.2;
+      const k = o.type === 'galaxy' ? 1.7 : o.type === 'blackhole' || o.type === 'quasar' ? 1.2 : o.type === 'pulsar' ? 3 : 1.4;
       return { pos: v3.scale(refPosPc(ref)!, PC_IN_KM), standoff: R * k, radius: R };
     }
     if (ref.kind === 'messier') {
@@ -357,7 +356,7 @@ export class ShipView {
       const m = messier.find((x) => x.id === ref.id)!;
       const gal = ['s', 'sg', 's0', 'sd', 'i', 'e'].includes(m.type);
       const ly = gal ? (m.id === 'M31' ? 105000 : 60000) : m.type === 'gc' ? 250 : 40;
-      return { pos: v3.scale(p, PC_IN_KM), standoff: ly * LY_IN_KM, radius: ly * LY_IN_KM * 0.3 };
+      return { pos: v3.scale(p, PC_IN_KM), standoff: ly * LY_IN_KM * (gal ? 1 : 0.6), radius: ly * LY_IN_KM * 0.3 };
     }
     return null;
   }
@@ -700,7 +699,6 @@ export class ShipView {
           this.arrived = refName(this.target);
           this.resetZoom();
           // arrivo: la camera si avvicina con un piccolo rimbalzo e il mirino si chiude a scatto
-          this.arrivalT = 0;
           this.marker.classList.remove('snap'); void this.marker.offsetWidth; this.marker.classList.add('snap');
           bus.emit('arrived', this.target);
         } else {
@@ -712,17 +710,20 @@ export class ShipView {
 
     // velocità con accelerazione "logaritmica" e smorzata: ogni ordine di grandezza
     // richiede circa lo stesso tempo, senza strappi in partenza o in frenata
-    const goal = this.targetSpeed < 0.5 ? -1 : Math.log10(this.targetSpeed);
+    // con il pilota automatico la velocità può scendere fino a pochi cm/s: serve per accostare i satelliti
+    // (prima sotto 0,3 km/s veniva azzerata e la navicella si piantava a ~100 m dal bersaglio)
+    const ap = this.autopilot;
+    const goal = this.targetSpeed < (ap ? 1e-5 : 0.5) ? (ap ? -5 : -1) : Math.log10(this.targetSpeed);
     this.logSpeed.smoothTime = this.autopilot ? 0.75 : 0.9;
     const ls = this.logSpeed.to(goal, dt);
-    this.speed = ls <= -0.5 ? 0 : Math.pow(10, ls);
+    this.speed = ls <= (ap ? -4.5 : -0.5) ? 0 : Math.pow(10, ls);
     // in avvicinamento la velocità non supera mai quella che permette di fermarsi in tempo
     if (this.autopilot && this.target) {
       const t = this.targetInfo(this.target);
       if (t) {
         const rem = Math.max(0, v3.len(v3.sub(t.pos, this.pos)) - t.standoff);
         const cap = rem / 0.32;
-        if (this.speed > cap) { this.speed = cap; this.logSpeed.value = Math.log10(Math.max(cap, 0.1)); this.logSpeed.velocity = Math.min(0, this.logSpeed.velocity); }
+        if (this.speed > cap) { this.speed = cap; this.logSpeed.value = Math.log10(Math.max(cap, 1e-5)); this.logSpeed.velocity = Math.min(0, this.logSpeed.velocity); }
       }
     }
     const accel = (ls - this.lastLog) / Math.max(dt, 1e-3);
@@ -750,13 +751,8 @@ export class ShipView {
     // camera: campo visivo che si allarga con la velocità, leggero tremolio nelle accelerazioni
     const calm = reducedMotion();
     const warp = calm ? 0 : smoothstep(4.0, 10.0, Math.log10(Math.max(1, this.speed)));
-    let pulse = 1;
-    if (this.arrivalT < 1.2 && !calm) {
-      this.arrivalT += dt;
-      const k = Math.min(1, this.arrivalT / 1.2);
-      pulse = 1 - 0.14 * Math.sin(Math.PI * Math.min(1, k * 1.25)) + 0.03 * Math.sin(Math.PI * Math.max(0, k * 1.25 - 1) * 4);
-    }
-    const fov = this.fov.to(this.baseFov * pulse + 26 * warp, dt);
+    // niente "rimbalzo" dell'obiettivo all'arrivo: riallargandosi sembrava un passo indietro
+    const fov = this.fov.to(this.baseFov + 26 * warp, dt);
     this.camera.quaternion.copy(this.quat);
     if (this.shake > 0.002 && !calm) {
       const s = this.shake * 0.0035;
@@ -1066,6 +1062,8 @@ export class ShipView {
       const q = this.project(rel);
       if (q.front) discs.push(q.x, q.y, r, v3.len(rel));
     }
+    // anche le lune grandi sullo schermo coprono i nomi degli oggetti dietro
+    for (const v of this.small.visible) if (v.radiusPx >= 8) { const q = this.project(v.rel); if (q.front) discs.push(q.x, q.y, v.radiusPx, v.dist); }
     // le stelle vicine (con la loro corona) coprono i nomi degli oggetti dietro di loro
     for (const n of this.near) {
       if (!n.mesh.visible) continue;

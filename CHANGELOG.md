@@ -2,6 +2,18 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.7.2
+
+- Arrivo senza «passo indietro»: tolto il rimbalzo dell'obiettivo (si stringeva e poi si riallargava, e sembrava
+  che la navicella arretrasse).
+- Ci si ferma più vicino a tutto tranne le galassie: pianeti a 2,2 raggi (prima 3,6), pianeti con anelli a 4,2
+  (prima 6,5), Sole a 5 (prima 10), lune a 2,2 (prima 4), esopianeti, nebulose, ammassi, buchi neri e pulsar più
+  vicini.
+- Satelliti e sonde molto più vicini: ci si ferma appena fuori dalla sagoma (0,9 volte la dimensione, prima 1,6).
+- Corretto il pilota automatico verso i veicoli piccoli: sotto 0,3 km/s la velocità veniva azzerata e la navicella
+  si piantava a circa 100 m senza mai arrivare.
+- Anche le lune grandi sullo schermo coprono i nomi degli oggetti dietro.
+
 ## 0.7.1
 
 - Viaggiando verso una stella la navicella si ferma molto più vicino: a circa 3 raggi invece di 7 (la stella occupa
