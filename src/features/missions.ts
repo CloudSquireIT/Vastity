@@ -13,7 +13,7 @@ function issHint(t: Date) {
 }
 
 export interface Mission { id: string; ref: ObjRef; title: string; hint: string; xp: number; done?: number }
-export interface JournalEntry { t: number; ref: ObjRef; name: string; live: boolean; gyro: boolean; place: string; lat: number; lon: number; note?: string }
+export interface JournalEntry { t: number; ref: ObjRef; name: string; live: boolean; gyro: boolean; place: string; lat: number; lon: number; note?: string; /** distanza dalla Terra al momento della visita */ dist?: string; /** nota personale */ text?: string }
 export interface Badge { id: string; name: string; desc: string; icon: string; secret?: boolean }
 
 interface Progress {
@@ -242,6 +242,27 @@ export function unlogObservation(ref: ObjRef) {
 }
 
 /** Rimuove una singola voce del diario (dal pannello Missioni). */
+/** Visita con la navicella: registrata nel diario con data e distanza (una sola volta ogni 10 minuti per oggetto). */
+export function logVisit(ref: ObjRef, dist?: string) {
+  const now = Date.now();
+  if (progress.journal.some((e) => e.note === 'visit' && sameRef(e.ref, ref) && now - e.t < 10 * 60e3)) return;
+  const entry: JournalEntry = { t: now, ref, name: refName(ref), live: state.live, gyro: false, place: 'ship', lat: 0, lon: 0, note: 'visit', dist };
+  progress.journal.unshift(entry);
+  const d = new Date();
+  const dk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (!progress.days.includes(dk)) progress.days.push(dk);
+  persist();
+  bus.emit('progress');
+}
+
+/** Nota personale su una voce del diario. */
+export function setJournalText(t: number, text: string) {
+  const e = progress.journal.find((x) => x.t === t);
+  if (!e) return;
+  e.text = text.trim().slice(0, 280) || undefined;
+  persist();
+}
+
 export function removeJournalEntry(t: number) {
   const i = progress.journal.findIndex((e) => e.t === t);
   if (i < 0) return;

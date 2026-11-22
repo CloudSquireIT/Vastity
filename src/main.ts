@@ -13,14 +13,14 @@ import { bus, saveSettings, setTime, simDate, state, tick } from './state';
 import { attachPointer } from './ui/pointer';
 import { closeSheet, h, icon, iconButton, initSheet, initToasts, openSheet, sheetOpen, toast } from './ui/dom';
 import { AppApi, applyAccessibility, initPanels, openJournal, locate, openAlerts, openMissions, openSearch, openSettings, openTime, openTonight, openWorlds, refreshAlerts, showInfo } from './ui/panels';
-import { ObjRef, refName, sameRef, search } from './features/objects';
-import { Badge, activeMissions, awardSecret, ensureDailyMissions, flag, tryComplete } from './features/missions';
+import { ObjRef, formatDistanceKm, refName, sameRef, search } from './features/objects';
+import { Badge, activeMissions, awardSecret, ensureDailyMissions, flag, logVisit, tryComplete } from './features/missions';
 import { deepById } from './data/deep';
 import { animateIcon, badgeUnlocked, initFx, rippleAtLastTap, startShootingStars, trackPointer } from './ui/fx';
 import { loadISS } from './features/iss';
 import { AU_IN_KM, C_KMS, setLoadProgress, stars } from './data/catalog';
 import { AdaptiveResolution } from './core/quality';
-import { feel, reducedMotion } from './core/feel';
+import { feel, haptic, reducedMotion } from './core/feel';
 import { initDiagnostics } from './core/diagnostics';
 import { initTextures } from './core/textures';
 import { azName } from './features/iss';
@@ -137,6 +137,7 @@ async function main() {
     selectSky: (r) => sky.select(r),
     flyTo: (r) => flyTo(r),
     teleport: (r) => { if (state.mode !== 'ship') setMode('ship'); ship.placeNear(r); },
+    trip: (r) => ship.estimateTrip(r),
     setPlace: (id) => sky.setPlace(id),
     setMode: (m) => setMode(m),
     share: () => share(),
@@ -215,11 +216,21 @@ async function main() {
     iconButton('worlds', tx('Mondi', 'Worlds', 'Mondes'), () => openWorlds(), 'dbtn'),
     iconButton('bell', tx('Avvisi', 'Alerts', 'Alertes'), () => openAlerts(), 'dbtn'),
   );
+  // «Atterra» cambia con il contesto: atterra vicino a un mondo, «Avvicinati» al bersaglio lontano, «Cielo» per tornare
+  const landBtn = iconButton('sky', tx('Atterra', 'Land', 'Atterrir'), () => landHere(), 'dbtn');
+  let landMode: 'land' | 'approach' | 'sky' = 'land';
+  const setLandMode = (m: typeof landMode) => {
+    if (m === landMode) return;
+    landMode = m;
+    const lbl = m === 'land' ? tx('Atterra', 'Land', 'Atterrir') : m === 'approach' ? tx('Avvicinati', 'Approach', 'Approcher') : tx('Cielo', 'Sky', 'Ciel');
+    landBtn.setAttribute('aria-label', lbl); landBtn.title = lbl;
+    (landBtn.querySelector('.ibtn-label') as HTMLElement).textContent = lbl;
+  };
   const dockShip = h('nav', { class: 'dock ship' },
     iconButton('search', tx('Vai a', 'Go to', 'Aller à'), () => openSearch((r) => { ship.goTo(r); toast(routeTo(r)); }), 'dbtn accent'),
     iconButton('place', tx('Posiziona', 'Place', 'Placer'), () => openPlacePanel(), 'dbtn'),
-    iconButton('stop', tx('Ferma', 'Stop', 'Stop'), () => ship.stop(), 'dbtn'),
-    iconButton('sky', tx('Atterra', 'Land', 'Atterrir'), () => landHere(), 'dbtn'),
+    iconButton('stop', tx('Ferma', 'Stop', 'Stop'), () => { if (ship.brakeOrAlign()) toast(tx('Allineata al bersaglio', 'Aligned to target', 'Aligné sur la cible'), 1600); }, 'dbtn'),
+    landBtn,
   );
   const bottom = h('div', { class: 'bottom' }, dockSky, dockShip);
   liquidDock(dockSky);
@@ -267,12 +278,22 @@ async function main() {
   const tTarget = h('div', { class: 'tm-target' });
   const telemetry = h('div', { class: 'telemetry' }, tSpeed, tTarget, tSub);
   const throttle = h('input', { type: 'range', min: '0', max: '1', step: '0.001', value: '0', class: 'throttle', 'aria-label': tx('Manetta', 'Throttle', 'Manette des gaz') }) as HTMLInputElement;
-  const throttleMarks = h('div', { class: 'throttle-marks' }, h('span', { style: { bottom: '100%' } }, '10¹² c'), h('span', { style: { bottom: '55%' } }, tx('luce', 'light', 'lumière')), h('span', { style: { bottom: '35%' } }, `${num(0.1, 1, 1)} c`), h('span', { style: { bottom: '2%' } }, '0'));
+  const throttleMarks = h('div', { class: 'throttle-marks' }, h('span', { style: { bottom: '100%' } }, '10¹² c'), h('span', { style: { bottom: '55%' } }, '1 c'), h('span', { style: { bottom: '35%' } }, `${num(0.1, 1, 1)} c`), h('span', { style: { bottom: '2%' } }, '0'));
   const throttleWrap = h('div', { class: 'throttle-wrap' }, throttleMarks, throttle);
   let throttleActive = false;
   throttle.addEventListener('pointerdown', () => { throttleActive = true; });
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) throttle.addEventListener(ev, () => { throttleActive = false; });
-  throttle.addEventListener('input', () => ship.setThrottle(+throttle.value));
+  // manetta a scatti: 0,1 c e 1 c «tengono» il dito (±1,5 %) con un colpo aptico quando si attraversano
+  const DETENTS = [0.02, 0.35, 0.55];
+  let lastZone = -1;
+  throttle.addEventListener('input', () => {
+    let v = +throttle.value;
+    for (const d of DETENTS) if (Math.abs(v - d) < 0.015) { v = d; throttle.value = String(d); }
+    const zone = DETENTS.filter((d) => v >= d).length;
+    if (lastZone >= 0 && zone !== lastZone) haptic('medium');
+    lastZone = zone;
+    ship.setThrottle(v);
+  });
 
   const zoomBadge = h('div', { class: 'zoom-badge', 'aria-hidden': 'true' });
   // l'obiettivo attuale resta in alto al centro; compare con una dissolvenza dopo il primo tutorial
@@ -336,7 +357,12 @@ async function main() {
   function landHere() {
     if (ship.isLanding) return;
     const site = ship.landingSite();
-    if (!site) { setMode('sky'); return; }
+    if (!site) {
+      // niente su cui atterrare: con un bersaglio lontano ci si avvicina, altrimenti si torna al cielo
+      if (ship.target && !ship.autopilot) { const r = ship.target; ship.goTo(r); toast(routeTo(r)); }
+      else setMode('sky');
+      return;
+    }
     if (site.placeId === 'earth') { sky.setPlace('earth'); setMode('sky'); return; }
     const coords = site.lat != null && site.lon != null
       ? `${Math.abs(site.lat).toFixed(1)}° ${site.lat >= 0 ? 'N' : 'S'} · ${Math.abs(site.lon).toFixed(1)}° ${site.lon >= 0 ? 'E' : tx('O', 'W', 'O')}`
@@ -448,6 +474,7 @@ async function main() {
   bus.on('arrived', (r: ObjRef) => {
     feel.arrive();
     toast(`${tx('Arrivato', 'Arrived', 'Arrivé')}: ${refName(r)}`);
+    { const e = ship.bodyPosKm('earth'); logVisit(r, formatDistanceKm(Math.hypot(ship.pos[0] - e[0], ship.pos[1] - e[1], ship.pos[2] - e[2]))); }
     if (r.kind === 'star') flag('star');
     if (r.kind === 'messier' && r.id === 'M31') flag('andromeda');
     if (r.kind === 'deep' && deepById(r.id)?.type === 'quasar') awardSecret('ancient');
@@ -546,7 +573,8 @@ async function main() {
     const parts: string[] = [];
     if (t.beta > 0.4 && t.beta < 1) { const g = num(t.gamma, t.gamma < 10 ? 2 : 0), g1 = num(t.gamma, 1, 1); parts.push(`γ ${g} · ` + tx(`a bordo il tempo scorre ${g1}× più lento`, `time on board runs ${g1}× slower`, `à bord, le temps s'écoule ${g1}× plus lentement`)); }
     if (t.speed >= C_KMS * 0.99995) parts.push(tx('Motore a curvatura', 'Warp drive', 'Moteur de distorsion'));
-    parts.push(t.nearest ? `${t.where} · ${tx('vicino a', 'near', 'près de')} ${t.nearest} (${t.nearestDist})` : t.where);
+    parts.push(t.nearest ? `${t.where} · ${tx('sei vicino a', 'you are near', 'vous êtes près de')} ${t.nearest} (${t.nearestDist})` : t.where);
+    setLandMode(ship.landingSite() ? 'land' : ship.target && !ship.autopilot ? 'approach' : 'sky');
     tSub.textContent = parts.join(' · ');
     if (t.target) {
       tTarget.replaceChildren(`◎ ${t.target}${t.targetDist ? ' · ' + t.targetDist : ''}`);
@@ -730,7 +758,7 @@ async function main() {
 
   if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});
   (window as any).vastity = {
-    sky, ship, state, setMode, setTime, playOpening: () => playOpening(), get prologue() { return prologue; }, feel,
+    sky, ship, state, bus, setMode, setTime, playOpening: () => playOpening(), get prologue() { return prologue; }, feel,
     /** Test: disegna un fotogramma e restituisce l'alfa minimo del canvas (deve essere 255: niente "buchi" trasparenti). */
     debugAlpha() {
       if (state.mode === 'sky') { sky.update(0.016); sky.render(renderer); } else { ship.update(0.016); ship.render(renderer); }

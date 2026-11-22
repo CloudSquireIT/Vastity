@@ -9,9 +9,9 @@ import { feel, reducedMotion } from '../core/feel';
 import { diagnosticsReport, issueCount } from '../core/diagnostics';
 import { detectedTier } from '../core/quality';
 import { Category, ObjRef, SearchItem, SortKey, categories, filterItems, sortItems, info, refName, search } from '../features/objects';
-import { formatLightTime, formatYear, lightJourney } from '../features/history';
+import { formatLightTime, formatYear, lightJourney, nearestEvent, parallelAt, timelineEvents, timelinePos, timelineYears } from '../features/history';
 import { computeTonight } from '../features/tonight';
-import { achievements, activeMissions, ensureDailyMissions, isLogged, logObservation, progress, rankOf, removeJournalEntry, unlogObservation, visitPlace } from '../features/missions';
+import { achievements, activeMissions, ensureDailyMissions, isLogged, logObservation, progress, rankOf, removeJournalEntry, setJournalText, unlogObservation, visitPlace } from '../features/missions';
 import { ALERT_TYPES, SkyEvent, computeEvents, downloadICS, fmtDay, notificationsEnabled, requestNotifications, scheduleNotifications } from '../features/alerts';
 import { PLACES, SkyFrame } from '../astro/astro';
 import { bus, saveSettings, setLocation, setTime, state } from '../state';
@@ -26,6 +26,8 @@ export interface AppApi {
   selectSky(ref: ObjRef | null): void;
   flyTo(ref: ObjRef): void;
   teleport(ref: ObjRef): void;
+  /** Durata stimata del pilota automatico (s) e distanza (km) dalla navicella. */
+  trip(ref: ObjRef): { seconds: number; km: number } | null;
   setPlace(id: string): void;
   setMode(m: 'sky' | 'ship'): void;
   share(): void;
@@ -53,6 +55,39 @@ function storyKey(ref: ObjRef): string {
   }
 }
 
+/**
+ * Linea del tempo interattiva del «Viaggio della luce»: scala logaritmica da oggi al Big Bang (gli anni fa
+ * coincidono con gli anni luce di distanza). Si trascina il cursore o si tocca un'epoca: sotto compaiono
+ * l'evento sulla Terra e un oggetto noto la cui luce è partita in quel momento.
+ */
+function journeyTimeline(ly: number, pct: number) {
+  const ev = timelineEvents();
+  const out = h('div', { class: 'tl-out', 'aria-live': 'polite', 'data-hint': tx('Tocca o trascina la linea per esplorare le epoche.', 'Tap or drag the line to explore the epochs.', 'Touchez ou faites glisser la ligne pour explorer les époques.') });
+  const knob = h('i', { class: 'tl-knob' });
+  const bar = h('div', { class: 'timeline-bar' }, h('div', { class: 'timeline-fill photon', style: { '--w': pct + '%' } }, h('i', { class: 'photon-dot' })), knob);
+  let lastPos = -1;
+  for (const e of ev) if (e.pos - lastPos > 0.025) { lastPos = e.pos; bar.append(h('button', { class: 'tl-tick', style: { left: `${e.pos * 100}%` }, 'aria-label': `${formatYear(-e.ago)}: ${e.text}`, onclick: (x: Event) => { x.stopPropagation(); show(e.pos); } })); }
+  const scale = h('div', { class: 'tl-scale' });
+  for (const [v, l] of [[1, '1'], [1e3, '10³'], [1e6, '10⁶'], [1e9, '10⁹']] as [number, string][]) scale.append(h('span', { style: { left: `${timelinePos(v) * 100}%` } }, l));
+  scale.append(h('em', {}, tx('anni fa = anni luce', 'years ago = light-years', 'années = années-lumière')));
+  const show = (p: number) => {
+    p = Math.max(0, Math.min(1, p));
+    knob.style.left = `${p * 100}%`; knob.classList.add('on');
+    const ago = timelineYears(p), e = nearestEvent(ago), par = parallelAt(ago);
+    out.replaceChildren(
+      h('b', {}, formatYear(-Math.max(1, ago))), ' · ', e.text,
+      h('div', { class: 'tl-par' }, tx(`Luce partita allora: arriva oggi da ${par.name} (${formatLy(par.ly)}).`, `Light leaving then arrives today from ${par.name} (${formatLy(par.ly)}).`, `La lumière partie alors arrive aujourd'hui de ${par.name} (${formatLy(par.ly)}).`),
+        ' ', ago > ly ? tx('Più lontano di questo oggetto.', 'Farther than this object.', 'Plus loin que cet objet.') : tx('Più vicino di questo oggetto.', 'Closer than this object.', 'Plus proche que cet objet.')));
+  };
+  const at = (x: number) => { const r = bar.getBoundingClientRect(); show((x - r.left) / r.width); };
+  bar.addEventListener('pointerdown', (e) => { e.stopPropagation(); try { bar.setPointerCapture(e.pointerId); } catch { /* */ } at(e.clientX); });
+  bar.addEventListener('pointermove', (e) => { if (bar.hasPointerCapture?.(e.pointerId)) at(e.clientX); });
+  return h('div', { class: 'timeline interactive' }, bar,
+    h('div', { class: 'timeline-labels' }, h('span', {}, tx('oggi', 'today', 'aujourd\'hui')), h('span', {}, 'Big Bang')), scale, out);
+}
+const formatLy = (v: number) => v >= 1e9 ? tx(`${num(v / 1e9, 1)} miliardi di al`, `${num(v / 1e9, 1)} billion ly`, `${num(v / 1e9, 1)} milliards d'al`)
+  : v >= 1e6 ? tx(`${num(v / 1e6, 1)} milioni di al`, `${num(v / 1e6, 1)} million ly`, `${num(v / 1e6, 1)} millions d'al`) : `${num(v, v < 10 ? 1 : 0)} ${tx('al', 'ly', 'al')}`;
+
 export function showInfo(ref: ObjRef) {
   const d = info(ref, api.frame());
   const body = h('div', { class: 'info' });
@@ -69,8 +104,12 @@ export function showInfo(ref: ObjRef) {
     actions.append(h('button', { class: 'btn', onclick: () => { api.centerSky(ref); closeSheet(); } }, icon('target'), tx('Centra', 'Centre', 'Centrer')));
     if (d.canFly) actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('ship'), tx('Vola fin lì', 'Fly there', 'Y aller')));
   } else if (d.canFly) {
-    actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('fly'), tx('Pilota automatico', 'Autopilot', 'Pilote automatique')));
-    actions.append(h('button', { class: 'btn', onclick: () => { closeSheet(); api.teleport(ref); } }, icon('place'), tx('Teletrasporto', 'Teleport', 'Téléportation')));
+    // stima del viaggio: durata reale del pilota automatico e distanza; il teletrasporto è istantaneo
+    const trip = api.trip(ref);
+    const eta = trip ? (trip.seconds < 60 ? `~${Math.max(1, Math.round(trip.seconds))} s` : `~${Math.round(trip.seconds / 60)} min`) : '';
+    const sub = (t: string) => h('span', { class: 'btn-sub' }, t);
+    actions.append(h('button', { class: 'btn primary', onclick: () => { closeSheet(); api.flyTo(ref); } }, icon('fly'), tx('Pilota automatico', 'Autopilot', 'Pilote automatique'), trip ? sub(tx(`${eta} di volo`, `${eta} flight`, `${eta} de vol`)) : null));
+    actions.append(h('button', { class: 'btn', onclick: () => { closeSheet(); api.teleport(ref); } }, icon('place'), tx('Teletrasporto', 'Teleport', 'Téléportation'), sub(tx('istantaneo', 'instant', 'instantané'))));
   }
   // diario: interruttore (aggiungi / togli)
   const logBtn = h('button', { class: 'btn ghost' });
@@ -105,10 +144,7 @@ export function showInfo(ref: ObjRef) {
       h('p', {}, close
         ? tx(`In quel momento sulla Terra ${lj.event}.`, `At that moment on Earth, ${lj.event}.`, `À ce moment-là sur Terre, ${lj.event}.`)
         : tx(`In quell'epoca sulla Terra ${lj.event}${yr}.`, `Around that time on Earth, ${lj.event}${yr}.`, `À cette époque sur Terre, ${lj.event}${yr}.`)),
-      h('div', { class: 'timeline', 'aria-hidden': 'true' },
-        // un fotone parte da "oggi" e viaggia indietro nel tempo fino al momento della partenza
-        h('div', { class: 'timeline-bar' }, h('div', { class: 'timeline-fill photon', style: { '--w': pct + '%' } }, h('i', { class: 'photon-dot' }))),
-        h('div', { class: 'timeline-labels' }, h('span', {}, tx('oggi', 'today', 'aujourd\'hui')), h('span', {}, 'Big Bang'))),
+      journeyTimeline(lj.lightYears, pct),
       h('p', { class: 'muted' }, lj.mirror),
     ));
   } else if (d.lightSeconds) {
@@ -235,9 +271,12 @@ export async function openTonight() {
     const sugg = h('div', { class: 'list' });
     if (!t.suggestions.length) sugg.append(h('p', { class: 'muted' }, tx('Niente di particolare in alto stasera.', 'Nothing special up high tonight.', 'Rien de particulier haut dans le ciel ce soir.')));
     for (const s of t.suggestions) {
-      sugg.append(h('button', { class: 'row', onclick: () => { closeSheet(); setTime(s.when.getTime()); bus.emit('time-ui'); api.selectSky(s.ref); api.centerSky(s.ref); } },
+      // tocco sulla riga: punta il cielo all'ora giusta; l'icona a destra parte con la navicella
+      const row = h('button', { class: 'row', onclick: () => { closeSheet(); setTime(s.when.getTime()); bus.emit('time-ui'); api.selectSky(s.ref); api.centerSky(s.ref); } },
         h('div', { class: 'row-ico' }, icon(s.icon === 'moon' ? 'tonight' : s.icon === 'planet' ? 'worlds' : s.icon === 'cons' ? 'light' : 'eye')),
-        h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, s.name), h('div', { class: 'row-s' }, `${fmtTime(s.when)} · ${Math.round(s.alt)}° ${tx('verso', 'towards', 'vers')} ${azName(s.az)} · ${s.note}`))));
+        h('div', { class: 'row-main' }, h('div', { class: 'row-t' }, s.name), h('div', { class: 'row-s' }, `${fmtTime(s.when)} · ${Math.round(s.alt)}° ${tx('verso', 'towards', 'vers')} ${azName(s.az)} · ${s.note}`)));
+      sugg.append(s.ref.kind === 'constellation' ? row : h('div', { class: 'row-wrap' }, row,
+        iconButton('fly', tx(`Vola verso ${s.name}`, `Fly to ${s.name}`, `Aller vers ${s.name}`), () => { closeSheet(); api.flyTo(s.ref); }, 'ibtn small row-fly')));
     }
     for (const p of t.iss) {
       sugg.append(h('button', { class: 'row', onclick: () => { closeSheet(); setTime(p.peak.getTime()); bus.emit('time-ui'); api.selectSky({ kind: 'iss' }); api.centerSky({ kind: 'iss' }); } },
@@ -434,6 +473,12 @@ export function openSettings() {
     h('h3', {}, tx('Cielo', 'Sky', 'Ciel')),
     toggle(tx('Costellazioni e orbite', 'Constellations and orbits', 'Constellations et orbites'), st.constellations, set('constellations')),
     toggle(tx('Nomi', 'Labels', 'Noms'), st.labels, set('labels')),
+    h('div', { class: 'full density' }, h('span', { class: 'muted small' }, tx('Quante etichette', 'How many labels', 'Combien d\'étiquettes')),
+      h('div', { class: 'chips' }, ...([['essential', tx('Essenziale', 'Essential', 'Essentiel')], ['explorer', tx('Esploratore', 'Explorer', 'Explorateur')], ['astronomer', tx('Astronomo', 'Astronomer', 'Astronome')]] as const).map(([id, name]) =>
+        h('button', { class: 'chip' + ((st.labelDensity ?? 'explorer') === id ? ' on' : ''), onclick: (e: Event) => {
+          st.labelDensity = id; saveSettings();
+          (e.currentTarget as HTMLElement).parentElement!.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', c === e.currentTarget));
+        } }, name)))),
     toggle(tx('Via Lattea', 'Milky Way', 'Voie lactée'), st.milkyWay, set('milkyWay')),
     toggle(tx('Terreno', 'Ground', 'Sol'), st.ground, set('ground')),
     toggle(tx('Atmosfera e luce del giorno', 'Atmosphere and daylight', 'Atmosphère et lumière du jour'), st.atmosphere, set('atmosphere')),
@@ -506,13 +551,26 @@ export function openJournal() {
       const d = new Date(e.t);
       const k = d.toDateString();
       if (k !== day) { day = k; body.append(h('h3', { class: 'sec' }, d.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))); }
-      const note = e.note === 'mission' || e.note === 'Missione completata' ? tx('Missione completata', 'Mission complete', 'Mission accomplie') : e.note;
-      const from = e.place !== 'earth' ? tx('da', 'from', 'depuis') + ' ' + (PLACES.find((p) => p.id === e.place)?.name ?? '') : '';
+      const note = e.note === 'mission' || e.note === 'Missione completata' ? tx('Missione completata', 'Mission complete', 'Mission accomplie')
+        : e.note === 'visit' ? tx('Visitato con la navicella', 'Visited by spaceship', 'Visité en vaisseau') : e.note;
+      const from = e.place === 'ship' ? (e.dist ? `${e.dist} ${tx('dalla Terra', 'from Earth', 'de la Terre')}` : '')
+        : e.place !== 'earth' ? tx('da', 'from', 'depuis') + ' ' + (PLACES.find((p) => p.id === e.place)?.name ?? '') : '';
+      // nota personale: tocca la matita per scriverla, si salva uscendo dal campo
+      const noteEl = h('div', { class: 'row-note' }, e.text ?? '');
+      const editNote = () => {
+        const inp = h('input', { class: 'row-note-in', type: 'text', maxlength: '280', value: e.text ?? '', placeholder: tx('Scrivi una nota…', 'Write a note…', 'Écrire une note…') }) as HTMLInputElement;
+        const save = () => { setJournalText(e.t, inp.value); noteEl.textContent = inp.value.trim(); inp.replaceWith(noteEl); };
+        inp.addEventListener('blur', save);
+        inp.addEventListener('keydown', (k) => { if (k.key === 'Enter') inp.blur(); });
+        noteEl.replaceWith(inp); inp.focus();
+      };
       const row = h('div', { class: 'row journal-row' },
         objectThumb(e.ref),
         h('button', { class: 'row-main', onclick: () => { closeSheet(); setTimeout(() => showInfo(e.ref), 380); } },
           h('div', { class: 'row-t' }, refName(e.ref)),
-          h('div', { class: 'row-s' }, [fmtTime(d), e.gyro ? tx('cielo vero', 'real sky', 'vrai ciel') : '', from, note].filter(Boolean).join(' · '))),
+          h('div', { class: 'row-s' }, [fmtTime(d), e.gyro ? tx('cielo vero', 'real sky', 'vrai ciel') : '', from, note].filter(Boolean).join(' · ')),
+          noteEl),
+        iconButton('journal', tx('Nota', 'Note', 'Note'), () => editNote(), 'ibtn small row-edit'),
         iconButton('close', tx('Rimuovi dal diario', 'Remove from log', 'Retirer du journal'), () => { removeJournalEntry(e.t); render(); }, 'ibtn small row-del'));
       body.append(row);
     }

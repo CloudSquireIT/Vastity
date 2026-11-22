@@ -2,6 +2,33 @@
 
 Vastity è in sviluppo: la numerazione riparte da 0.5.0 (le build provvisorie 1.0.0 e 1.1.0 sono state ritirate).
 
+## 0.7.0
+
+Pulizia visiva:
+- Densità dei nomi in Impostazioni (Essenziale / Esploratore / Astronomo): le etichette secondarie lontane dal
+  centro o dall'oggetto inquadrato si nascondono da sole.
+- Il badge sbloccato compare compatto sul lato destro: non copre più il riquadro in alto né l'oggetto inquadrato.
+- Nella scheda le azioni (Pilota automatico, Teletrasporto, Diario) restano fisse in alto mentre si scorre; in
+  orizzontale stanno su una riga sola. Niente frasi tagliate in fondo.
+- Testi e unità coerenti: «Ferma» maiuscolo, manetta con 0 · 0,1 c · 1 c · 10¹² c, «sei vicino a …» nel riquadro.
+- Distanze coerenti tra mirino, riquadro e scheda (da lontano al centro, da vicino alla superficie): Andromeda
+  2,54 milioni di anni luce ovunque.
+- Pulsante contestuale nella barra: «Atterra» vicino a un mondo, «Avvicinati» se c'è un bersaglio lontano,
+  «Cielo» altrimenti.
+
+Controlli:
+- Manetta a scatti su 0,1 c e 1 c con vibrazione quando si attraversano le soglie.
+- «Ferma»: prima frena, da fermi allinea la navicella al bersaglio.
+- Stima del viaggio sui pulsanti: durata del pilota automatico, teletrasporto istantaneo.
+- Viaggio della luce interattivo: si tocca o si trascina la linea del tempo (scala logaritmica, anni fa = anni
+  luce) e compaiono l'epoca sulla Terra e un oggetto la cui luce è partita allora.
+- Diario come registro delle visite: ogni arrivo con la navicella viene annotato con data e distanza dalla Terra,
+  e a ogni voce si può aggiungere una nota.
+- Stanotte: accanto a ogni suggerimento il pulsante per volarci con la navicella.
+
+iOS:
+- 120 Hz sugli iPhone ProMotion (CADisableMinimumFrameDurationOnPhone).
+
 ## 0.6.7
 
 - Via Lattea vista dall'interno del disco (allontanandosi dal Sole di centinaia o migliaia di anni luce): il braccio

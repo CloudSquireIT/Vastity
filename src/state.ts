@@ -14,6 +14,8 @@ export interface Location {
 export interface Settings {
   constellations: boolean;
   labels: boolean;
+  /** Quante etichette: essenziale (poche), esploratore (equilibrato), astronomo (tutte). */
+  labelDensity?: 'essential' | 'explorer' | 'astronomer';
   milkyWay: boolean;
   ground: boolean;
   atmosphere: boolean;

@@ -60,5 +60,7 @@
 	<string>Vastity usa i sensori di movimento per mostrare la parte di cielo verso cui punti il telefono.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Vastity usa la fotocamera per la realtà aumentata: le stelle e i pianeti sopra il cielo vero.</string>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 </dict>
 </plist>

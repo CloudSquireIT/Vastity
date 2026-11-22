@@ -787,9 +787,22 @@ export class SkyView {
     const st = state.settings;
     const day = this.dayFactor();
     const pxPerRad = this.h / (2 * Math.tan((this.fov * D2R) / 2));
+    // densità delle etichette: le secondarie (stelle, costellazioni, oggetti del profondo cielo) hanno un tetto
+    // e, tranne in modalità Astronomo, quelle lontane dal centro della vista sfumano via
+    const dens = st.labelDensity ?? 'explorer';
+    const cap = dens === 'essential' ? { star: 5, cons: 4, dso: 2 } : dens === 'explorer' ? { star: 14, cons: 10, dso: 8 } : { star: 999, cons: 999, dso: 999 };
+    const used: Record<string, number> = { star: 0, cons: 0, dso: 0 };
+    const focusR = dens === 'astronomer' ? 9 : dens === 'explorer' ? 0.62 : 0.42;
     const put = (dir: V3, text: string, cls: string, force = false, ref?: ObjRef, offset = 0) => {
       const p = this.project(dir);
       if (!p.front || p.x < -50 || p.x > this.w + 50 || p.y < -20 || p.y > this.h + 20) return;
+      if (!force && !(ref && sameRef(ref, this.selected))) {
+        const kind = cls.startsWith('cons') ? 'cons' : cls.startsWith('dso') ? 'dso' : 'star';
+        if (used[kind] >= cap[kind]) return;
+        const r = Math.hypot(p.x - this.w / 2, p.y - this.h / 2) / Math.hypot(this.w / 2, this.h / 2);
+        if (r > focusR) return;
+        used[kind]++;
+      }
       const below = this.groundOn() && p.alt < -0.3;
       // sui mondi con il terreno vero, ciò che sta sotto il suolo non ha etichetta (salvo il selezionato)
       if (below && this.terrain.mesh.visible && (!force || (ref && !sameRef(ref, this.selected)))) return;
@@ -816,11 +829,11 @@ export class SkyView {
       const dc = daytime ? ' day' : '';
       const lim = daytime ? 1.6 : this.magLimit();
       for (const i of this.brightNamed) {
-        if (starAppMag(i) > lim) continue;
+        if (starAppMag(i) > (dens === 'essential' ? Math.min(lim, 1.2) : lim)) continue;
         put(this.starDir(i), starName(i), 'star' + dc, false, { kind: 'star', index: i });
       }
       if (st.constellations) for (const c of this.consCenters) put(c.dir, c.name.toUpperCase(), 'cons' + dc, false, { kind: 'constellation', id: c.id });
-      const fovLim = daytime ? 70 : 35;
+      const fovLim = (daytime ? 70 : 35) * (dens === 'essential' ? 0.35 : dens === 'explorer' ? 0.8 : 1);
       if (this.fov < fovLim) for (const m of messier) if (m.mag < (daytime ? 6 : 7.5) && !deepForMessier(m.id)) put(radecToVec(m.ra, m.dec), messierName(m), 'dso' + dc, false, { kind: 'messier', id: m.id });
       if (this.fov < fovLim) for (const o of deepObjects()) {
         if (o.id === 'milkyway') continue;

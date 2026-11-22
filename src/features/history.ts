@@ -155,3 +155,38 @@ export function formatLightTime(seconds: number): string {
   if (seconds < 86400 * 2) return tx(`${num(seconds / 3600, 1)} ore`, `${num(seconds / 3600, 1)} hours`, `${num(seconds / 3600, 1)} heures`);
   return tx(`${num(seconds / 86400, 1)} giorni`, `${num(seconds / 86400, 1)} days`, `${num(seconds / 86400, 1)} jours`);
 }
+
+/** Posizione 0..1 sulla scala logaritmica del tempo (anni fa = anni luce di distanza). */
+export const timelinePos = (yearsAgo: number) => Math.min(1, Math.max(0, Math.log10(Math.max(0, yearsAgo) + 1) / Math.log10(13.8e9)));
+export const timelineYears = (p: number) => Math.pow(10, p * Math.log10(13.8e9)) - 1;
+
+/** Epoche della linea del tempo (anni fa, testo). */
+export function timelineEvents(now = new Date()): { ago: number; text: string; pos: number }[] {
+  const yearNow = now.getFullYear();
+  return EVENTS.map(([y, t]) => ({ ago: Math.max(1, yearNow - y), text: t, pos: timelinePos(Math.max(1, yearNow - y)) }));
+}
+
+/** Paralleli: oggetti noti a distanze crescenti (anni luce), per dare una scala alla luce. */
+export const PARALLELS: [number, string, string, string][] = [
+  [4.24, 'Proxima Centauri', 'Proxima Centauri', 'Proxima Centauri'],
+  [8.6, 'Sirio', 'Sirius', 'Sirius'],
+  [548, 'Betelgeuse', 'Betelgeuse', 'Bételgeuse'],
+  [1344, 'la Nebulosa di Orione', 'the Orion Nebula', 'la nébuleuse d\'Orion'],
+  [26000, 'il centro della Via Lattea', 'the centre of the Milky Way', 'le centre de la Voie lactée'],
+  [163000, 'la Grande Nube di Magellano', 'the Large Magellanic Cloud', 'le Grand Nuage de Magellan'],
+  [2.5e6, 'la Galassia di Andromeda', 'the Andromeda Galaxy', 'la galaxie d\'Andromède'],
+  [54e6, 'l\'Ammasso della Vergine', 'the Virgo Cluster', 'l\'amas de la Vierge'],
+  [2.4e9, 'il quasar 3C 273', 'the quasar 3C 273', 'le quasar 3C 273'],
+  [13.1e9, 'le galassie più lontane viste dal Webb', 'the most distant galaxies seen by Webb', 'les galaxies les plus lointaines vues par Webb'],
+];
+export function parallelAt(yearsAgo: number) {
+  let best = PARALLELS[0], bs = Infinity;
+  for (const p of PARALLELS) { const sc = Math.abs(Math.log(p[0] / Math.max(1, yearsAgo))); if (sc < bs) { bs = sc; best = p; } }
+  return { ly: best[0], name: lang === 'it' ? best[1] : lang === 'fr' ? best[3] : best[2] };
+}
+export function nearestEvent(yearsAgo: number, now = new Date()) {
+  const ev = timelineEvents(now);
+  let best = ev[0], bs = Infinity;
+  for (const e of ev) { const sc = Math.abs(Math.log((e.ago + 1) / (yearsAgo + 1))); if (sc < bs) { bs = sc; best = e; } }
+  return best;
+}

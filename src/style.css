@@ -1177,3 +1177,55 @@ body.missions-ready.idle .ui > .mission-chip, body.missions-ready.ui-hidden .ui 
    (prima usava una variabile mai definita e ignorava il margine di sicurezza) */
 .hide-ui { right: calc(14px + env(safe-area-inset-right, 0px)) !important; }
 body[data-mode="ship"] .hide-ui { right: calc(max(18px, env(safe-area-inset-right, 0px)) + 2px) !important; }
+
+/* badge sbloccato: entra dal lato destro, sotto i pulsanti in alto; lascia libero il centro della scena
+   e il riquadro di stato della navicella */
+.badge-pop.glass-pop { left: auto; right: calc(14px + env(safe-area-inset-right, 0px)); top: calc(68px + var(--safe-t)); transform: none;
+  max-width: min(300px, calc(100vw - 32px)); animation: bpg-side-in .55s cubic-bezier(.2, 1.1, .35, 1) both; }
+.badge-pop.glass-pop.out { animation: bpg-side-out .45s ease-in both; }
+@keyframes bpg-side-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+@keyframes bpg-side-out { to { opacity: 0; transform: translateX(40px); } }
+body[data-mode="ship"] .badge-pop.glass-pop { right: calc(max(18px, env(safe-area-inset-right, 0px)) + 56px); }
+
+/* scheda informativa: i pulsanti d'azione restano sempre raggiungibili in cima mentre si scorre */
+.info > .actions { position: sticky; top: -4px; z-index: 3; margin: 10px -20px 12px; padding: 10px 20px;
+  background: rgba(16, 20, 32, .97); box-shadow: 0 10px 14px -8px rgba(0, 0, 0, .7); }
+/* niente frasi tagliate in fondo alle schede */
+.sheet-body { padding-bottom: calc(36px + var(--safe-b)) !important; }
+.journey p { overflow-wrap: anywhere; }
+
+/* 0.7.0: stima del viaggio sotto le azioni della scheda */
+.info > .actions .btn .btn-sub { display: block; width: 100%; font: 500 10.5px/1.2 var(--mono, ui-monospace, monospace); opacity: .72; letter-spacing: .02em; margin-top: 1px; }
+.info > .actions .btn:has(.btn-sub) { flex-wrap: wrap; row-gap: 0; }
+
+.journal-row .row-note { font-size: 12.5px; opacity: .86; margin-top: 3px; font-style: italic; }
+.journal-row .row-note:empty { display: none; }
+.journal-row .row-note-in { width: 100%; margin-top: 4px; font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 9px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: inherit; }
+.journal-row .row-edit { opacity: .7; }
+
+/* linea del tempo interattiva */
+.timeline.interactive .timeline-bar { position: relative; height: 10px; cursor: pointer; touch-action: none; overflow: visible; }
+.timeline.interactive .tl-tick { position: absolute; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.timeline.interactive .tl-tick::after { content: ''; position: absolute; left: 50%; top: 50%; width: 2px; height: 16px; margin: -8px 0 0 -1px; border-radius: 1px; background: rgba(255,255,255,.28); }
+.timeline.interactive .tl-knob { position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(143,180,255,.35), 0 2px 8px rgba(0,0,0,.5); opacity: 0; transition: opacity .2s; pointer-events: none; }
+.timeline.interactive .tl-knob.on { opacity: 1; }
+.tl-scale { position: relative; height: 30px; margin-top: 2px; font: 500 10px/16px var(--f-mono, ui-monospace, monospace); color: var(--ink-3); }
+.tl-scale span { position: absolute; transform: translateX(-50%); }
+.tl-scale span:first-child { transform: none; }
+.tl-scale em { position: absolute; right: 0; top: 14px; font-style: normal; opacity: .8; }
+.tl-out { font-size: 13.5px; line-height: 1.45; color: var(--ink-2); margin-top: 6px; min-height: 0; overflow-wrap: anywhere; }
+.tl-out:empty::before { content: attr(data-hint); }
+.tl-out b { color: var(--t-title, #fff); font-weight: 600; }
+.tl-par { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; }
+
+.row-wrap { display: flex; align-items: center; gap: 4px; }
+.row-wrap > .row { flex: 1; min-width: 0; }
+.row-wrap > .row-fly { flex: none; }
+.row-wrap > .row-fly .ibtn-label { display: none; }
+
+/* in orizzontale le azioni restano compatte: una riga sola */
+@media (orientation: landscape) and (max-height: 500px) {
+  .info > .actions { flex-wrap: nowrap; gap: 6px; padding-top: 6px; padding-bottom: 8px; margin-top: 4px; }
+  .info > .actions .btn { flex: 1 1 auto; min-width: 0; padding: 7px 10px; }
+  .info > .actions .btn.ghost { flex: 0 0 auto; }
+}

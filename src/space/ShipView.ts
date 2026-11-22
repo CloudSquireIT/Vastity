@@ -67,9 +67,17 @@ export function speedToThrottle(v: number): number {
   return 0.55 + (Math.log10(v / C_KMS) / 12) * 0.45;
 }
 
+/**
+ * Distanza da mostrare: da lontano quella dal centro (come nei cataloghi e nella scheda, es. Andromeda
+ * 2,54 milioni di anni luce), da vicino quella dalla superficie o dal bordo, che è quella che conta.
+ */
+export function shownDist(full: number, radius: number) {
+  return full > radius * 10 ? full : Math.max(0, full - radius);
+}
+
 export function formatSpeed(v: number): string {
   const light = tx('luce', 'light', 'lumière');
-  if (v < 1) return tx('ferma', 'stationary', 'à l\'arrêt');
+  if (v < 1) return tx('Ferma', 'Stationary', 'À l\'arrêt');
   if (v < 1000) return `${num(v, v < 10 ? 1 : 0)} km/s`;
   if (v < 0.01 * C_KMS) return `${num(Math.round(v))} km/s`;
   if (v < C_KMS * 0.99995) { const d = v / C_KMS > 0.99 ? 4 : 2; return `${num(v / C_KMS, d, d)} c`; }
@@ -435,6 +443,32 @@ export class ShipView {
   }
 
   /**
+   * Stima della durata del pilota automatico (secondi reali) e della distanza da percorrere (km):
+   * stessa legge di velocità del volo vero (logaritmica, smorzata, con frenata), simulata in una dimensione.
+   */
+  estimateTrip(ref: ObjRef): { seconds: number; km: number } | null {
+    const t = this.targetInfo(ref);
+    if (!t) return null;
+    const full = v3.len(v3.sub(t.pos, this.pos));
+    const km = Math.max(0, full - t.standoff);
+    const scale = t.look ? v3.len(v3.sub(t.pos, t.look)) : t.standoff;
+    const tiny = scale < 1;
+    const stopAt = Math.max(tiny ? scale * 0.04 : 1, scale * 0.015);
+    const ls = new SmoothValue(this.speed > 0.5 ? Math.log10(this.speed) : -1, 0.75);
+    let rem = km, sec = 1.2; // ~1 s per virare verso il bersaglio
+    const dt = 1 / 20;
+    for (let i = 0; i < 20 * 900 && rem > stopAt; i++) {
+      const goal = Math.log10(Math.max(tiny ? 0.01 : 1, rem / 0.55));
+      let v = Math.pow(10, ls.to(goal, dt));
+      const cap = rem / 0.32;
+      if (v > cap) { v = cap; ls.value = Math.log10(Math.max(cap, 0.1)); ls.velocity = Math.min(0, ls.velocity); }
+      rem -= v * dt; sec += dt;
+    }
+    // distanza mostrata come nel mirino e nella scheda (al centro da lontano, alla superficie da vicino)
+    return { seconds: sec, km: t.look ? v3.len(v3.sub(t.look, this.pos)) : shownDist(full, t.radius) };
+  }
+
+  /**
    * Il luogo dove si può atterrare da qui: il mondo del Sistema Solare più vicino (Luna, Mercurio, Venere,
    * Marte, Giove, Saturno, Plutone; la Terra riporta a casa) o il pianeta di una stella famosa
    * (Proxima, TRAPPIST-1, Kepler-186). Latitudine e longitudine sono quelle del punto sotto la navicella.
@@ -499,7 +533,14 @@ export class ShipView {
     this.baseFov = f;
   }
   /** Ingrandendo con un bersaglio selezionato la navicella si gira da sola verso di lui. */
-  private aimTarget() {
+  /** Frenata rapida: alla prima pressione ferma la navicella, da ferma la allinea al bersaglio. Restituisce true se allinea. */
+  brakeOrAlign(): boolean {
+    if (this.targetSpeed > 0.5 || this.speed > 0.5 || this.autopilot) { this.stop(); return false; }
+    if (!this.target) return false;
+    this.aimTarget();
+    return true;
+  }
+  aimTarget() {
     if (!this.target || this.autopilot || this.landing) return;
     const t = this.targetInfo(this.target);
     if (t) this.settleLook = t.look ?? t.pos;
@@ -999,9 +1040,19 @@ export class ShipView {
     const L = this.labels;
     L.begin();
     const sunDist = v3.len(this.pos);
+    const dens = state.settings.labelDensity ?? 'explorer';
+    const cap = dens === 'essential' ? 4 : dens === 'explorer' ? 12 : 999;
+    let used = 0;
+    const focusR = dens === 'astronomer' ? 9 : dens === 'explorer' ? 0.62 : 0.42;
     const put = (rel: V3, text: string, cls: string, force = false, ref?: ObjRef, radiusPx = 0) => {
       const p = this.project(rel);
       if (!p.front || p.x < -40 || p.x > this.w + 40 || p.y < -20 || p.y > this.h + 20) return;
+      // etichette secondarie: un tetto e, tranne per l'Astronomo, solo vicino al centro della vista
+      if (!force) {
+        if (used >= cap) return;
+        if (Math.hypot(p.x - this.w / 2, p.y - this.h / 2) / Math.hypot(this.w / 2, this.h / 2) > focusR) return;
+        used++;
+      }
       // dischi enormi: l'etichetta resta in vista sotto il centro
       L.add(p.x, p.y, text, cls, force, ref, Math.min(radiusPx, this.h * 0.32));
     };
@@ -1072,7 +1123,8 @@ export class ShipView {
         if (this.target?.kind === 'star' && this.target.index === i) continue;
         const rel: V3 = [stars.pos[i * 3] - obs[0], stars.pos[i * 3 + 1] - obs[1], stars.pos[i * 3 + 2] - obs[2]];
         const dpc = v3.len(rel);
-        const near = dpc < 2 ? ` · ${formatDistanceKm(dpc * PC_IN_KM)}` : '';
+        // la distanza nella pillola solo per chi la vuole (Astronomo) o per le stelle vicinissime
+        const near = dpc < (dens === 'astronomer' ? 2 : 0.3) ? ` · ${formatDistanceKm(dpc * PC_IN_KM)}` : '';
         if (hidden(rel, dpc * PC_IN_KM)) continue;
         put(rel, starName(i) + near, 'star', false, { kind: 'star', index: i });
       }
@@ -1118,7 +1170,7 @@ export class ShipView {
     const rel = v3.sub(t.look ?? t.pos, this.pos);
     const dist = v3.len(rel);
     const p = this.project(rel);
-    const label = `${refName(this.target)} · ${formatDistanceKm(Math.max(0, dist - t.radius))}`;
+    const label = `${refName(this.target)} · ${formatDistanceKm(shownDist(dist, t.radius))}`;
     const on = p.front && p.x > 24 && p.x < this.w - 24 && p.y > 24 && p.y < this.h - 24;
     if (on) {
       const size = Math.max(46, Math.min(this.h * 0.7, this.discPxCss(t.radius, dist) * 2 + 26));
@@ -1166,7 +1218,7 @@ export class ShipView {
       const t = this.targetInfo(this.target);
       if (t) {
         const full = v3.len(v3.sub(t.pos, this.pos));
-        td = formatDistanceKm(t.look ? v3.len(v3.sub(t.look, this.pos)) : Math.max(0, full - t.radius));
+        td = formatDistanceKm(t.look ? v3.len(v3.sub(t.look, this.pos)) : shownDist(full, t.radius));
         // il pilota automatico rallenta in modo esponenziale: stima del tempo reale di arrivo
         const rem = Math.max(0, full - t.standoff);
         eta = this.autopilot && rem > 0 ? formatDuration(Math.max(1, 0.55 * Math.log(Math.max(1, rem / Math.max(1, t.standoff * 0.015))) + 0.8)) : '';
